@@ -15,7 +15,8 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "test:acceptance": "node --import tsx scripts/acceptance-smoke.ts",
     "spike": "node --import tsx scripts/spike/run.ts",
-    "live-check": "node --import tsx --conditions=react-server scripts/live-check.ts"
+    "live-check": "node --import tsx --conditions=react-server scripts/live-check.ts",
+    "e2e-real": "node --import tsx --conditions=react-server scripts/e2e-real.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

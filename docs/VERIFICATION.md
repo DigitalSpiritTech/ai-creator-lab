@@ -4,12 +4,13 @@ Every real provider run (anything that spends credits or tokens on a real accoun
 
 Budget: the whole build, spike included, is capped at the allowance in `.env.local` ($5, about 1,050 credits at 210 credits per USD). Notices at 50 percent (525 credits) and 80 percent (840 credits); hard stop at 1,050 until Ted raises it. Starting balance on the Base plan, October 26: 5,496 credits.
 
-Running total spent: 36 credits (0.17 USD) of the 1055-credit cap, settled from the balance endpoint (start 5,496 credits, now 5461).
+Running total spent: 153 credits (0.73 USD) of the 1055-credit cap, settled from the balance endpoint (start 5,496 credits, now 5,343).
 
 Columns: date (America/Chicago), who, target (cloud, deployment, proxy, router), recipe, inputs (asset hashes or short description), result (asset path or failure), credits (balance before, after, delta), duration, notes.
 
 | Date | Who | Target | Recipe | Inputs | Result | Credits (before / after / delta) | Duration | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-10-26 17:32 | e2e-real | cloud | full flow through the tools layer: Z-Image face (2), Qwen Edit body, Qwen Edit reference sheet, Z-Image product, Qwen Edit still and LTX clip for 3 beats, ffmpeg assembly with captions | Avery Lane bible, Ridgeline bottle, 3-beat script (talking, broll, talking) | .data/exports/0f13de87-...mp4, 1080x1920, 24 fps, 15.1 s, AAC; reference sheet 1344x768 three-column; identity consistent across beats | about 60 per full pass (two partial reruns cost about 55 more) | about 6 min of generation over four calls | project 17429621-3f49-45d7-ad5d-db7d6f9afea1; first complete ad produced by the application code |
 | 2026-10-26 16:35 | live-check | cloud | z-image-turbo-t2i through propose_candidates, submit_proposal, run.ts, store commit | face-lock prompt with explicit head turn, 896x1120 (4:5) | .data/media/8c4e589d-...-0.png, three-quarter view as asked; asset row committed with sha | about 2 to 3 (settle later) | 22s | job 8c4e589d-80fa-462d-8a8a-b09034f19704; first real run through the application code path |
 | 10/26/2026, 15:39:41 | spike | router | anthropic/claude-opus-5-5 | 120 token prompt | json reply received | 5461 / 5461 / 0 (0.00c) | 3s | request 1c0aa9c7-9fa1-4d7c-bc02-30fd88fc5cb6 |
 | 10/26/2026, 15:39:19 | spike | router | vertexai/gemini-nano-banana-2.1 | face.png + product.png | .data/spike/router-composite.png 768x1376 png | 5474 / 5474 / 0 (0.00c) | 15s | request d52907a3-4341-4c26-9bc6-c77bd36eac54 |
@@ -37,3 +38,9 @@ Defaults decided for the MVP: `text_to_image` Z-Image Turbo on Cloud; `image_edi
 Fixes found: Cloud's `ImageScaleToTotalPixels` requires `resolution_steps` (validation rejected the job before charging); job status reads `succeeded`, not `completed`; the LTX graph needs an exactly 576x1024 input, so the app crops and scales before upload (ffmpeg crop plus Lanczos in the spike, sharp in the app). Z-Image ignores "three-quarter view" wording; the face-lock template must state the head turn explicitly.
 
 Private outputs are under `.data/spike/` (ignored): `face.png`, `product.png`, `composite.png`, `composite-576x1024.png`, `clip.mp4`, `clip-contact.png`, `router-composite.png`.
+
+## First complete ad (October 26, evening)
+
+`scripts/e2e-real.ts` drove the real tools on real credits without the assistant: brief, bible, two face candidates and a lock, body reference, project reference sheet, product still, three-beat script, one still and one LTX clip per beat with approvals, and `assemble_ad` with captions. Output: 1080x1920, 24 fps, 15.1 s, H.264 with AAC, 5.6 MB. Identity held across the two talking beats; captions sit inside the safe area. Creative notes for the prompt templates: the still model printed the product name on the bottle (product prompts need "no text or logo on the product" when the product card carries a name), and one still added a second, unrelated bottle. Operational note: a background process on the Mac dies when the shell call that started it ends, so the script resumes from saved project state (`PROJECT_ID`, `E2E_MAX_BEATS`) and the UI's two-second job polling is the normal driver.
+
+Spend today: 153 credits, about $0.73, including the spike and two partial reruns.
