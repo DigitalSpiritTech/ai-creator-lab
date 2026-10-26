@@ -5,7 +5,7 @@ import { CREATIVE_DIRECTOR_PROMPT, agentTools, loadSnapshot, nextStage, systemPr
 import { AGENT_TOOL_DESCRIPTIONS } from "@/server/agent/tools";
 import { stagePrompt } from "@/server/agent/prompts/creative-director";
 import { INTERNAL_TOOLS, TOOLS, type ToolContext, callTool, toolsToJsonSchema } from "@/server/tools";
-import { PROMPT_LIMIT, facePrompt } from "@/server/tools/prompts";
+import { PROMPT_LIMIT, facePrompt, onlyDescribedObjects, withoutProductName } from "@/server/tools/prompts";
 import { averyBible, clock, seedProject, tempStore } from "./support/domain-fixtures";
 import { promptCases } from "./support/prompt-cases";
 
@@ -18,19 +18,21 @@ const EXPECTED: Record<string, string> = {
   sheet:
     "Character reference sheet of one consistent person, on a deep neutral grey (#3a3a3c) seamless studio background, clean editorial layout in three vertical columns read left to right, identical identity, lighting, and color grading in every panel.\nColumn 1, largest, about a third of the width: chest-up portrait turned slightly off frontal, sharp focus on the eyes, iris color clearly visible, soft catchlights in both eyes, natural skin texture with subtle imperfections, no mirror symmetry.\nColumn 2: full-body front view, relaxed standing pose, arms slightly away from the body, head to toe inside the frame with even margins.\nColumn 3: full-body back view, same pose mirrored, showing hair fall, posture, and garment fit.\nThe person is the person in reference image 1 (face, hair, skin, eyes) with the build of reference image 2. Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. Wardrobe in every panel: Olive utility jacket over a white tee.\nSoft even studio light, large diffused key with gentle fill, neutral white balance, true-to-life skin, 85mm look, tack-sharp detail. No text, no labels, no logos, no colored rim light, no 3D render look.",
   stillTalkingSheet:
-    "Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. The person shown in the character reference sheet, reference image 1, wearing olive utility jacket over a white tee. Mid-sentence, talking to a phone camera held at arm's length, relaxed natural expression, mouth slightly open as if speaking. Avery in the driver's seat holding the Ridgeline bottle, morning light. Setting: a car interior. The product in reference image 2 is the Ridgeline 32 oz insulated bottle, clearly visible and recognizable, true to its shape, color, and label. Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image. Preserve the person's identity, face, hair, build, and wardrobe exactly as in the sheet.",
+    "Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. The person shown in the character reference sheet, reference image 1, wearing olive utility jacket over a white tee. Mid-sentence, talking to a phone camera held at arm's length, relaxed natural expression, mouth slightly open as if speaking. Avery in the driver's seat holding the bottle, morning light. Setting: a car interior. The product in reference image 2 is a 32 oz insulated bottle, clearly visible, true to its shape, color, and materials, no text, lettering, or logo on the product. Only the objects described; no additional phones or props, and no bottles beyond those described. Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image. Preserve the person's identity, face, hair, build, and wardrobe exactly as in the sheet.",
   stillTalkingFaceBody:
-    "Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. The person in reference image 1 with the build of reference image 2, wearing olive utility jacket over a white tee. Mid-sentence, talking to a phone camera held at arm's length, relaxed natural expression, mouth slightly open as if speaking. Avery at a kitchen counter, bottle open, condensation. Setting: a bright kitchen counter by a window. The product in reference image 3 is the Ridgeline 32 oz insulated bottle, clearly visible and recognizable, true to its shape, color, and label. Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image. Preserve the person's identity, face, and hair exactly as in reference image 1.",
+    "Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. The person in reference image 1 with the build of reference image 2, wearing olive utility jacket over a white tee. Mid-sentence, talking to a phone camera held at arm's length, relaxed natural expression, mouth slightly open as if speaking. Avery at a kitchen counter, bottle open, condensation. Setting: a bright kitchen counter by a window. The product in reference image 3 is a 32 oz insulated bottle, clearly visible, true to its shape, color, and materials, no text, lettering, or logo on the product. Only the objects described; no additional phones or props, and no bottles beyond those described. Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image. Preserve the person's identity, face, and hair exactly as in reference image 1.",
   stillBroll:
-    "Close detail shot. Hands pulling a warm plastic bottle from a hot car console. Setting: a car interior. The product in reference image 1 is the Ridgeline 32 oz insulated bottle. No faces in frame. Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image.",
+    "Close detail shot. Hands pulling a warm plastic bottle from a hot car console. Setting: a car interior. The product in reference image 1 stays out of this shot. Only the objects described; no additional phones or props, and no bottles beyond those described. No faces in frame. Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image.",
   stillTextcardWithSet:
-    "Simple uncluttered composition with calm empty space in the upper third for a caption added later. The Ridgeline bottle on the kitchen counter in soft window light. Setting: the location in reference image 2, bright kitchen counter by a window. The product in reference image 1 is the Ridgeline 32 oz insulated bottle, clearly visible and recognizable, true to its shape, color, and label. No faces in frame. Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image.",
+    "Simple uncluttered composition with calm empty space in the upper third for a caption added later. The bottle on the kitchen counter in soft window light. Setting: the location in reference image 2, bright kitchen counter by a window. The product in reference image 1 is a 32 oz insulated bottle, clearly visible, true to its shape, color, and materials, no text, lettering, or logo on the product. Only the objects described; no additional phones or props, and no bottles beyond those described. No faces in frame. Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image.",
   clipTalking:
-    "Avery in the driver's seat holding the Ridgeline bottle, morning light, speaking to the camera with an easy smile, small natural head movement, static phone camera. Wearing Olive utility jacket over a white tee. Quiet ambient sound of a car interior. The person says, \"I stopped buying bottled water the day this fit my cup holder.\" No text on screen. The person's face and clothing stay consistent.",
+    "Avery in the driver's seat holding the bottle, morning light, speaking to the camera with an easy smile, small natural head movement, static phone camera. Wearing Olive utility jacket over a white tee. The product is a 32 oz insulated bottle, no text, lettering, or logo on the product. Quiet ambient sound of a car interior. The person says, \"I stopped buying bottled water the day this fit my cup holder.\" No text on screen. The person's face and clothing stay consistent.",
   clipBroll:
     "Hands pulling a warm plastic bottle from a hot car console, one simple motion, slow push-in. Ambient sound of a car interior, no speech, ambient sound only. No faces in frame. No text on screen.",
   clipTextcard:
-    "The Ridgeline bottle on the kitchen counter in soft window light, almost still with very subtle natural motion, static camera. Soft ambient sound of a bright kitchen counter by a window, no speech, ambient sound only. No text on screen.",
+    "The bottle on the kitchen counter in soft window light, almost still with very subtle natural motion, static camera. The product is a 32 oz insulated bottle, no text, lettering, or logo on the product. Soft ambient sound of a bright kitchen counter by a window, no speech, ambient sound only. No text on screen.",
+  productPhoto:
+    "Product photograph of a matte dark green steel bottle with a black screw cap, standing upright on a light wooden kitchen counter by a window, soft morning light, plain uncluttered background, true to its shape, color, and materials, no text, lettering, or logo on the product. Only the product; no additional bottles, phones, or props. No text, captions, logos, or watermarks in the image.",
   refineStill:
     "Make the morning light warmer. Change only that. Keep the person, product, composition, lighting, and background otherwise identical. No text, captions, logos, or watermarks in the image.",
   refineSheet:
@@ -66,13 +68,34 @@ describe("prompt templates", () => {
   test("stills reference the sheet when approved and face plus body otherwise", () => {
     const cases = promptCases();
     assert.match(cases.stillTalkingSheet, /character reference sheet, reference image 1, wearing olive utility jacket/);
-    assert.match(cases.stillTalkingSheet, /The product in reference image 2 is the Ridgeline/);
+    assert.match(cases.stillTalkingSheet, /The product in reference image 2 is a 32 oz insulated bottle/);
     assert.match(cases.stillTalkingFaceBody, /reference image 1 with the build of reference image 2/);
     assert.match(cases.stillTalkingFaceBody, /The product in reference image 3/);
     assert.match(cases.stillBroll, /No faces in frame/);
     for (const name of ["stillTalkingSheet", "stillTalkingFaceBody", "stillBroll", "stillTextcardWithSet"]) {
       assert.match(cases[name], /No text, captions, logos, or watermarks/, name);
     }
+  });
+
+  test("image and video prompts describe the product by look, never by name, and forbid text on it", () => {
+    const cases = promptCases();
+    for (const [name, prompt] of Object.entries(cases)) assert.doesNotMatch(prompt, /Ridgeline/, name);
+    for (const name of ["stillTalkingSheet", "stillTalkingFaceBody", "stillTextcardWithSet", "clipTalking", "clipTextcard", "productPhoto"]) {
+      assert.match(cases[name], /(is|of) (a|an) [^.]*, no text, lettering, or logo on the product\./, name);
+    }
+    assert.match(cases.stillBroll, /The product in reference image 1 stays out of this shot\./, "a beat without the product does not invite it in");
+    assert.match(cases.productPhoto, /^Product photograph of a matte dark green steel bottle with a black screw cap,/);
+    assert.equal(withoutProductName("Avery holding the Ridgeline bottle", { name: "Ridgeline 32 oz insulated bottle" }), "Avery holding the bottle");
+    assert.equal(withoutProductName("Hands on the Ridgeline 32 oz insulated bottle.", { name: "Ridgeline 32 oz insulated bottle" }), "Hands on the 32 oz insulated bottle.");
+    assert.equal(withoutProductName("A bottle by the window", { name: "Bottle" }), "A product by the window", "a name with no generic part is replaced only as a whole word");
+  });
+
+  test("stills allow only the described objects without contradicting the beat", () => {
+    const cases = promptCases();
+    for (const name of ["stillTalkingSheet", "stillTalkingFaceBody", "stillBroll", "stillTextcardWithSet"]) assert.match(cases[name], /Only the objects described;/, name);
+    assert.equal(onlyDescribedObjects("Avery at a desk, laptop open."), "Only the objects described; no additional bottles, phones, or props.");
+    assert.equal(onlyDescribedObjects("Hands lifting the bottle from the cup holder."), "Only the objects described; no additional phones or props, and no bottles beyond those described.");
+    assert.equal(onlyDescribedObjects("A phone and a bottle on the dashboard, a few props."), "Only the objects described; no bottles, phones, or props beyond those described.");
   });
 
   test("clips quote the spoken line on talking beats, keep b-roll ambient, and always forbid text", () => {

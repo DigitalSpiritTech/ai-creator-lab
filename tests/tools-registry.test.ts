@@ -316,7 +316,8 @@ describe("store-backed tools", () => {
     assert.equal(stillProposal.capability, "image_edit");
     assert.deepEqual(stillProposal.references.map((reference) => reference.assetId), [sheetId, photo.id]);
     assert.match(stillProposal.prompt, /character reference sheet, reference image 1/);
-    assert.match(stillProposal.prompt, /reference image 2 is the Ridgeline/);
+    assert.match(stillProposal.prompt, /reference image 2 is a 32 oz insulated bottle, clearly visible, .*no text, lettering, or logo on the product\./);
+    assert.doesNotMatch(stillProposal.prompt, /Ridgeline/);
     assert.deepEqual(stillProposal.target, { kind: "shot", contentId: content.id, beatIndex: 1, slot: "still" });
     const stills = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: stillProposal, wait: true });
     const stillIds = stills.results.map((result) => result.assetIds[0]);

@@ -146,7 +146,8 @@ describe("prompt wiring", () => {
         "Mid-sentence, talking to a phone camera held at arm's length, relaxed natural expression, mouth slightly open as if speaking. " +
         "Avery at a kitchen counter, bottle open, condensation. " +
         "Setting: the location in reference image 3, bright kitchen counter by a window. " +
-        "The product in reference image 2 is the Ridgeline 32 oz insulated bottle, clearly visible and recognizable, true to its shape, color, and label. " +
+        "The product in reference image 2 is a 32 oz insulated bottle, clearly visible, true to its shape, color, and materials, no text, lettering, or logo on the product. " +
+        "Only the objects described; no additional phones or props, and no bottles beyond those described. " +
         "Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image. " +
         "Preserve the person's identity, face, hair, build, and wardrobe exactly as in the sheet.",
     );
@@ -158,6 +159,7 @@ describe("prompt wiring", () => {
       clip.prompt,
       "Avery at a kitchen counter, bottle open, condensation, speaking to the camera with an easy smile, small natural head movement, static phone camera. " +
         "Wearing Olive utility jacket over a white tee. " +
+        "The product is a 32 oz insulated bottle, no text, lettering, or logo on the product. " +
         "Quiet ambient sound of a bright kitchen counter by a window. " +
         'The person says, "Twenty-four hours later it was still cold. I checked." ' +
         "No text on screen. The person's face and clothing stay consistent.",

@@ -5,7 +5,7 @@
  */
 import { type CharacterBible, CharacterBibleSchema } from "@/lib/domain/library";
 import { type Beat, BeatSchema } from "@/lib/domain/script";
-import { bodyPrompt, clipPrompt, facePrompt, referenceSheetPrompt, refinePrompt, stillPrompt } from "@/server/tools/prompts";
+import { bodyPrompt, clipPrompt, facePrompt, productPhotoPrompt, referenceSheetPrompt, refinePrompt, stillPrompt } from "@/server/tools/prompts";
 import { averyBible, ridgelineBeats } from "./domain-fixtures";
 
 export const WARDROBE = "Olive utility jacket over a white tee";
@@ -40,9 +40,10 @@ export function promptCases(): Record<string, string> {
     stillTalkingFaceBody: stillPrompt({ beat: proof, bible, wardrobe: WARDROBE, character: { mode: "face", face: 1, body: 2 }, product: { name: PRODUCT, image: 3 } }),
     stillBroll: stillPrompt({ beat: problem, product: { name: PRODUCT, image: 1 } }),
     stillTextcardWithSet: stillPrompt({ beat: cta, product: { name: PRODUCT, image: 1 }, set: { name: "Bright kitchen counter by a window", image: 2 } }),
-    clipTalking: clipPrompt(hook, { wardrobe: WARDROBE }),
-    clipBroll: clipPrompt(problem),
-    clipTextcard: clipPrompt(cta),
+    clipTalking: clipPrompt(hook, { wardrobe: WARDROBE, product: { name: PRODUCT } }),
+    clipBroll: clipPrompt(problem, { product: { name: PRODUCT } }),
+    clipTextcard: clipPrompt(cta, { product: { name: PRODUCT } }),
+    productPhoto: productPhotoPrompt({ name: PRODUCT, appearance: "a matte dark green steel bottle with a black screw cap" }),
     refineStill: refinePrompt("Make the morning light warmer."),
     refineSheet: refinePrompt("Clean the grime from the background", "sheet"),
   };

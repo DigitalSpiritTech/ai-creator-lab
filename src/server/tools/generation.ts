@@ -256,7 +256,13 @@ export const generateClip = defineTool({
       projectId: content.projectId,
       capability: "image_to_video",
       recipeId: input.recipeId,
-      prompt: clipPrompt(beat, { wardrobe: beat.type === "talking" ? projectCast(store, content.projectId).character?.link.wardrobe : undefined }),
+      prompt: (() => {
+        const cast = projectCast(store, content.projectId);
+        return clipPrompt(beat, {
+          wardrobe: beat.type === "talking" ? cast.character?.link.wardrobe : undefined,
+          product: cast.product ? { name: cast.product.name } : undefined,
+        });
+      })(),
       references: [{ role: "image1", assetId: shot.still.assetId }],
       count: input.count,
       target: { kind: "shot", contentId: content.id, beatIndex: beat.index, slot: "clip" },

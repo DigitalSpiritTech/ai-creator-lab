@@ -3,6 +3,9 @@
  * ltx-prompting skills. Pure functions of the bible, product, set, beat, and wardrobe; each result
  * stays under {@link PROMPT_LIMIT} characters for the Z-Image, Qwen Image Edit, Nano Banana, and
  * LTX recipes.
+ *
+ * Image and video prompts describe the product by appearance only. Its name stays in the brief and
+ * script: a model that reads a brand name prints it on the product.
  * @packageDocumentation
  */
 import type { CharacterBible } from "@/lib/domain/library";
@@ -34,6 +37,98 @@ function clause(value: string): string {
 function inline(value: string): string {
   const text = clause(value);
   return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+/** Ends every product sentence, so image and video models do not print a name or logo on it. */
+export const NO_PRODUCT_TEXT = "no text, lettering, or logo on the product";
+
+/** A product as prompts see it: the card's name (never printed) and, when known, how it looks. */
+export interface ProductLook {
+  name: string;
+  /** What it looks like in plain words, for example "a matte dark green steel bottle with a black cap". */
+  appearance?: string;
+}
+
+const NOT_BRAND = new Set(["a", "an", "the", "and", "of", "by", "for"]);
+
+/** The leading capitalized words of a product name: "Ridgeline" in "Ridgeline 32 oz insulated bottle". */
+function brandWords(name: string): string[] {
+  const brand: string[] = [];
+  for (const word of name.trim().split(/\s+/)) {
+    if (!/^[A-Z]/.test(word)) break;
+    brand.push(word);
+  }
+  return brand;
+}
+
+/** The generic part of a product name, without the brand: "32 oz insulated bottle". */
+function genericNoun(name: string): string {
+  const words = name.trim().split(/\s+/);
+  return words.slice(brandWords(name).length).join(" ");
+}
+
+function withArticle(noun: string): string {
+  if (/^(a|an|the)\s/i.test(noun) || noun.startsWith("<")) return noun;
+  return `${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun}`;
+}
+
+/** The product by appearance only: the card's appearance, else its name without the brand, else "the product". */
+export function productAppearance(product: ProductLook): string {
+  if (product.appearance?.trim()) return withArticle(inline(product.appearance));
+  const noun = genericNoun(product.name);
+  return noun ? withArticle(noun) : "the product";
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Removes the product's name from free text such as a beat visual: the full name becomes its
+ * generic noun ("the Ridgeline 32 oz insulated bottle" reads "the 32 oz insulated bottle"), and brand
+ * words are dropped ("the Ridgeline bottle" reads "the bottle"). A name with no generic part is only
+ * removed as a whole phrase, so ordinary words are never stripped.
+ */
+export function withoutProductName(text: string, product: Pick<ProductLook, "name">): string {
+  const name = product.name.trim();
+  const noun = genericNoun(name) || "product";
+  let result = text.replace(new RegExp(`\\b${escapeRegExp(name)}(?:'s)?\\b`, "gi"), noun);
+  const brand = brandWords(name);
+  if (genericNoun(name)) {
+    const phrases = [brand.join(" "), ...brand].filter((phrase) => phrase.length >= 3 && !NOT_BRAND.has(phrase.toLowerCase()));
+    for (const phrase of phrases) result = result.replace(new RegExp(`\\b${escapeRegExp(phrase)}(?:'s)?\\b\\s*`, "gi"), "");
+  }
+  return result.replace(/\s{2,}/g, " ").replace(/\s+([,.;:])/g, "$1").trim();
+}
+
+const STRAY_OBJECTS = [
+  { word: "bottles", named: /\b(bottles?|tumblers?|flasks?|cans?|cups?|mugs?)\b/i },
+  { word: "phones", named: /\b(smart)?phones?\b/i },
+  { word: "props", named: /\bprops?\b/i },
+] as const;
+
+/**
+ * Keeps image models from adding objects. A category the visual names is not forbidden, only capped
+ * at what the visual describes, so the line never contradicts the beat.
+ */
+export function onlyDescribedObjects(visual: string): string {
+  const named = STRAY_OBJECTS.filter((entry) => entry.named.test(visual)).map((entry) => entry.word);
+  const others = STRAY_OBJECTS.map((entry) => entry.word).filter((word) => !named.includes(word));
+  const list = (words: string[]) => (words.length < 3 ? words.join(" or ") : `${words.slice(0, -1).join(", ")}, or ${words.at(-1)}`);
+  const parts = [others.length ? `no additional ${list(others)}` : "", named.length ? `no ${list(named)} beyond those described` : ""].filter(Boolean);
+  return `Only the objects described; ${parts.join(", and ")}.`;
+}
+
+/**
+ * A text-to-image product photo from the user's description of how it looks (never its name), for
+ * a product card that has no photo yet.
+ */
+export function productPhotoPrompt(product: ProductLook, setting = "a light wooden kitchen counter by a window"): string {
+  return [
+    `Product photograph of ${productAppearance(product)}, standing upright on ${inline(setting)}, soft morning light, plain uncluttered background, true to its shape, color, and materials, ${NO_PRODUCT_TEXT}.`,
+    "Only the product; no additional bottles, phones, or props.",
+    NO_TEXT,
+  ].join(" ");
 }
 
 /**
@@ -76,7 +171,7 @@ export interface StillPromptParts {
   wardrobe?: string | null;
   /** How the character is referenced: one sheet, or a face plus an optional body image. */
   character?: { mode: "sheet"; image: number } | { mode: "face"; face: number; body?: number };
-  product?: { name: string; image?: number };
+  product?: ProductLook & { image?: number };
   /** A Library set, referenced by image number when it has one. */
   set?: { name: string; image?: number };
 }
@@ -104,16 +199,18 @@ export function stillPrompt(parts: StillPromptParts): string {
       lines.push(`The person in reference image ${character.face}${body}${wearing}.`);
     }
   }
-  lines.push(STILL_FRAMING[beat.type], sentence(beat.visual));
+  const visual = product ? withoutProductName(beat.visual, product) : beat.visual;
+  lines.push(STILL_FRAMING[beat.type], sentence(visual));
   if (set?.image) lines.push(`Setting: the location in reference image ${set.image}, ${inline(set.name)}.`);
   else if (set) lines.push(`Setting: ${clause(set.name)}.`);
   else if (beat.setting) lines.push(`Setting: ${clause(beat.setting)}.`);
-  if (product) {
-    const visible = beat.productVisible ? ", clearly visible and recognizable, true to its shape, color, and label" : "";
-    lines.push(
-      product.image ? `The product in reference image ${product.image} is the ${clause(product.name)}${visible}.` : `The product is the ${clause(product.name)}${visible}.`,
-    );
+  if (product && beat.productVisible) {
+    const subject = product.image ? `The product in reference image ${product.image}` : "The product";
+    lines.push(`${subject} is ${productAppearance(product)}, clearly visible, true to its shape, color, and materials, ${NO_PRODUCT_TEXT}.`);
+  } else if (product?.image) {
+    lines.push(`The product in reference image ${product.image} stays out of this shot.`);
   }
+  lines.push(onlyDescribedObjects(visual));
   if (!character && beat.type !== "talking") lines.push("No faces in frame.");
   lines.push("Vertical 9:16 phone photo, natural light, candid UGC look.", NO_TEXT);
   if (bible && character) {
@@ -129,6 +226,8 @@ export function stillPrompt(parts: StillPromptParts): string {
 export interface ClipPromptParts {
   /** Repeating the still's wardrobe words keeps LTX from drifting the clothing. */
   wardrobe?: string | null;
+  /** The project's product: its name is removed from the visual, and visible products are described by look. */
+  product?: ProductLook;
 }
 
 /**
@@ -138,11 +237,15 @@ export interface ClipPromptParts {
  */
 export function clipPrompt(beat: Beat, parts: ClipPromptParts = {}): string {
   const ambient = beat.setting ? clause(beat.setting) : "the room";
+  const { product } = parts;
+  const visual = product ? withoutProductName(beat.visual, product) : beat.visual;
+  const productLine = product && beat.productVisible ? `The product is ${productAppearance(product)}, ${NO_PRODUCT_TEXT}.` : "";
   if (beat.type === "talking") {
     const line = /[.!?]$/.test(beat.spokenLine.trim()) ? beat.spokenLine.trim() : `${beat.spokenLine.trim()}.`;
     return [
-      `${clause(beat.visual)}, speaking to the camera with an easy smile, small natural head movement, static phone camera.`,
+      `${clause(visual)}, speaking to the camera with an easy smile, small natural head movement, static phone camera.`,
       parts.wardrobe ? `Wearing ${clause(parts.wardrobe)}.` : "",
+      productLine,
       `Quiet ambient sound of ${ambient}.`,
       `The person says, "${line}"`,
       "No text on screen. The person's face and clothing stay consistent.",
@@ -152,16 +255,22 @@ export function clipPrompt(beat: Beat, parts: ClipPromptParts = {}): string {
   }
   if (beat.type === "broll") {
     return [
-      `${clause(beat.visual)}, one simple motion, slow push-in.`,
+      `${clause(visual)}, one simple motion, slow push-in.`,
+      productLine,
       `Ambient sound of ${ambient}, no speech, ambient sound only.`,
       "No faces in frame. No text on screen.",
-    ].join(" ");
+    ]
+      .filter(Boolean)
+      .join(" ");
   }
   return [
-    `${clause(beat.visual)}, almost still with very subtle natural motion, static camera.`,
+    `${clause(visual)}, almost still with very subtle natural motion, static camera.`,
+    productLine,
     `Soft ambient sound of ${ambient}, no speech, ambient sound only.`,
     "No text on screen.",
-  ].join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /** A refinement edit that changes one thing and keeps the rest; sheets also keep their layout. */
