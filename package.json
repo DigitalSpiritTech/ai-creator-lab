@@ -15,12 +15,14 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "test:acceptance": "node --import tsx scripts/acceptance-smoke.ts",
     "spike": "node --import tsx scripts/spike/run.ts",
+    "mcp": "node --import tsx scripts/mcp.ts",
     "live-check": "node --import tsx --conditions=react-server scripts/live-check.ts",
     "e2e-real": "node --import tsx --conditions=react-server scripts/e2e-real.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
     "@comfyorg/sdk": "0.5.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.0",
     "lucide-react": "1.60.0",

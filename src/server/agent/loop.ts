@@ -16,8 +16,8 @@ import {
 } from "@/lib/domain/conversation";
 import { ServiceError } from "@/lib/domain/failure";
 import { type GenerationProposal, GenerationProposalSchema } from "@/lib/domain/job";
-import { type LlmModel, type Usage, anthropicModel } from "@/server/agent/model";
-import { systemPrompt } from "@/server/agent/prompts/creative-director";
+import { type LlmModel, type Usage, addUsage, anthropicModel, emptyUsage } from "@/server/agent/model";
+import { stagePrompt, systemPrompt } from "@/server/agent/prompts/creative-director";
 import { loadSnapshot, renderSnapshot } from "@/server/agent/state";
 import { agentToolNames, agentTools } from "@/server/agent/tools";
 import { conversationsOf } from "@/server/store/conversations";
@@ -33,8 +33,20 @@ export type AgentEvent =
   | { type: "tool_call"; id: string; name: string; input: unknown }
   | { type: "tool_result"; id: string; name: string; ok: boolean; output: unknown }
   | { type: "proposal"; proposal: GenerationProposal }
-  | { type: "done"; messageId: string; usage: { inputTokens: number; outputTokens: number } }
+  | { type: "done"; messageId: string; usage: AgentUsage }
   | { type: "error"; message: string };
+
+/**
+ * Token usage of a whole turn. `inputTokens` counts every input token, cached or not; the cache
+ * fields were added later and are optional in the type so older consumers keep compiling, but the
+ * loop always sets them.
+ */
+export interface AgentUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+}
 
 export interface AgentTurnOptions {
   signal?: AbortSignal;
@@ -156,6 +168,14 @@ function cleanContent(content: ContentBlock[], keepToolUse: boolean): ContentBlo
 }
 
 /**
+ * The project state block for the conversation side. Within a turn the earlier blocks stay as they
+ * were sent, so every round's request extends the previous one and reads it from the prompt cache.
+ */
+function stateBlock(context: ToolContext, projectId: string, omittedTurns: number): ContentBlock {
+  return { type: "text", text: stagePrompt(loadSnapshot(context.store, projectId)!, { omittedTurns }) };
+}
+
+/**
  * Runs one assistant turn and streams what happens. Never throws: failures end the stream with an
  * `error` event; a normal end is a `done` event with the last saved message id and token usage.
  */
@@ -188,8 +208,13 @@ export async function* runAgentTurn(context: ToolContext, input: AgentTurnInput,
   let lastMessageId = userMessage.id;
 
   const window = windowMessages(conversations.listByProject(projectId), WINDOW_TURNS);
+  // The state is sent, not stored: it goes ahead of the user's words in the last message.
+  let lastState = stateBlock(context, projectId, window.omittedTurns);
   let messages: ApiMessage[] = toApiMessages(window.messages);
-  const usage: Usage = { inputTokens: 0, outputTokens: 0 };
+  const last = messages.at(-1)!;
+  messages = [...messages.slice(0, -1), { role: last.role, content: [...last.content.slice(0, -1), lastState, last.content.at(-1)!] }];
+  const system = systemPrompt();
+  let usage: Usage = emptyUsage();
   const budget: TurnBudget = { toolCalls: 0, invalid: new Map() };
   const tools = agentTools();
   let model: LlmModel;
@@ -200,10 +225,10 @@ export async function* runAgentTurn(context: ToolContext, input: AgentTurnInput,
     return;
   }
 
-  const saveText = (content: ContentBlock[]) => {
+  const saveText = (content: ContentBlock[], callUsage?: Usage) => {
     const kept = cleanContent(content, false);
     if (kept.length === 0) return;
-    lastMessageId = conversations.append(message("assistant", kept))[0].id;
+    lastMessageId = conversations.append({ ...message("assistant", kept), ...(callUsage ? { usage: callUsage } : {}) })[0].id;
   };
 
   for (let call = 0; call < MAX_MODEL_CALLS; call += 1) {
@@ -211,12 +236,12 @@ export async function* runAgentTurn(context: ToolContext, input: AgentTurnInput,
       yield { type: "error", message: STOPPED_MESSAGE };
       return;
     }
-    const snapshot = loadSnapshot(context.store, projectId)!;
     const content: ContentBlock[] = [];
     const toolUses: ToolUseBlock[] = [];
+    let callUsage: Usage | undefined;
     try {
       const stream = model.stream({
-        system: systemPrompt(snapshot, { omittedTurns: window.omittedTurns }),
+        system,
         messages,
         tools,
         toolChoice: budget.toolCalls >= MAX_TOOL_CALLS ? "none" : undefined,
@@ -235,22 +260,22 @@ export async function* runAgentTurn(context: ToolContext, input: AgentTurnInput,
           content.push(block);
           toolUses.push(block);
         } else {
-          usage.inputTokens += event.usage.inputTokens;
-          usage.outputTokens += event.usage.outputTokens;
+          callUsage = callUsage ? addUsage(callUsage, event.usage) : event.usage;
+          usage = addUsage(usage, event.usage);
         }
       }
     } catch (error) {
-      saveText(content);
+      saveText(content, callUsage);
       yield { type: "error", message: signal?.aborted ? STOPPED_MESSAGE : describeModelError(error) };
       return;
     }
     if (signal?.aborted) {
-      saveText(content);
+      saveText(content, callUsage);
       yield { type: "error", message: STOPPED_MESSAGE };
       return;
     }
     if (toolUses.length === 0) {
-      saveText(content);
+      saveText(content, callUsage);
       break;
     }
 
@@ -266,10 +291,14 @@ export async function* runAgentTurn(context: ToolContext, input: AgentTurnInput,
       yield { type: "tool_result", id: use.id, name: use.name, ok: outcome.ok, output: outcome.output };
       if (outcome.proposal) yield { type: "proposal", proposal: outcome.proposal };
     }
-    const assistant = message("assistant", cleanContent(content, true));
+    const assistant: ConversationMessage = { ...message("assistant", cleanContent(content, true)), ...(callUsage ? { usage: callUsage } : {}) };
     conversations.append(assistant, message("user", results));
     lastMessageId = assistant.id;
-    messages = [...messages, { role: "assistant", content: assistant.content }, { role: "user", content: results }];
+    // Tool results first, then the refreshed state when the tools changed it.
+    const state = stateBlock(context, projectId, window.omittedTurns);
+    const changed = state.type === "text" && lastState.type === "text" && state.text !== lastState.text;
+    if (changed) lastState = state;
+    messages = [...messages, { role: "assistant", content: assistant.content }, { role: "user", content: changed ? [...results, state] : results }];
     if (signal?.aborted) {
       yield { type: "error", message: STOPPED_MESSAGE };
       return;

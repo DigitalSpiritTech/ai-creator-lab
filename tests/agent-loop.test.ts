@@ -3,11 +3,11 @@ import { afterEach, describe, test } from "node:test";
 import type { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages";
 import { toApiMessages } from "@/lib/domain/conversation";
 import { GenerationProposalSchema } from "@/lib/domain/job";
-import { type LlmModel, type ModelEvent, MAX_TOOL_CALLS, anthropicModel, say, scriptedModel, use } from "@/server/agent";
+import { type LlmModel, type ModelEvent, MAX_TOOL_CALLS, anthropicModel, buildRequest, say, scriptedModel, toolUse } from "@/server/agent";
 import { STOPPED_MESSAGE } from "@/server/agent/loop";
 import { translateStream } from "@/server/agent/model";
 import { conversationsOf } from "@/server/store/conversations";
-import { type Harness, agentHarness, runTurn, toolResultFor } from "./support/agent-harness";
+import { type Harness, agentHarness, latestState, runTurn, toolResultFor } from "./support/agent-harness";
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
@@ -35,7 +35,7 @@ describe("agent loop", () => {
     assert.equal(turn.done?.messageId, saved[1].id);
     assert.ok(turn.done!.usage.inputTokens > 0 && turn.done!.usage.outputTokens > 0);
     assert.equal(model.calls[0].messages.length, 1);
-    assert.match(model.calls[0].system[1].text, /Next step: 3\. Brief/);
+    assert.match(latestState(model.calls[0]), /Next step: 3\. Brief/);
     assert.equal(model.calls[0].tools.some((tool) => tool.name === "submit_proposal"), false);
   });
 
@@ -43,11 +43,11 @@ describe("agent loop", () => {
     const harness = setup();
     const { project } = harness;
     const model = scriptedModel([
-      [...say("Saving your brief."), use("save_brief", { projectId: project.id, brief }, "toolu_brief")],
+      [...say("Saving your brief."), toolUse("save_brief", { projectId: project.id, brief }, "toolu_brief")],
       (params) => {
         assert.deepEqual(toolResultFor(params.messages, "toolu_brief")?.isError, false);
-        assert.match(params.system[1].text, /Next step: 4\. Character/);
-        return [use("propose_candidates", { projectId: project.id, capability: "text_to_image", prompt: "A steel bottle on a kitchen counter.", count: 2 }, "toolu_prop")];
+        assert.match(latestState(params), /Next step: 4\. Character/);
+        return [toolUse("propose_candidates", { projectId: project.id, capability: "text_to_image", prompt: "A steel bottle on a kitchen counter.", count: 2 }, "toolu_prop")];
       },
       (params) => {
         assert.match(toolResultFor(params.messages, "toolu_prop")!.content, /waiting for the user's approval.*Nothing has been generated/);
@@ -76,12 +76,12 @@ describe("agent loop", () => {
     const harness = setup();
     const { project } = harness;
     const model = scriptedModel([
-      [use("save_brief", { projectId: project.id, brief: { productSummary: "Ridgeline" } }, "toolu_bad")],
+      [toolUse("save_brief", { projectId: project.id, brief: { productSummary: "Ridgeline" } }, "toolu_bad")],
       (params) => {
         const result = toolResultFor(params.messages, "toolu_bad")!;
         assert.equal(result.isError, true);
         assert.match(result.content, /Invalid input for save_brief[\s\S]*Fix the input and call save_brief again/);
-        return [use("save_brief", { projectId: project.id, brief }, "toolu_good")];
+        return [toolUse("save_brief", { projectId: project.id, brief }, "toolu_good")];
       },
       say("Brief saved."),
     ]);
@@ -95,14 +95,14 @@ describe("agent loop", () => {
     const { project } = harness;
     const bad = { projectId: project.id, brief: {} };
     const model = scriptedModel([
-      [use("save_brief", bad, "toolu_1")],
+      [toolUse("save_brief", bad, "toolu_1")],
       (params) => {
         assert.match(toolResultFor(params.messages, "toolu_1")!.content, /Fix the input/);
-        return [use("save_brief", bad, "toolu_2")];
+        return [toolUse("save_brief", bad, "toolu_2")];
       },
       (params) => {
         assert.match(toolResultFor(params.messages, "toolu_2")!.content, /Do not retry/);
-        return [use("save_brief", bad, "toolu_3")];
+        return [toolUse("save_brief", bad, "toolu_3")];
       },
       (params) => {
         assert.match(toolResultFor(params.messages, "toolu_3")!.content, /failed validation twice/);
@@ -117,7 +117,7 @@ describe("agent loop", () => {
   test(`caps a turn at ${MAX_TOOL_CALLS} tool calls and then asks for text only`, async () => {
     const harness = setup();
     const { project } = harness;
-    const nine = Array.from({ length: 9 }, (_, index) => use("get_project_state", { projectId: project.id }, `toolu_state_${index}`));
+    const nine = Array.from({ length: 9 }, (_, index) => toolUse("get_project_state", { projectId: project.id }, `toolu_state_${index}`));
     const model = scriptedModel([
       nine,
       (params) => {
@@ -140,8 +140,8 @@ describe("agent loop", () => {
     cleanups.push(other.cleanup);
     const model = scriptedModel([
       [
-        use("submit_proposal", { proposal: {}, wait: true }, "toolu_submit"),
-        use("save_brief", { projectId: other.project.id, brief }, "toolu_other"),
+        toolUse("submit_proposal", { proposal: {}, wait: true }, "toolu_submit"),
+        toolUse("save_brief", { projectId: other.project.id, brief }, "toolu_other"),
       ],
       say("I can't run generations myself; approve the card when you're ready."),
     ]);
@@ -180,7 +180,7 @@ describe("agent loop", () => {
     const { project } = harness;
     const controller = new AbortController();
     const model = scriptedModel([
-      [use("get_project_state", { projectId: project.id }, "toolu_a"), use("save_brief", { projectId: project.id, brief }, "toolu_b")],
+      [toolUse("get_project_state", { projectId: project.id }, "toolu_a"), toolUse("save_brief", { projectId: project.id, brief }, "toolu_b")],
     ]);
     const turn = await runTurn(harness, "Go", model, {
       signal: controller.signal,
@@ -208,7 +208,7 @@ describe("agent loop", () => {
     const next = scriptedModel([say("Hello again.")]);
     await runTurn(harness, "Are you there?", next);
     assert.equal(next.calls[0].messages.length, 1, "consecutive user messages merge into one");
-    assert.equal(next.calls[0].messages[0].content.length, 2);
+    assert.deepEqual(next.calls[0].messages[0].content.map((block) => block.type), ["text", "text", "text"], "the earlier message, the state, then the newest words");
   });
 
   test("an unknown project, an empty message, or a missing key end with an error and save nothing", async () => {
@@ -229,14 +229,96 @@ describe("agent loop", () => {
     }
   });
 
-  test("older turns fall out of the window and the system prompt says so", async () => {
+  test("older turns fall out of the window and the project state says so", async () => {
     const harness = setup();
     for (let index = 0; index < 13; index += 1) await runTurn(harness, `message ${index}`, scriptedModel([say(`reply ${index}`)]));
     const model = scriptedModel([say("Still here.")]);
     await runTurn(harness, "latest", model);
     const sent = model.calls[0];
     assert.equal(sent.messages.length, 12 * 2 - 1);
-    assert.match(sent.system[1].text, /2 older turn\(s\) are not shown/);
+    assert.match(latestState(sent), /2 older turn\(s\) are not shown/);
+  });
+});
+
+/** Removes cache breakpoints, leaving the bytes the cache key is computed from. */
+function withoutMarkers(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value, (key, entry) => (key === "cache_control" ? undefined : entry)));
+}
+
+/** Every path in a request that carries a cache breakpoint. */
+function markerPaths(value: unknown, path = ""): string[] {
+  if (Array.isArray(value)) return value.flatMap((entry, index) => markerPaths(entry, `${path}[${index}]`));
+  if (typeof value !== "object" || value === null) return [];
+  return Object.entries(value).flatMap(([key, entry]) => (key === "cache_control" ? [path] : markerPaths(entry, `${path}.${key}`)));
+}
+
+describe("prompt caching", () => {
+  async function threeRounds(harness: Harness) {
+    const { project } = harness;
+    const model = scriptedModel([
+      [toolUse("save_brief", { projectId: project.id, brief }, "toolu_brief")],
+      [toolUse("get_project_state", { projectId: project.id }, "toolu_state")],
+      say("Brief saved. Who should the creator be?"),
+    ]);
+    const turn = await runTurn(harness, "Ridgeline bottle, commuters, TikTok and Reels, warm", model);
+    return { model, turn, requests: model.calls.map((params) => buildRequest(params, "claude-opus-5-5")) };
+  }
+
+  test("breakpoints sit on the last tool, the system prompt, and the newest message block", async () => {
+    const harness = setup();
+    const { model, requests } = await threeRounds(harness);
+    for (const request of requests) {
+      const last = request.messages.length - 1;
+      const block = (request.messages[last].content as unknown[]).length - 1;
+      assert.deepEqual(markerPaths(request).sort(), [`.messages[${last}].content[${block}]`, ".system[0]", `.tools[${request.tools!.length - 1}]`].sort());
+      assert.deepEqual(request.tools!.at(-1)!.cache_control, { type: "ephemeral" });
+      assert.equal(request.system!.length, 1, "the system prompt is one stable block");
+    }
+    assert.deepEqual(markerPaths(model.calls), [], "building a request never marks the loop's own messages");
+  });
+
+  test("each round of a turn resends the previous round's request byte for byte, plus new content", async () => {
+    const harness = setup();
+    const { requests } = await threeRounds(harness);
+    assert.equal(requests.length, 3);
+    for (let round = 1; round < requests.length; round += 1) {
+      const before = withoutMarkers(requests[round - 1]) as typeof requests[number];
+      const after = withoutMarkers(requests[round]) as typeof requests[number];
+      assert.equal(JSON.stringify(after.tools), JSON.stringify(before.tools), "tools are identical");
+      assert.equal(JSON.stringify(after.system), JSON.stringify(before.system), "system is identical");
+      const prefix = after.messages.slice(0, before.messages.length);
+      assert.equal(JSON.stringify(prefix), JSON.stringify(before.messages), `round ${round + 1} extends round ${round}`);
+      assert.ok(after.messages.length > before.messages.length);
+    }
+    const state = (requests[1].messages.at(-1)!.content as { type: string; text?: string }[]).at(-1)!;
+    assert.match(state.text!, /^<project_state>[\s\S]*Next step: 4\. Character/, "the refreshed state follows the tool results");
+
+    const next = scriptedModel([say("Noted.")]);
+    await runTurn(harness, "Someone in her early 30s", next);
+    const nextRequest = withoutMarkers(buildRequest(next.calls[0], "claude-opus-5-5")) as typeof requests[number];
+    const first = withoutMarkers(requests[0]) as typeof requests[number];
+    assert.equal(JSON.stringify([nextRequest.tools, nextRequest.system]), JSON.stringify([first.tools, first.system]), "the next turn reuses the cached tools and system");
+  });
+
+  test("cache reads and writes are reported in done and saved on each assistant message", async () => {
+    const harness = setup();
+    const { turn } = await threeRounds(harness);
+    const usage = turn.done!.usage;
+    assert.ok(usage.cacheCreationInputTokens! > 0);
+    assert.ok(usage.cacheReadInputTokens! > 0, "rounds two and three read the cached prefix");
+    assert.ok(usage.inputTokens >= usage.cacheReadInputTokens! + usage.cacheCreationInputTokens!);
+    const assistants = conversationsOf(harness.store)
+      .listByProject(harness.project.id)
+      .filter((message) => message.role === "assistant");
+    assert.equal(assistants.length, 3);
+    assert.ok(assistants.every((message) => message.usage !== undefined));
+    const sum = (key: "inputTokens" | "outputTokens" | "cacheReadInputTokens" | "cacheCreationInputTokens") =>
+      assistants.reduce((total, message) => total + message.usage![key], 0);
+    assert.deepEqual(
+      { inputTokens: sum("inputTokens"), outputTokens: sum("outputTokens"), cacheReadInputTokens: sum("cacheReadInputTokens"), cacheCreationInputTokens: sum("cacheCreationInputTokens") },
+      usage,
+    );
+    assert.equal(assistants[0].usage!.cacheReadInputTokens, 0, "the first call of a fresh model writes the cache");
   });
 });
 
@@ -267,7 +349,7 @@ describe("Anthropic stream translation", () => {
       { type: "text", delta: "now." },
       { type: "tool_use", id: "toolu_1", name: "save_brief", input: { projectId: "p" } },
       { type: "tool_use", id: "toolu_2", name: "list_assets", input: {} },
-      { type: "stop", stopReason: "tool_use", usage: { inputTokens: 125, outputTokens: 42 } },
+      { type: "stop", stopReason: "tool_use", usage: { inputTokens: 125, outputTokens: 42, cacheReadInputTokens: 5, cacheCreationInputTokens: 20 } },
     ]);
   });
 });

@@ -56,6 +56,17 @@ export interface SettingsView {
   dataDirectory: string;
 }
 
+export interface ConnectionView {
+  configured: boolean;
+  ok: boolean;
+  status: string | null;
+  credits: number | null;
+  cloudCredits: number | null;
+  prepaidCredits: number | null;
+  message: string;
+  checkedAt: number;
+}
+
 export interface JobsView {
   unfinished: Job[];
   /** Jobs that finished in the last few minutes, so the UI can surface failures. */

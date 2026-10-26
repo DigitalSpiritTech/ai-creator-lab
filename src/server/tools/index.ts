@@ -27,7 +27,7 @@ import {
 } from "@/server/tools/library";
 import { getProjectState, saveBriefTool } from "@/server/tools/project";
 import { type Tool, type ToolContext, toJsonSchemaTools } from "@/server/tools/registry";
-import { planShots, saveScript } from "@/server/tools/script";
+import { planShots, saveScript, setCutOrder } from "@/server/tools/script";
 
 export { createToolContext, type GenerationContext, type Tool, type ToolContext } from "@/server/tools/registry";
 export { createGenerationContext } from "@/server/tools/generation-context";
@@ -37,7 +37,7 @@ export { createGenerationContext } from "@/server/tools/generation-context";
  * save_character_bible, propose_candidates, select_reference, generate_reference_sheet,
  * save_product, save_script, plan_shots, compose_still, refine_still, generate_clip, approve,
  * archive_asset, delete_asset_everywhere, assemble_ad, list_assets, list_recipes, then the Library
- * tools link_library_item, unlink_library_item, archive_library_item, create_set.
+ * tools link_library_item, unlink_library_item, archive_library_item, create_set, and set_cut_order.
  */
 export const TOOLS: readonly Tool[] = [
   getProjectState,
@@ -62,6 +62,7 @@ export const TOOLS: readonly Tool[] = [
   unlinkLibraryItem,
   archiveLibraryItem,
   createSetTool,
+  setCutOrder,
 ];
 
 /** Tools the UI calls but the assistant is not offered (the spending gate). */

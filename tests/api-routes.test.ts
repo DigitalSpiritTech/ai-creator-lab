@@ -269,3 +269,72 @@ describe("chat", () => {
     assert.equal(empty.status, 400);
   });
 });
+
+describe("connection check", () => {
+  const key = "comfy-fake-key-9b2c";
+  const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+  test("reports status and credits (cents times 2.11) and never the key", async () => {
+    const { checkComfyConnection } = await import("@/app/api/_lib/connection");
+    const seen: string[] = [];
+    const fake = (async (input: string | URL | Request, init?: RequestInit) => {
+      seen.push(`${String(input)} ${new Headers(init?.headers).get("x-api-key") === key}`);
+      return String(input).endsWith("/billing/balance")
+        ? reply(200, { effective_balance_cents: 1000, cloud_credit_balance_cents: 600, prepaid_balance_cents: 400 })
+        : reply(200, { status: "active", email: "avery@example.com" });
+    }) as typeof fetch;
+    const result = await checkComfyConnection(key, fake, 1);
+    assert.deepEqual(seen.sort(), ["https://cloud.comfy.org/api/billing/balance true", "https://cloud.comfy.org/api/user true"]);
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "active");
+    assert.equal(result.credits, 2110);
+    assert.equal(result.cloudCredits, 1266);
+    assert.equal(result.prepaidCredits, 844);
+    assert.match(result.message, /2,110 credits/);
+    assert.ok(!JSON.stringify(result).includes(key));
+  });
+
+  test("failures become readable messages", async () => {
+    const { checkComfyConnection } = await import("@/app/api/_lib/connection");
+    const denied = await checkComfyConnection(key, (async () => reply(401, { error: "nope" })) as typeof fetch);
+    assert.equal(denied.ok, false);
+    assert.match(denied.message, /did not accept this API key/);
+    const offline = await checkComfyConnection(key, (async () => { throw new Error(`boom ${key}`); }) as typeof fetch);
+    assert.match(offline.message, /could not be reached/);
+    assert.ok(!JSON.stringify(offline).includes(key));
+    const garbled = await checkComfyConnection(key, (async () => reply(200, { nothing: true })) as typeof fetch);
+    assert.match(garbled.message, /not understood/);
+    const none = await checkComfyConnection(undefined, (async () => assert.fail("no request without a key")) as typeof fetch);
+    assert.equal(none.configured, false);
+  });
+
+  test("the route answers without a key and without a network call", async () => {
+    const route = await import("@/app/api/settings/connection/route");
+    const response = await route.GET();
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { configured: boolean; ok: boolean };
+    assert.deepEqual([body.configured, body.ok], [false, false]);
+  });
+});
+
+describe("cut order", () => {
+  test("set_cut_order reorders the cut and refuses shots from elsewhere", async () => {
+    const id = await createProject("Order check");
+    const beat = (visual: string) => ({ type: "broll", purpose: "proof", visual, productVisible: true });
+    const script = await routes.tools.POST(
+      json(`/api/projects/${id}/tools/save_script`, { projectId: id, title: "Ridgeline order", beats: [beat("Bottle on the counter"), beat("Bottle in a cup holder"), beat("Bottle on a gym bench")] }),
+      params({ id, name: "save_script" }),
+    );
+    const scriptId = ((await script.json()) as { script: { id: string } }).script.id;
+    const planned = await routes.tools.POST(json(`/api/projects/${id}/tools/plan_shots`, { projectId: id, scriptId }), params({ id, name: "plan_shots" }));
+    const content = (await planned.json()) as { id: string; cut: { order: string[] } };
+    const reversed = [...content.cut.order].reverse();
+    const ordered = await routes.tools.POST(json(`/api/projects/${id}/tools/set_cut_order`, { contentId: content.id, shotIds: reversed }), params({ id, name: "set_cut_order" }));
+    assert.equal(ordered.status, 200);
+    assert.deepEqual(((await ordered.json()) as { cut: { order: string[] } }).cut.order, reversed);
+    const foreign = await routes.tools.POST(json(`/api/projects/${id}/tools/set_cut_order`, { contentId: content.id, shotIds: [randomUUID(), ...reversed.slice(1)] }), params({ id, name: "set_cut_order" }));
+    assert.equal(foreign.status, 400);
+    const partial = await routes.tools.POST(json(`/api/projects/${id}/tools/set_cut_order`, { contentId: content.id, shotIds: reversed.slice(1) }), params({ id, name: "set_cut_order" }));
+    assert.equal(partial.status, 400);
+  });
+});

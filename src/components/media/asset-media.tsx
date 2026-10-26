@@ -3,11 +3,12 @@
  * @packageDocumentation
  */
 import { assetUrl } from "@/lib/client/api";
+import { assetKindInfo } from "@/lib/client/format";
 import type { Asset } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
 
 export function AssetMedia({ asset, className, controls = false }: { asset: Pick<Asset, "id" | "kind" | "mime" | "video">; className?: string; controls?: boolean }) {
-  if (asset.kind === "video") {
+  if (assetKindInfo(asset.kind).playable) {
     return (
       <video
         className={cn("bg-black object-contain", className)}

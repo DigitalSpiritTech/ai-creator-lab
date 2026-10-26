@@ -1,6 +1,8 @@
 /**
- * The UGC Creator creative director: a stable system prompt (role, flow, rules, craft) plus a
- * per-turn block rendered from project state (what exists, what is approved, what comes next).
+ * The UGC Creator creative director: a stable system prompt (role, flow, rules, craft), and a
+ * project state block rendered from the store (what exists, what is approved, what comes next).
+ * The system prompt never changes, so it stays in the prompt cache; the state block travels on the
+ * conversation side, attached to the user's message and refreshed after tool results.
  * @packageDocumentation
  */
 import type { StreamParams } from "@/server/agent/model";
@@ -13,7 +15,7 @@ export const CREATIVE_DIRECTOR_PROMPT = `You are the creative director inside AI
 # How the app works
 - The user sees this chat on the left and a workspace on the right with Script, Shots, Assets, and Export tabs. Candidates (images and clips) appear in the workspace as cards with Select, Approve, Archive, and Refine.
 - Generation tools (propose_candidates, generate_reference_sheet, compose_still, refine_still, generate_clip) never generate anything. They return a proposal with the recipe, prompt, references, count, and estimated cost. The user approves it on the proposal card (or auto-approve runs it under their allowance), and the candidates arrive in the workspace later.
-- Approvals and choices the user makes in the workspace show up in the project state below, which is refreshed every turn.
+- Approvals and choices the user makes in the workspace show up in the project state. The newest <project_state> block in the conversation is current; older ones are history. It is added by the app, not typed by the user.
 - Everything approved lives in the Library (characters, products, sets) and can be reused in other projects. Rejected candidates go to the Archive and can be restored.
 
 # The flow (a guide, not a wizard; the user can jump around and you follow)
@@ -39,7 +41,7 @@ export const CREATIVE_DIRECTOR_PROMPT = `You are the creative director inside AI
 - Ask at most one consequential question per reply, and always offer a default the user can accept with a short yes (for example: "I'll use the olive jacket unless you'd prefer the knit sweater.").
 - Use the user's own words for their product, audience, and character when you save things.
 - Keep replies short: two to four sentences, or a compact list when showing a bible draft or a script. No hype, no exclamation marks, no emojis.
-- Save decisions with tools as soon as the user agrees, so they never repeat themselves. Pass the projectId shown below on every project tool.
+- Save decisions with tools as soon as the user agrees, so they never repeat themselves. Pass the projectId from the project state on every project tool.
 - When the user asks for something out of order, help if the tools allow it (a script can be drafted before the character exists) and say in one line what still has to happen before generation can use it. If something truly must come first, offer to do it now. Never refuse because a step is out of order.
 - Never call delete_asset_everywhere unless the user explicitly confirmed it in this conversation; prefer archive_asset. Never mention, change, or suggest values for the generation allowance.
 - If a tool fails, read its message, fix the input once if that is the problem, otherwise tell the user plainly what went wrong and what you suggest.
@@ -69,20 +71,21 @@ ${checklistText("still")}
 Clip:
 ${checklistText("clip")}`;
 
-/** The per-turn block: project state, the next step, and guidance for it. */
+export const STATE_OPEN = "<project_state>";
+export const STATE_CLOSE = "</project_state>";
+
+/** Project state, the next step, and guidance for it, wrapped for the conversation side. */
 export function stagePrompt(snapshot: ProjectSnapshot, options: { omittedTurns?: number } = {}): string {
   const stage = nextStage(snapshot);
-  const lines = ["# Project state now", renderSnapshot(snapshot), "", `# Next step: ${stage.step}. ${stage.title}`, stage.guidance];
+  const lines = [STATE_OPEN, "# Project state now", renderSnapshot(snapshot), "", `# Next step: ${stage.step}. ${stage.title}`, stage.guidance];
   if (options.omittedTurns) {
     lines.push("", `Earlier conversation: ${options.omittedTurns} older turn(s) are not shown. Rely on the project state above for what was decided.`);
   }
+  lines.push(STATE_CLOSE);
   return lines.join("\n");
 }
 
-/** The full system prompt for one model call: the cached stable block, then the state block. */
-export function systemPrompt(snapshot: ProjectSnapshot, options: { omittedTurns?: number } = {}): StreamParams["system"] {
-  return [
-    { text: CREATIVE_DIRECTOR_PROMPT, cache: true },
-    { text: stagePrompt(snapshot, options) },
-  ];
+/** The system prompt: one stable, cached block, identical for every round and turn. */
+export function systemPrompt(): StreamParams["system"] {
+  return [{ text: CREATIVE_DIRECTOR_PROMPT, cache: true }];
 }

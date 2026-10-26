@@ -62,5 +62,5 @@ Cut order if behind schedule: E7 MCP server, A8 Set library item, B7 first/last 
 - [x] E4 Social post draft with the required hashtag and the demo link; build-in-public thread draft. Done in `d81447a`.
 - [x] E5 Fresh-install verification: passed on a clean clone of c4b587b (Linux VM, Node 22.23); the maintainer's native macOS run is still to be confirmed since sharp ships platform binaries.
 - [x] E6 Privacy and secret scan (verify-release skill) passes. Passing at `28ebe66`.
-- [ ] E7 MCP server (stretch): stdio server exposing the A4 registry; Claude Code config example in README.
+- [x] E7 MCP server (stretch): stdio server exposing the A4 registry; Claude Code config example in README. Done after `a48e8c9`: `src/server/mcp/server.ts` and `npm run --silent mcp` (stdio), every roster tool plus `approve_and_generate` (the spending gate under the allowance), resources `project://{id}/state` and `asset://{id}`; `tests/mcp-server.test.ts`.
 - [ ] E8 Submission packet: repo public, license, demo link, social post link, form answers drafted for the maintainer to submit.

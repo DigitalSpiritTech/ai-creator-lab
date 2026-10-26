@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { useLoad } from "@/lib/client/use-load";
 import { assetUrl, callTool, errorMessage, getJson } from "@/lib/client/api";
-import { formatDate } from "@/lib/client/format";
+import { ASSET_KINDS, assetKindInfo, formatDate } from "@/lib/client/format";
 import type { Asset, ProjectSummary, UsageView } from "@/lib/client/types";
 
 export function assetQuery(filters: { state: "active" | "archived"; projectId: string; kind: string; recipeId: string }): string {
@@ -100,10 +100,9 @@ export function AssetBrowser({ mode }: { mode: "active" | "archived" }) {
         </NativeSelect>
         <NativeSelect size="sm" value={kind} onChange={(event) => setKind(event.target.value)} aria-label="Type">
           <NativeSelectOption value="">All types</NativeSelectOption>
-          <NativeSelectOption value="image">Images</NativeSelectOption>
-          <NativeSelectOption value="sheet">Reference sheets</NativeSelectOption>
-          <NativeSelectOption value="video">Videos</NativeSelectOption>
-          <NativeSelectOption value="storyboard">Storyboards</NativeSelectOption>
+          {Object.entries(ASSET_KINDS).map(([value, info]) => (
+            <NativeSelectOption key={value} value={value}>{info.plural}</NativeSelectOption>
+          ))}
         </NativeSelect>
         <Input value={recipeId} onChange={(event) => setRecipeId(event.target.value)} placeholder="Recipe id" className="h-7 w-56 text-xs" aria-label="Recipe" />
       </div>
@@ -112,10 +111,10 @@ export function AssetBrowser({ mode }: { mode: "active" | "archived" }) {
       <div className="grid grid-cols-3 gap-4 lg:grid-cols-4 xl:grid-cols-5">
         {assets?.map((asset) => (
           <div key={asset.id} className="flex flex-col overflow-hidden rounded-xl border text-xs" data-testid="asset-card">
-            <AssetMedia asset={asset} controls={asset.kind === "video"} className="aspect-[9/16] max-h-64 w-full" />
+            <AssetMedia asset={asset} controls={assetKindInfo(asset.kind).playable} className="aspect-[9/16] max-h-64 w-full" />
             <div className="space-y-1.5 p-2">
               <div className="flex flex-wrap gap-1">
-                <Badge variant="outline">{asset.kind}</Badge>
+                <Badge variant="outline">{assetKindInfo(asset.kind).label}</Badge>
                 <Badge variant="secondary">{projectName(asset.projectId)}</Badge>
               </div>
               <div className="truncate text-muted-foreground" title={asset.provenance.source === "generated" ? asset.provenance.prompt : undefined}>

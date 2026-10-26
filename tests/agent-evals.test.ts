@@ -10,12 +10,12 @@ import { afterEach, describe, test } from "node:test";
 import sharp from "sharp";
 import type { CharacterItem, CharacterLink, ProductItem } from "@/lib/domain/library";
 import type { BeatInput } from "@/lib/domain/script";
-import { loadSnapshot, nextStage, say, scriptedModel, use } from "@/server/agent";
+import { loadSnapshot, nextStage, say, scriptedModel, toolUse } from "@/server/agent";
 import { importImage } from "@/server/media/images";
 import { conversationsOf } from "@/server/store/conversations";
 import { callTool } from "@/server/tools";
 import { CHECKLISTS } from "@/server/agent/prompts/checklists";
-import { type Harness, type TurnResult, agentHarness, approveProposal, guidedPrompt, resultJson, runTurn, stateValue, waitingIds } from "./support/agent-harness";
+import { type Harness, type TurnResult, agentHarness, approveProposal, guidedPrompt, latestState, resultJson, runTurn, stateValue, waitingIds } from "./support/agent-harness";
 import { averyBible, generateAssets, ridgelineBeats, seedProject } from "./support/domain-fixtures";
 
 const cleanups: (() => void)[] = [];
@@ -68,7 +68,7 @@ describe("agent evals", () => {
         harness,
         "I'm selling the Ridgeline 32 oz insulated bottle to commuters. TikTok and Reels. Warm and direct, never hype.",
         scriptedModel([
-          [use("save_brief", { projectId: project.id, brief: BRIEF }, "toolu_brief")],
+          [toolUse("save_brief", { projectId: project.id, brief: BRIEF }, "toolu_brief")],
           say("Brief saved. Next is your creator: I'd suggest a woman in her early 30s who commutes herself, unless you have someone in mind."),
         ]),
       ),
@@ -81,18 +81,18 @@ describe("agent evals", () => {
         harness,
         "Yes. Call her Avery Lane: early 30s, light freckles, dark hair tied back, small silver hoops, talks like a friend.",
         scriptedModel([
-          [use("save_character_bible", { projectId: project.id, bible: averyBible() }, "toolu_bible")],
+          [toolUse("save_character_bible", { projectId: project.id, bible: averyBible() }, "toolu_bible")],
           (params) => {
-            assert.match(params.system[1].text, /Next step: 5\. Face lock/);
-            const characterId = stateValue(params.system, "characterId");
+            assert.match(latestState(params), /Next step: 5\. Face lock/);
+            const characterId = stateValue(params, "characterId");
             return [
-              use("propose_candidates", {
+              toolUse("propose_candidates", {
                 projectId: project.id,
                 capability: "text_to_image",
                 count: 4,
                 aspectRatio: "1:1",
                 target: { kind: "character_reference", characterId, slot: "face" },
-                prompt: guidedPrompt(params.system),
+                prompt: guidedPrompt(params),
               }),
             ];
           },
@@ -118,20 +118,20 @@ describe("agent evals", () => {
         "The second one is her.",
         scriptedModel([
           (params) => {
-            assert.deepEqual(waitingIds(params.system).sort(), [...faces].sort());
-            return [use("select_reference", { characterId, slot: "face", assetId: faces[1] })];
+            assert.deepEqual(waitingIds(params).sort(), [...faces].sort());
+            return [toolUse("select_reference", { characterId, slot: "face", assetId: faces[1] })];
           },
           (params) => {
-            assert.match(params.system[1].text, /Next step: 6\. Body reference/);
+            assert.match(latestState(params), /Next step: 6\. Body reference/);
             return [
-              use("propose_candidates", {
+              toolUse("propose_candidates", {
                 projectId: project.id,
                 capability: "image_edit",
                 count: 2,
                 aspectRatio: "9:16",
                 referenceAssetIds: [faces[1]],
                 target: { kind: "character_reference", characterId, slot: "body" },
-                prompt: guidedPrompt(params.system),
+                prompt: guidedPrompt(params),
               }),
             ];
           },
@@ -150,8 +150,8 @@ describe("agent evals", () => {
         "First body.",
         scriptedModel([
           (params) => {
-            assert.deepEqual(waitingIds(params.system).sort(), [...bodies].sort());
-            return [use("select_reference", { characterId, slot: "body", assetId: bodies[0] })];
+            assert.deepEqual(waitingIds(params).sort(), [...bodies].sort());
+            return [toolUse("select_reference", { characterId, slot: "body", assetId: bodies[0] })];
           },
           say("Body locked. For this ad I'd dress her in the olive utility jacket over a white tee, unless you prefer the knit sweater."),
         ]),
@@ -186,12 +186,12 @@ describe("agent evals", () => {
         "Use Avery again for this one. Olive jacket.",
         scriptedModel([
           (params) => {
-            const text = params.system[1].text;
+            const text = latestState(params);
             assert.match(text, /Next step: 4\. Character/);
             assert.match(text, new RegExp(`The Library already has Avery Lane \\(characterId ${characterId}, face locked, body locked\\)`));
             const bibleJson = JSON.parse(text.match(/Bible of Avery Lane: (.+)/)![1]);
             return [
-              use("save_character_bible", {
+              toolUse("save_character_bible", {
                 characterId,
                 projectId: project.id,
                 wardrobe: "Olive utility jacket over a white tee",
@@ -200,8 +200,8 @@ describe("agent evals", () => {
             ];
           },
           (params) => {
-            assert.match(params.system[1].text, /Next step: 7\. Reference sheet/);
-            return [use("generate_reference_sheet", { projectId: project.id, characterId })];
+            assert.match(latestState(params), /Next step: 7\. Reference sheet/);
+            return [toolUse("generate_reference_sheet", { projectId: project.id, characterId })];
           },
           say(`Avery is linked with the olive jacket, and two reference sheets are proposed. Inspect them at full size; reject any where ${CHECKLISTS.sheet[2].toLowerCase()}.`),
         ]),
@@ -227,8 +227,8 @@ describe("agent evals", () => {
         "The first sheet passes the checklist.",
         scriptedModel([
           (params) => {
-            assert.deepEqual(waitingIds(params.system).sort(), [...sheets].sort());
-            return [use("approve", { kind: "sheet", assetId: sheets[0], projectId: project.id, characterId })];
+            assert.deepEqual(waitingIds(params).sort(), [...sheets].sort());
+            return [toolUse("approve", { kind: "sheet", assetId: sheets[0], projectId: project.id, characterId })];
           },
           say("Sheet approved. Every still in this project will use it. Next: the product card."),
         ]),
@@ -253,7 +253,7 @@ describe("agent evals", () => {
         "Product: Ridgeline 32 oz insulated bottle, https://example.com/ridgeline. Claims: keeps drinks cold 24 hours, fits a car cup holder, dishwasher safe. Write the script.",
         scriptedModel([
           [
-            use(
+            toolUse(
               "save_product",
               {
                 projectId: project.id,
@@ -265,11 +265,11 @@ describe("agent evals", () => {
               },
               "toolu_product",
             ),
-            use("save_script", { projectId: project.id, title: "Cup holder", beats: ridgelineBeats() }, "toolu_script"),
+            toolUse("save_script", { projectId: project.id, title: "Cup holder", beats: ridgelineBeats() }, "toolu_script"),
           ],
           (params) => {
             const { script } = resultJson<{ script: { id: string } }>(params.messages, "toolu_script");
-            return [use("plan_shots", { projectId: project.id, scriptId: script.id })];
+            return [toolUse("plan_shots", { projectId: project.id, scriptId: script.id })];
           },
           say("Product saved and a four-beat script is up in the Script tab."),
         ]),
@@ -287,25 +287,25 @@ describe("agent evals", () => {
         "Actually, switch it to the Ridgeline 20 oz tumbler. Claims: keeps coffee hot 12 hours, fits a car cup holder. Drop the dishwasher line.",
         scriptedModel([
           (params) => {
-            const text = params.system[1].text;
-            const productId = stateValue(params.system, "productId");
+            const text = latestState(params);
+            const productId = stateValue(params, "productId");
             const revision = Number(text.match(/productId [0-9a-f-]{36}, revision (\d+)/)![1]);
-            const scriptId = stateValue(params.system, "scriptId");
+            const scriptId = stateValue(params, "scriptId");
             return [
-              use("save_product", {
+              toolUse("save_product", {
                 productId,
                 revision,
                 projectId: project.id,
                 product: { name: "Ridgeline 20 oz tumbler", link: "https://example.com/ridgeline", allowedClaims: ["Keeps coffee hot 12 hours", "Fits a car cup holder"] },
               }),
-              use("save_script", { projectId: project.id, scriptId, baseVersion: 1, title: "Cup holder, tumbler", beats: tumblerBeats }, "toolu_v2"),
+              toolUse("save_script", { projectId: project.id, scriptId, baseVersion: 1, title: "Cup holder, tumbler", beats: tumblerBeats }, "toolu_v2"),
             ];
           },
           (params) => {
             const { script, updatedContentIds } = resultJson<{ script: { id: string; version: number }; updatedContentIds: string[] }>(params.messages, "toolu_v2");
             assert.equal(script.version, 2);
             assert.equal(updatedContentIds.length, 1);
-            return [use("plan_shots", { projectId: project.id, scriptId: script.id, contentId: updatedContentIds[0] })];
+            return [toolUse("plan_shots", { projectId: project.id, scriptId: script.id, contentId: updatedContentIds[0] })];
           },
           say("Switched to the 20 oz tumbler. The script is on version 2 with only the two claims on the card."),
         ]),
@@ -341,12 +341,12 @@ describe("agent evals", () => {
         "Show me some faces.",
         scriptedModel([
           (params) => [
-            use("propose_candidates", {
+            toolUse("propose_candidates", {
               projectId: project.id,
               capability: "text_to_image",
               count: 4,
               target: { kind: "character_reference", characterId, slot: "face" },
-              prompt: guidedPrompt(params.system),
+              prompt: guidedPrompt(params),
             }),
           ],
           say("Four candidates proposed."),
@@ -368,20 +368,20 @@ describe("agent evals", () => {
         "None of these. She should look warmer and have more freckles. Try four more.",
         scriptedModel([
           (params) => {
-            const waiting = waitingIds(params.system);
+            const waiting = waitingIds(params);
             assert.equal(waiting.length, 4);
-            const revision = Number(params.system[1].text.match(/characterId [0-9a-f-]{36}, revision (\d+)/)![1]);
+            const revision = Number(latestState(params).match(/characterId [0-9a-f-]{36}, revision (\d+)/)![1]);
             return [
-              ...waiting.map((assetId) => use("archive_asset", { assetId, reason: "rejected: not warm enough" })),
-              use("save_character_bible", { characterId, revision, bible: warmer }),
+              ...waiting.map((assetId) => toolUse("archive_asset", { assetId, reason: "rejected: not warm enough" })),
+              toolUse("save_character_bible", { characterId, revision, bible: warmer }),
             ];
           },
           (params) => {
-            assert.deepEqual(waitingIds(params.system), [], "rejected candidates are no longer waiting");
-            const prompt = guidedPrompt(params.system);
+            assert.deepEqual(waitingIds(params), [], "rejected candidates are no longer waiting");
+            const prompt = guidedPrompt(params);
             assert.match(prompt, /generous spray of light freckles/);
             return [
-              use("propose_candidates", {
+              toolUse("propose_candidates", {
                 projectId: project.id,
                 capability: "text_to_image",
                 count: 4,
@@ -422,14 +422,14 @@ describe("agent evals", () => {
         "Just write me a script for my Ridgeline 32 oz bottle ad. Claims: keeps drinks cold 24 hours, fits a car cup holder.",
         scriptedModel([
           (params) => {
-            assert.match(params.system[1].text, /Character: none linked to this project yet/);
+            assert.match(latestState(params), /Character: none linked to this project yet/);
             assert.match(params.system[0].text, /Never refuse because a step is out of order/);
             return [
-              use("save_product", {
+              toolUse("save_product", {
                 projectId: project.id,
                 product: { name: "Ridgeline 32 oz insulated bottle", allowedClaims: ["Keeps drinks cold 24 hours", "Fits a car cup holder"] },
               }),
-              use("save_script", { projectId: project.id, title: "Cup holder", beats: genericBeats }),
+              toolUse("save_script", { projectId: project.id, title: "Cup holder", beats: genericBeats }),
             ];
           },
           say(

@@ -114,11 +114,11 @@ describe("creative director prompt", () => {
     const tools: ToolContext = { store, now, newId: randomUUID };
 
     assert.equal(nextStage(loadSnapshot(store, project.id)!).id, "brief");
-    const system = systemPrompt(loadSnapshot(store, project.id)!);
-    assert.equal(system.length, 2);
-    assert.equal(system[0].cache, true);
-    assert.match(system[1].text, /Next step: 3\. Brief/);
-    assert.match(system[1].text, new RegExp(`projectId ${project.id}`));
+    assert.deepEqual(systemPrompt(), [{ text: CREATIVE_DIRECTOR_PROMPT, cache: true }], "the system prompt holds no project state");
+    const state = stagePrompt(loadSnapshot(store, project.id)!);
+    assert.ok(state.startsWith("<project_state>") && state.endsWith("</project_state>"));
+    assert.match(state, /Next step: 3\. Brief/);
+    assert.match(state, new RegExp(`projectId ${project.id}`));
 
     await callTool(tools, "save_brief", {
       projectId: project.id,

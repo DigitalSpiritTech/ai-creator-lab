@@ -2,6 +2,7 @@
  * Display helpers shared by the cards and pages. Pure and tested.
  * @packageDocumentation
  */
+import type { AssetKind } from "@/lib/domain/asset";
 import type { Capability } from "@/lib/domain/capability";
 import type { EstimateSummary, GenerationTarget, JobStatus } from "@/lib/domain/job";
 import type { SubmitResult } from "@/lib/client/types";
@@ -85,4 +86,17 @@ export function shouldPoll(unfinished: readonly { status: JobStatus }[]): boolea
 
 export function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** How each asset kind is labeled, filtered, and rendered. Playable kinds are MP4s with a poster. */
+export const ASSET_KINDS: Record<AssetKind, { label: string; plural: string; playable: boolean }> = {
+  image: { label: "Image", plural: "Images", playable: false },
+  sheet: { label: "Reference sheet", plural: "Reference sheets", playable: false },
+  video: { label: "Clip", plural: "Clips", playable: true },
+  storyboard: { label: "Storyboard", plural: "Storyboards", playable: false },
+  export: { label: "Export", plural: "Exports", playable: true },
+};
+
+export function assetKindInfo(kind: string): { label: string; plural: string; playable: boolean } {
+  return ASSET_KINDS[kind as AssetKind] ?? { label: kind, plural: kind, playable: false };
 }

@@ -103,6 +103,10 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     "Create a Library set (a location) with a name, notes, and reference image asset ids; with projectId it is linked here. Beats whose setting names the set get its image as a location reference in stills.",
     'Example: the user uploads a photo of their kitchen and calls it "bright kitchen counter".',
   ].join(" "),
+  set_cut_order: [
+    "Set the order the approved clips play in the export: pass every shot id of the ad exactly once. assemble_ad uses this order.",
+    'Example: the user wants the product reveal before the problem beat.',
+  ].join(" "),
 };
 
 /** The `tools` array for the assistant: the roster, with model-facing descriptions. */

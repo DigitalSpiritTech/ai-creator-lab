@@ -6,7 +6,7 @@
 import { randomUUID } from "node:crypto";
 import type { GenerationProposal } from "@/lib/domain/job";
 import type { Project } from "@/lib/domain/project";
-import { type AgentEvent, type LlmModel, runAgentTurn } from "@/server/agent";
+import { type AgentEvent, type LlmModel, STATE_OPEN, type StreamParams, runAgentTurn } from "@/server/agent";
 import { MOCK_RECIPES } from "@/server/catalog/defaults";
 import { createExecutors } from "@/server/executors";
 import type { Store } from "@/server/store";
@@ -91,22 +91,32 @@ export function resultJson<T = Record<string, unknown>>(messages: SentMessages, 
   return JSON.parse(result.content) as T;
 }
 
+/** The newest project state block the loop put in the conversation (the model's current view). */
+export function latestState(params: Pick<StreamParams, "messages">): string {
+  for (const message of [...params.messages].reverse()) {
+    for (const block of [...message.content].reverse()) {
+      if (block.type === "text" && block.text.startsWith(STATE_OPEN)) return block.text;
+    }
+  }
+  throw new Error("No project state block in the conversation.");
+}
+
 /** The exact prompt the stage guidance handed the model ("...and exactly this prompt:\n<prompt>"). */
-export function guidedPrompt(system: { text: string }[]): string {
-  const match = system.map((block) => block.text).join("\n").match(/exactly this prompt:\n(.+)/);
+export function guidedPrompt(params: Pick<StreamParams, "messages">): string {
+  const match = latestState(params).match(/exactly this prompt:\n(.+)/);
   if (!match) throw new Error("The stage guidance has no prompt.");
   return match[1];
 }
 
 /** Candidate ids the stage guidance says are waiting for the user. */
-export function waitingIds(system: { text: string }[]): string[] {
-  const match = system.map((block) => block.text).join("\n").match(/waiting for the user in the workspace: ([^\n]+)\./);
+export function waitingIds(params: Pick<StreamParams, "messages">): string[] {
+  const match = latestState(params).match(/waiting for the user in the workspace: ([^\n]+)\./);
   return match ? match[1].split(", ") : [];
 }
 
 /** A value from the state block, such as `characterId` or `productId`. */
-export function stateValue(system: { text: string }[], key: string): string {
-  const match = system.map((block) => block.text).join("\n").match(new RegExp(`${key} ([0-9a-f-]{36}|\\d+)`));
-  if (!match) throw new Error(`No ${key} in the system prompt.`);
+export function stateValue(params: Pick<StreamParams, "messages">, key: string): string {
+  const match = latestState(params).match(new RegExp(`${key} ([0-9a-f-]{36}|\\d+)`));
+  if (!match) throw new Error(`No ${key} in the project state.`);
   return match[1];
 }

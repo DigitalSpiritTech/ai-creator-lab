@@ -1,11 +1,11 @@
 /**
- * Export tab: clip order, mute and captions toggles, Export (`assemble_ad`), and a player with
+ * Export tab: clip order (`set_cut_order`), mute and captions toggles, Export (`assemble_ad`), and a player with
  * download and source record for finished exports.
  * @packageDocumentation
  */
 "use client";
 
-import { Download, Film } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, Film } from "lucide-react";
 import { useState } from "react";
 import { AssetMedia } from "@/components/media/asset-media";
 import { useProject } from "@/components/project/project-context";
@@ -35,18 +35,35 @@ export function ExportTab() {
   const muteValue = mute ?? content.cut.mute;
   const captionsValue = captions ?? content.cut.captions;
 
+  async function move(position: number, by: number) {
+    if (!content) return;
+    const order = [...content.cut.order];
+    const [shotId] = order.splice(position, 1);
+    order.splice(position + by, 0, shotId);
+    setBusy(true);
+    setResult(null);
+    try {
+      await callTool("set_cut_order", { contentId: content.id, shotIds: order }, projectId);
+      await refresh();
+    } catch (cause) {
+      setResult({ tone: "error", text: errorMessage(cause) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function exportAd() {
     if (!content) return;
     setBusy(true);
     setResult(null);
     try {
-      const record = await callTool<ExportRecord>("assemble_ad", { contentId: content.id, mute: muteValue, captions: captionsValue }, projectId);
+      const { export: record } = await callTool<{ export: ExportRecord }>("assemble_ad", { contentId: content.id, mute: muteValue, captions: captionsValue }, projectId);
       setResult(
         record.status === "completed"
           ? { tone: "ok", text: "Export finished." }
           : record.status === "failed"
             ? { tone: "error", text: record.error }
-            : { tone: "ok", text: `Export started with ${record.sources.length} clips in order.` },
+            : { tone: "ok", text: `Rendering ${record.sources.length} clips in order.` },
       );
       await refresh();
     } catch (cause) {
@@ -75,6 +92,8 @@ export function ExportTab() {
                 <span className="font-medium">Beat {shot?.beatIndex}</span>
                 <span className="truncate text-muted-foreground">{beat?.onScreenText || beat?.visual}</span>
                 <span className="ml-auto">{shot?.clip.state === "approved" ? <Badge variant="secondary">Clip approved</Badge> : <Badge variant="outline">No clip</Badge>}</span>
+                <Button size="icon-xs" variant="ghost" disabled={busy || position === 0} onClick={() => void move(position, -1)} aria-label={`Move beat ${shot?.beatIndex} earlier`}><ArrowUp /></Button>
+                <Button size="icon-xs" variant="ghost" disabled={busy || position === content.cut.order.length - 1} onClick={() => void move(position, 1)} aria-label={`Move beat ${shot?.beatIndex} later`}><ArrowDown /></Button>
               </li>
             );
           })}
@@ -96,7 +115,7 @@ export function ExportTab() {
       {finished && finished.status === "completed" ? (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">Latest export</h2>
-          <AssetMedia asset={{ id: finished.assetId, kind: "video", mime: "video/mp4", video: undefined }} controls className="aspect-[9/16] w-64 rounded-lg" />
+          <AssetMedia asset={view.assets.find((asset) => asset.id === finished.assetId) ?? { id: finished.assetId, kind: "export", mime: "video/mp4", video: undefined }} controls className="aspect-[9/16] w-64 rounded-lg" />
           <div className="flex gap-2">
             <Button asChild size="sm" variant="outline">
               <a href={assetUrl(finished.assetId, { download: true })}><Download /> Download</a>

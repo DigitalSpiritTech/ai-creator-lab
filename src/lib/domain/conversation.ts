@@ -35,12 +35,27 @@ export type ToolResultBlock = z.infer<typeof ToolResultBlockSchema>;
 export const MessageRoleSchema = z.enum(["user", "assistant"]);
 export type MessageRole = z.infer<typeof MessageRoleSchema>;
 
+const tokens = z.number().int().nonnegative();
+
+/** Token usage of the model call that produced an assistant message. */
+export const MessageUsageSchema = z
+  .object({
+    inputTokens: tokens,
+    outputTokens: tokens,
+    cacheReadInputTokens: tokens,
+    cacheCreationInputTokens: tokens,
+  })
+  .strict();
+export type MessageUsage = z.infer<typeof MessageUsageSchema>;
+
 export const ConversationMessageSchema = z
   .object({
     id: IdSchema,
     projectId: IdSchema,
     role: MessageRoleSchema,
     content: z.array(ContentBlockSchema).min(1).max(64),
+    /** Assistant messages only: usage of the model call that wrote them. */
+    usage: MessageUsageSchema.optional(),
     createdAt: TimestampSchema,
   })
   .strict()
@@ -50,7 +65,8 @@ export const ConversationMessageSchema = z
         block.type === "tool_use" ? message.role === "assistant" : block.type === "tool_result" ? message.role === "user" : true,
       ),
     "Tool calls belong to assistant messages and tool results to user messages.",
-  );
+  )
+  .refine((message) => message.role === "assistant" || message.usage === undefined, "Only assistant messages carry usage.");
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
 
 /** The `messages` entry shape of the Anthropic Messages API, as plain data. */

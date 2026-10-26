@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { callTool, errorMessage } from "@/lib/client/api";
+import { assetKindInfo } from "@/lib/client/format";
 import type { Asset, GenerationProposal } from "@/lib/client/types";
 import type { Shot, Slot } from "@/lib/domain/content";
 
@@ -151,7 +152,7 @@ function ApprovedSlot({ label, asset }: { label: string; asset?: Asset }) {
     <div>
       <div className="mb-1 text-xs text-muted-foreground">{label}</div>
       {asset ? (
-        <AssetMedia asset={asset} controls={asset.kind === "video"} className="aspect-[9/16] w-full rounded-lg" />
+        <AssetMedia asset={asset} controls={assetKindInfo(asset.kind).playable} className="aspect-[9/16] w-full rounded-lg" />
       ) : (
         <div className="flex aspect-[9/16] w-full items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">None</div>
       )}

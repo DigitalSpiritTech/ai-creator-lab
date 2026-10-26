@@ -14,7 +14,9 @@ import { sheetChecklist } from "@/components/project/sheet-checklist";
 import { assetQuery } from "@/components/assets/asset-browser";
 import type { ChatItem } from "@/components/project/project-context";
 import { applyAgentEvent, historyToItems, parseAgentEvent } from "@/lib/client/chat";
-import { describeEstimate, describeTarget, shouldPoll, summarizeSubmit } from "@/lib/client/format";
+import { ASSET_KINDS, assetKindInfo, describeEstimate, describeTarget, shouldPoll, summarizeSubmit } from "@/lib/client/format";
+import { AssetMedia } from "@/components/media/asset-media";
+import { AssetKindSchema } from "@/lib/domain/asset";
 import { createSseParser, encodeSse } from "@/lib/client/sse";
 import type { GenerationProposal } from "@/lib/client/types";
 
@@ -148,5 +150,20 @@ describe("cards", () => {
   test("tool card names the tool", () => {
     const html = renderToStaticMarkup(createElement(ToolCard, { activity: { id: "t", name: "save_brief", input: {}, status: "ok" } }));
     assert.match(html, /Save brief/);
+  });
+});
+
+describe("asset kinds", () => {
+  test("every asset kind has a label, and exports render as playable video with a poster", () => {
+    assert.deepEqual(Object.keys(ASSET_KINDS).sort(), [...AssetKindSchema.options].sort());
+    assert.equal(ASSET_KINDS.export.playable, true);
+    assert.equal(assetKindInfo("export").label, "Export");
+    assert.equal(assetKindInfo("unknown-kind").playable, false);
+    const id = randomUUID();
+    const html = renderToStaticMarkup(
+      createElement(AssetMedia, { asset: { id, kind: "export", mime: "video/mp4", video: { durationSeconds: 15, frameRate: 24, frameCount: 360, hasAudio: true, posterPath: `media/${id}.png` } }, controls: true }),
+    );
+    assert.match(html, /<video/);
+    assert.match(html, new RegExp(`poster="/api/assets/${id}\\?poster"`));
   });
 });

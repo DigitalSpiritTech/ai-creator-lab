@@ -3,7 +3,7 @@
  * demos without an Anthropic key. Each `stream` call plays the next step and records its params.
  * @packageDocumentation
  */
-import type { LlmModel, ModelEvent, StreamParams } from "@/server/agent/model";
+import type { LlmModel, ModelEvent, StreamParams, Usage } from "@/server/agent/model";
 
 /** One model response: fixed events, or events computed from what the loop sent (ids, results). */
 export type ScriptedStep = ModelEvent[] | ((params: StreamParams, call: number) => ModelEvent[]);
@@ -24,7 +24,7 @@ export function say(text: string): ModelEvent[] {
 }
 
 /** A finished tool call with a fresh tool_use id. */
-export function use(name: string, input: unknown, id = `toolu_scripted_${++toolSequence}`): ModelEvent {
+export function toolUse(name: string, input: unknown, id = `toolu_scripted_${++toolSequence}`): ModelEvent {
   return { type: "tool_use", id, name, input };
 }
 
@@ -39,6 +39,23 @@ function tokens(value: unknown): number {
   return Math.ceil(JSON.stringify(value).length / 4);
 }
 
+/**
+ * Simulated prompt-cache accounting with the API's rules: the cached prefix is tools, system, then
+ * messages; a call reads whatever prefix an earlier call of this model wrote, and writes the rest.
+ */
+function cacheUsage(params: StreamParams, previous: StreamParams | undefined): Omit<Usage, "outputTokens"> {
+  const stable = tokens(params.tools) + tokens(params.system);
+  const total = stable + tokens(params.messages);
+  if (!previous || JSON.stringify([previous.tools, previous.system]) !== JSON.stringify([params.tools, params.system])) {
+    return { inputTokens: total, cacheReadInputTokens: 0, cacheCreationInputTokens: total };
+  }
+  const prior = previous.messages;
+  const extends_ = prior.length <= params.messages.length && JSON.stringify(params.messages.slice(0, prior.length)) === JSON.stringify(prior);
+  const read = stable + (extends_ ? tokens(prior) : 0);
+  return { inputTokens: total, cacheReadInputTokens: read, cacheCreationInputTokens: total - read };
+}
+
+/** Replays `steps`, one per call. Usage includes simulated cache reads across the calls of one model. */
 export function scriptedModel(steps: ScriptedStep[]): ScriptedModel {
   const queue = [...steps];
   const calls: StreamParams[] = [];
@@ -62,7 +79,7 @@ export function scriptedModel(steps: ScriptedStep[]): ScriptedModel {
         yield {
           type: "stop",
           stopReason: toolCall ? "tool_use" : "end_turn",
-          usage: { inputTokens: tokens(params.system) + tokens(params.messages), outputTokens: tokens(events) },
+          usage: { ...cacheUsage(params, calls.at(-2)), outputTokens: tokens(events) },
         };
       }
     },

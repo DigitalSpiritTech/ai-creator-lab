@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { KeyRound } from "lucide-react";
+import { KeyRound, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Notice, PageHeader } from "@/components/shell/page-header";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -16,7 +16,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { useLoad } from "@/lib/client/use-load";
 import { errorMessage, getJson, sendJson } from "@/lib/client/api";
 import { CAPABILITY_LABELS, formatUsd } from "@/lib/client/format";
-import type { RecipeSummary, SettingsView } from "@/lib/client/types";
+import type { ConnectionView, RecipeSummary, SettingsView } from "@/lib/client/types";
 import type { Capability } from "@/lib/domain/capability";
 
 const DEFAULT_CAPABILITIES: Capability[] = ["text_to_image", "image_edit", "image_to_video", "first_last_to_video"];
@@ -38,6 +38,20 @@ export function SettingsForm() {
   const [allowance, setAllowance] = useState("");
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [connection, setConnection] = useState<ConnectionView | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  const checkConnection = useCallback(async () => {
+    setChecking(true);
+    try {
+      setConnection(await getJson<ConnectionView>("/api/settings/connection"));
+    } catch (cause) {
+      setConnection({ configured: true, ok: false, status: null, credits: null, cloudCredits: null, prepaidCredits: null, message: errorMessage(cause), checkedAt: Date.now() });
+    } finally {
+      setChecking(false);
+    }
+  }, []);
+  useLoad(checkConnection);
 
   const load = useCallback(async () => {
     try {
@@ -69,6 +83,7 @@ export function SettingsForm() {
       setAnthropicKey("");
       setMessage({ tone: "ok", text: "Saved. Keys stay on this computer and are never shown again." });
       await load();
+      await checkConnection();
     } catch (cause) {
       setMessage({ tone: "error", text: errorMessage(cause) });
     } finally {
@@ -135,6 +150,30 @@ export function SettingsForm() {
           </div>
           <Button type="submit" size="sm" disabled={busy}>Save keys</Button>
         </form>
+      </section>
+
+      <section className="space-y-3" aria-label="Comfy connection">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Comfy connection</h2>
+          <Button size="sm" variant="outline" disabled={checking} onClick={() => void checkConnection()}>
+            <RefreshCw className={checking ? "animate-spin" : undefined} /> Refresh
+          </Button>
+        </div>
+        {connection ? (
+          <>
+            <Notice tone={connection.ok ? "ok" : connection.configured ? "error" : "muted"}>{connection.message}</Notice>
+            {connection.ok ? (
+              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                <Stat label="Account" value={connection.status ?? "Unknown"} />
+                <Stat label="Credits" value={(connection.credits ?? 0).toLocaleString("en-US")} />
+                <Stat label="Plan credits" value={connection.cloudCredits === null ? "n/a" : connection.cloudCredits.toLocaleString("en-US")} />
+                <Stat label="Prepaid credits" value={connection.prepaidCredits === null ? "n/a" : connection.prepaidCredits.toLocaleString("en-US")} />
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">Checking…</p>
+        )}
       </section>
 
       <section className="space-y-3">

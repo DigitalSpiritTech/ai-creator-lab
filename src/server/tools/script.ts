@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { IdSchema, text } from "@/lib/domain/common";
-import { ContentPieceSchema, planShots as planContentShots, syncShotsToScript } from "@/lib/domain/content";
+import { ContentPieceSchema, planShots as planContentShots, syncShotsToScript, updateCut } from "@/lib/domain/content";
 import { fail } from "@/lib/domain/failure";
 import {
   BeatInputSchema,
@@ -87,5 +87,26 @@ export const planShots = defineTool({
       const before = store.scripts.get(script.id, content.scriptVersion);
       if (!before) fail("storage", "The script version this content piece used is missing.");
       return store.content.update(syncShotsToScript(content, script, diffScripts(before, script), time, newId));
+    }),
+});
+
+export const setCutOrder = defineTool({
+  name: "set_cut_order",
+  description:
+    "Set the order the approved clips play in the exported ad: every shot id of the content piece exactly once. assemble_ad joins clips in this order.",
+  input: z
+    .object({
+      contentId: IdSchema,
+      shotIds: z.array(IdSchema).min(1).max(8),
+    })
+    .strict(),
+  output: ContentPieceSchema,
+  run: ({ store, now }, input) =>
+    store.transaction(() => {
+      const content = store.content.getRequired(input.contentId);
+      const ids = new Set(content.shots.map((shot) => shot.id));
+      if (input.shotIds.some((id) => !ids.has(id))) fail("invalid", "Order only this content piece's shots.");
+      if (input.shotIds.length === content.cut.order.length && input.shotIds.every((id, index) => id === content.cut.order[index])) return content;
+      return store.content.update(updateCut(content, { order: input.shotIds }, now()));
     }),
 });

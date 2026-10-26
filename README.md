@@ -106,6 +106,7 @@ Scripts (all in `package.json`):
 - `npm run dev` starts the dev server on 127.0.0.1.
 - `npm run build`, `npm start` build and serve.
 - `npm run lint`, `npm run typecheck`, `npm test` are the checks. `npm run test:acceptance` runs the whole flow against the mock executor with no credits.
+- `npm run --silent mcp` starts the MCP server on stdio (see below).
 - `npm run spike`, `npm run live-check`, `npm run e2e-real` call real providers and spend credits. They need the key and a nonzero allowance.
 
 Where things live:
@@ -117,6 +118,32 @@ Where things live:
 - `workflows/` starter workflows and sidecars. `assets/fonts/` the caption font.
 - `tests/` offline tests with fixtures. `scripts/` the acceptance smoke and the real-provider checks.
 - `docs/` the product description (`PRODUCT.md`), the plan (`PLAN.md`), the task board (`TASKS.md`), the log of every real run (`VERIFICATION.md`), the demo script (`DEMO.md`), and post drafts (`POSTS.md`).
+
+### MCP server (Claude Code, Claude Desktop, other MCP clients)
+
+`npm run --silent mcp` (or `node --import tsx scripts/mcp.ts`) starts an MCP server on stdio over the same tools the in-app assistant uses. It opens the data folder in `STUDIO_DATA_DIR` (default `.data` in the repo). Keys come from `.env.local`, which the server loads when present, or from the secrets file that Settings writes in the data folder. Run it from the repo folder. Use `--silent` with `npm run`, because npm's own banner on stdout would break the protocol.
+
+Every tool is offered under its own name. Generating is split the same way as in the app: tools such as `propose_candidates` and `compose_still` return a proposal, and only `approve_and_generate` spends credits. It is the human approval step, and it is held to the same allowance (`GENERATION_ALLOWANCE_USD` and the workspace allowance; zero blocks every paid run). Two resources let a client look at the work: `project://{id}/state` (the whole project as JSON) and `asset://{id}` (a candidate's file).
+
+Claude Code, from the repo folder:
+
+```sh
+claude mcp add ai-creator-lab -- node --import tsx scripts/mcp.ts
+```
+
+Claude Desktop, in `claude_desktop_config.json`. Desktop does not start in the repo folder, so `npm --prefix` runs the script from there:
+
+```json
+{
+  "mcpServers": {
+    "ai-creator-lab": {
+      "command": "npm",
+      "args": ["--prefix", "/path/to/ai-creator-lab", "run", "--silent", "mcp"],
+      "env": { "STUDIO_DATA_DIR": "/path/to/ai-creator-lab/.data" }
+    }
+  }
+}
+```
 
 Read `AGENTS.md` for the working agreements before changing scope.
 
