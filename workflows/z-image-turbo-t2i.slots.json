@@ -1,0 +1,50 @@
+{
+  "workflow": "z-image-turbo-t2i.api.json",
+  "capability": "text_to_image",
+  "openWeights": true,
+  "outputNode": "9",
+  "slots": {
+    "prompt": {
+      "node": "4",
+      "input": "text"
+    },
+    "width": {
+      "node": "6",
+      "input": "width"
+    },
+    "height": {
+      "node": "6",
+      "input": "height"
+    },
+    "seed": {
+      "node": "8",
+      "input": "seed"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        1024,
+        1024
+      ],
+      [
+        1024,
+        576
+      ],
+      [
+        576,
+        1024
+      ],
+      [
+        896,
+        1152
+      ],
+      [
+        1152,
+        896
+      ]
+    ],
+    "multipleOf": 32
+  },
+  "notes": "Z-Image Turbo, 8 steps, CFG 1. Model files verified present on Comfy Cloud 2026-10-26."
+}

@@ -1,0 +1,60 @@
+{
+  "workflow": "qwen-image-edit-2511-2ref.api.json",
+  "capability": "image_edit",
+  "openWeights": true,
+  "maxReferences": 2,
+  "outputNode": "9",
+  "slots": {
+    "prompt": [
+      {
+        "node": "4",
+        "input": "prompt"
+      }
+    ],
+    "image1": {
+      "node": "20",
+      "input": "image",
+      "kind": "image"
+    },
+    "image2": {
+      "node": "21",
+      "input": "image",
+      "kind": "image"
+    },
+    "width": {
+      "node": "6",
+      "input": "width"
+    },
+    "height": {
+      "node": "6",
+      "input": "height"
+    },
+    "seed": {
+      "node": "8",
+      "input": "seed"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        768,
+        1344
+      ],
+      [
+        1344,
+        768
+      ],
+      [
+        1024,
+        1024
+      ],
+      [
+        896,
+        1152
+      ]
+    ],
+    "multipleOf": 16,
+    "megapixelsPerReference": 1.0
+  },
+  "notes": "Qwen Image Edit 2511 bf16 with the Lightning 4-step LoRA, CFG 1, both references scaled to 1 MP. For three references add a LoadImage + scale pair and bind image3 on nodes 4 and 5. Unverified until the spike runs."
+}

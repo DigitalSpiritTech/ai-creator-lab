@@ -1,0 +1,65 @@
+{
+  "workflow": "ltx-2.5-i2v.api.json",
+  "capability": "image_to_video",
+  "openWeights": true,
+  "outputNode": "9",
+  "slots": {
+    "prompt": {
+      "node": "5",
+      "input": "text"
+    },
+    "image": {
+      "node": "22",
+      "input": "image",
+      "kind": "image"
+    },
+    "width": {
+      "node": "8",
+      "input": "width"
+    },
+    "height": {
+      "node": "8",
+      "input": "height"
+    },
+    "length": [
+      {
+        "node": "8",
+        "input": "length"
+      },
+      {
+        "node": "10",
+        "input": "frames_number"
+      }
+    ],
+    "seed": {
+      "node": "12",
+      "input": "noise_seed"
+    },
+    "imageStrength": {
+      "node": "24",
+      "input": "strength"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        576,
+        1024
+      ],
+      [
+        1024,
+        576
+      ],
+      [
+        768,
+        768
+      ]
+    ],
+    "length": {
+      "default": 121,
+      "rule": "8n+1"
+    },
+    "fps": 24
+  },
+  "notes": "LTX 2.5 22B distilled int8, 9 fixed sigmas, euler ancestral, audio generated. Model files verified present on Comfy Cloud 2026-10-26."
+}

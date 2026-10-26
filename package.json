@@ -1,0 +1,20 @@
+{
+  "name": "ai-creator-lab",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "engines": { "node": ">=22.13.0" },
+  "type": "module",
+  "scripts": {
+    "spike": "tsx scripts/spike/run.ts"
+  },
+  "dependencies": {
+    "@comfyorg/sdk": "latest",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "@types/node": "^22.0.0"
+  }
+}
