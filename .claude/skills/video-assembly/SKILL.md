@@ -7,7 +7,7 @@ description: Join approved clips into a 1080 x 1920 ad with ffmpeg, burn in on-s
 
 ## Port first
 
-`/Users/teddarling/Documents/open-higgs/src/server/scene-export.ts` (join, scale and pad, audio re-encode with silence fill, mute, source record, immutable export request and result) and `video-media.ts` (full decode verification, poster extraction). Reformat and rename to `src/server/assembly/`. Keep the tests that use synthetic clips of mixed sizes and frame rates.
+`../open-higgs/src/server/scene-export.ts` (join, scale and pad, audio re-encode with silence fill, mute, source record, immutable export request and result) and `video-media.ts` (full decode verification, poster extraction). Reformat and rename to `src/server/assembly/`. Keep the tests that use synthetic clips of mixed sizes and frame rates.
 
 ## Pipeline
 

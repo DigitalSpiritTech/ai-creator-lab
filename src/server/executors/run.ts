@@ -21,7 +21,7 @@ import {
 import { effectiveAllowanceUsd } from "@/lib/domain/workspace";
 import { type AllowanceState, checkAllowance, readAllowanceUsd, settleUsd } from "@/server/executors/allowance";
 import type { ExecutorSet } from "@/server/executors/index";
-import { claimForSubmit, failJob, jobError, toJobError } from "@/server/executors/jobs";
+import { claimForSubmit, failJob, jobError, patchJob, toJobError } from "@/server/executors/jobs";
 import type { Executor, PollOutcome, RetrieveDestination, RetrieveOutcome, SubmitOutcome } from "@/server/executors/types";
 import { type StagedOutput, commitJobOutputs } from "@/server/media/commit";
 import { resolveMediaPath } from "@/server/media/paths";
@@ -65,6 +65,31 @@ export type StepOutcome =
 
 const MEDIA_FOLDER = "media";
 
+/** How long a provider will still answer for a request under the same idempotency key. */
+export const COLLECTION_WINDOW_MS = 23 * 60 * 60 * 1000;
+
+export const UNCERTAIN_EXPIRED_NOTICE =
+  "This request could not be confirmed within 23 hours, so its reservation was released and it will not be sent again. Check your Comfy usage before generating again.";
+
+/**
+ * What a job counts against the allowance. Reported credits win. A failure before anything reached
+ * a provider (no provider reference, error not from the provider) costs nothing; other failures and
+ * completions without a report keep their reservation. Unfinished jobs hold their reservation,
+ * except uncertain ones past the collection window, which are settled at zero.
+ */
+export function chargedUsd(job: Job, now: number): { spentUsd: number; reservedUsd: number } {
+  const reserved = job.reservedUsd ?? 0;
+  if (job.executor === "mock") return { spentUsd: 0, reservedUsd: 0 };
+  if (job.status === "completed") return { spentUsd: settleUsd(job.creditsUsed, reserved), reservedUsd: 0 };
+  if (job.status === "failed") {
+    if (job.creditsUsed !== null) return { spentUsd: settleUsd(job.creditsUsed, reserved), reservedUsd: 0 };
+    const local = job.providerRef === null && job.error.code !== "provider";
+    return { spentUsd: local ? 0 : reserved, reservedUsd: 0 };
+  }
+  if (job.status === "uncertain" && now - job.createdAt > COLLECTION_WINDOW_MS) return { spentUsd: 0, reservedUsd: 0 };
+  return { spentUsd: 0, reservedUsd: reserved };
+}
+
 function clock(deps: RunDeps): number {
   return (deps.now ?? Date.now)();
 }
@@ -76,10 +101,11 @@ export function allowanceState(deps: RunDeps): AllowanceState {
     : effectiveAllowanceUsd(deps.store.workspace.get(), readAllowanceUsd());
   let spentUsd = 0;
   let reservedUsd = 0;
+  const now = clock(deps);
   for (const job of deps.store.jobs.listAll()) {
-    if (job.executor === "mock") continue;
-    if (job.status === "completed" || job.status === "failed") spentUsd += settleUsd(job.creditsUsed, job.reservedUsd ?? 0);
-    else reservedUsd += job.reservedUsd ?? 0;
+    const charge = chargedUsd(job, now);
+    spentUsd += charge.spentUsd;
+    reservedUsd += charge.reservedUsd;
   }
   return { allowanceUsd, spentUsd, reservedUsd };
 }
@@ -197,6 +223,10 @@ export async function advanceGeneration(deps: RunDeps, jobId: string): Promise<S
     return { kind: "waiting", job, retryAfterMs: 60_000, queuePosition: null, uncertain: false };
   }
   if (job.status === "retrieving" && job.retrieved.length > 0) return commitRetrieved(deps, job);
+  if (job.status === "uncertain" && clock(deps) - job.createdAt > COLLECTION_WINDOW_MS) {
+    const expired = job.notice === UNCERTAIN_EXPIRED_NOTICE ? job : patchJob(deps.store.jobs, job, { notice: UNCERTAIN_EXPIRED_NOTICE }, clock(deps));
+    return { kind: "waiting", job: expired, retryAfterMs: 60 * 60_000, queuePosition: null, uncertain: true };
+  }
   if (job.status === "queued" && job.providerRef === null) {
     const { job: sent } = await dispatch(deps, executor, job);
     if (sent.status === "failed") return { kind: "failed", job: sent, error: sent.error };
@@ -262,4 +292,29 @@ export async function pollAndRetrieve(
     if (now() + polled.retryAfterMs > deadline) return polled;
     await sleep(polled.retryAfterMs);
   }
+}
+
+/**
+ * Restart recovery with a concurrency of one: one step for every unfinished job, then each job that
+ * is still waiting is driven to the end before the next. Logs one line per job (id, recipe, outcome,
+ * error code); never prompts, paths, or keys.
+ */
+export async function recoverAndDrain(deps: RunDeps, log: (line: string) => void = () => undefined): Promise<StepOutcome[]> {
+  const finished: StepOutcome[] = [];
+  for (const step of await recoverUnfinished(deps)) {
+    let outcome = step;
+    if (step.kind === "waiting" && !(step.uncertain && step.job.notice === UNCERTAIN_EXPIRED_NOTICE)) {
+      try {
+        outcome = await runToCompletion(deps, step.job.id);
+      } catch (cause) {
+        log(`[recovery] job ${step.job.id} (${step.job.recipeId}): stopped, ${toJobError(cause).code}`);
+        finished.push(step);
+        continue;
+      }
+    }
+    const detail = outcome.kind === "failed" ? `failed, ${outcome.error.code}` : outcome.kind === "completed" ? `completed, ${outcome.assets.length} output(s)` : `still ${outcome.job.status}`;
+    log(`[recovery] job ${outcome.job.id} (${outcome.job.recipeId}): ${detail}`);
+    finished.push(outcome);
+  }
+  return finished;
 }

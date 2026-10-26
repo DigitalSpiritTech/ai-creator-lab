@@ -14,7 +14,7 @@ description: Call hosted models (Nano Banana, Seedance, Kling, Wan, FLUX, MiniMa
 - The TypeScript SDK exposes `comfy.models.run(model, nativeBody, { idempotencyKey })` (verified October 26 with `vertexai/gemini-nano-banana-2.1` and `anthropic/claude-opus-5-5`); the catalog is `GET https://api.comfy.org/v2/models?limit=100` with cursor paging (262 models) and per-model schemas at `/v2/models/{id}/openapi.json`.
 - The catalog includes text models (`anthropic/claude-opus-5-5`, `anthropic/claude-sonnet-5-5`, `openai/gpt-5.5`, Gemini) that accept their native request bodies, plus `ltx/ltx-2-5-fast`, `ltx/ltx-2-5-pro`, `krea/krea-3`, `qwen/qwen-image-3.0`, Seedance, Kling, Wan 3. Nano Banana 2.1 two-reference composition at 1K cost about 13 credits and returned in 15 seconds.
 
-## Port these from `/Users/teddarling/Documents/open-higgs/src/server/`
+## Port these from `../open-higgs/src/server/`
 
 `router-provider.ts` (fixed origin, estimate, queue, status, result; safe failure mapping), `router-service.ts` (budgeted intent, bounded idempotency recovery), `router-media.ts` (PNG and MP4 decode and retention), `router-download.ts` (downloads across changing CDN hosts), `router-billing.ts` and `router-approval.ts` (quotes, unquoted approval, reservations, charges), `model-library.ts` (model list and schema fetch, cache). Reformat to this repo's conventions and replace the per-model body union with the schema-driven builder.
 

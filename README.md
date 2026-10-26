@@ -23,7 +23,7 @@ npm run build
 npm start
 ```
 
-Those are the clone, the move into the folder, the dependency install, the build, and the start. Then open http://127.0.0.1:3000 in your browser. The app only listens on your own machine (127.0.0.1) unless you change that on purpose.
+Those are the clone, the move into the folder, the dependency install, the build, and the start. Then open http://127.0.0.1:3000 in your browser. The app only listens on your own machine (127.0.0.1) and only answers requests addressed to localhost or 127.0.0.1. There is no setting to open it to other hosts. To run it on your own server, reach it through an SSH tunnel (for example `ssh -L 3000:127.0.0.1:3000 you@your-server`), or put a reverse proxy in front that rewrites the Host header to `127.0.0.1:3000` (and the Origin header to `http://127.0.0.1:3000`, or saving will be refused) and adds its own login.
 
 ## Settings: keys and the allowance
 

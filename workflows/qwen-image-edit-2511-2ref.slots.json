@@ -56,5 +56,5 @@
     "multipleOf": 16,
     "megapixelsPerReference": 1.0
   },
-  "notes": "Qwen Image Edit 2511 bf16 with the Lightning 4-step LoRA, CFG 1, both references scaled to 1 MP. For three references add a LoadImage + scale pair and bind image3 on nodes 4 and 5. Unverified until the spike runs."
+  "notes": "Qwen Image Edit 2511 bf16 with the Lightning 4-step LoRA, CFG 1, both references scaled to 1 MP. For three references add a LoadImage + scale pair and bind image3 on nodes 4 and 5. Verified on Comfy Cloud on 2026-10-26 with two references at 768x1344, about 7 to 14 credits per still."
 }

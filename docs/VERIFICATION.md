@@ -2,7 +2,7 @@
 
 Every real provider run (anything that spends credits or tokens on a real account) gets a row here, written by the agent or person who ran it. Mock and offline test results do not belong here; those are in CI output.
 
-Budget: the whole build, spike included, is capped at the allowance in `.env.local` ($5, about 1,050 credits at 210 credits per USD). Notices at 50 percent (525 credits) and 80 percent (840 credits); hard stop at 1,050 until Ted raises it. Starting balance on the Base plan, October 26: 5,496 credits.
+Budget: the whole build, spike included, is capped at the allowance in `.env.local` ($5, about 1,050 credits at 210 credits per USD). Notices at 50 percent (525 credits) and 80 percent (840 credits); hard stop at 1,050 until the maintainer raises it. Starting balance on the Base plan, October 26: 5,496 credits.
 
 Running total spent: 153 credits (0.73 USD) of the 1055-credit cap, settled from the balance endpoint (start 5,496 credits, now 5,343).
 

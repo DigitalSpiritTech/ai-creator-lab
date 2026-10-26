@@ -14,7 +14,7 @@ npm run test:acceptance
 npm run build
 ```
 
-Environment lives in `.env.local` (never committed). Variables: `COMFY_API_KEY`, `COMFY_BASE_URL` (blank for Comfy Cloud, a deployment URL, or `http://127.0.0.1:8189` for the local proxy), `ANTHROPIC_API_KEY`, `LLM_MODEL`, `GENERATION_ALLOWANCE_USD` (set by Ted only), `STUDIO_DATA_DIR`, `FFMPEG_PATH`, `FFPROBE_PATH`.
+Environment lives in `.env.local` (never committed). Variables: `COMFY_API_KEY`, `COMFY_BASE_URL` (blank for Comfy Cloud, a deployment URL, or `http://127.0.0.1:8189` for the local proxy), `ANTHROPIC_API_KEY`, `LLM_MODEL`, `GENERATION_ALLOWANCE_USD` (set by the maintainer only), `STUDIO_DATA_DIR`, `FFMPEG_PATH`, `FFPROBE_PATH`.
 
 ## How to run a build session
 
@@ -48,4 +48,4 @@ Model and effort are pinned in each agent's frontmatter (ids confirmed against t
 
 ## Tool roster (domain tools, `src/server/tools/`)
 
-`get_project_state`, `save_brief`, `save_character_bible`, `propose_candidates` (capability, recipe, prompt, references, count; returns a proposal the UI gates), `select_reference` (asset to a library slot, archives siblings), `generate_reference_sheet` (per project, from the approved face and body), `save_product`, `save_script`, `plan_shots`, `compose_still`, `refine_still`, `generate_clip`, `approve`, `archive_asset`, `delete_asset_everywhere`, `assemble_ad`, `list_assets`, `list_recipes`. Keep the names stable; the MCP server (stretch) exposes the same registry.
+`get_project_state`, `save_brief`, `save_character_bible`, `propose_candidates` (capability, recipe, prompt, references, count; returns a proposal the UI gates), `select_reference` (asset to a library slot, archives siblings), `generate_reference_sheet` (per project, from the approved face and body), `save_product`, `save_script`, `plan_shots`, `compose_still`, `refine_still`, `generate_clip`, `approve`, `archive_asset`, `delete_asset_everywhere`, `assemble_ad`, `list_assets`, `list_recipes`, `link_library_item` (attach a Library character, product, or set to a project without changing it), `unlink_library_item` (refused while an approved still or clip was made from its images), `archive_library_item` (hide from new selections, restorable), `create_set` (name, notes, image asset ids). 22 tools, plus the internal `submit_proposal` that only the UI gate calls. Keep the names stable; the MCP server (stretch) exposes the same registry.

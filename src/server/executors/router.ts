@@ -120,7 +120,11 @@ export interface RouterExecutorOptions {
   mediaRoot?: string;
   now?: () => number;
   staleSubmitMs?: number;
+  /** How often a pending Router call refreshes the job so its age reflects reality; default 30 s. */
+  heartbeatMs?: number;
 }
+
+const IN_FLIGHT_NOTICE = "Router is generating. The request stays open until it answers; it is never sent twice.";
 
 export class RouterExecutor implements Executor {
   readonly kind = "router" as const;
@@ -134,8 +138,15 @@ export class RouterExecutor implements Executor {
   /** Parsed results awaiting download; rebuilt by a same-key replay after a restart. */
   private readonly pending = new Map<string, RouterMedia>();
   private readonly attempts = new Map<string, number>();
+  /**
+   * Jobs with a `models.run` call pending in this process. Polls never resend these, whatever their
+   * age. The set is empty after a restart, so an abandoned call is re-collected under the same key.
+   */
+  private readonly inFlight = new Set<string>();
+  private readonly heartbeatMs: number;
 
   constructor(options: RouterExecutorOptions) {
+    this.heartbeatMs = options.heartbeatMs ?? 30_000;
     this.options = options;
     this.jobs = options.jobs;
     this.models = options.models;
@@ -167,9 +178,9 @@ export class RouterExecutor implements Executor {
     try {
       const recipe = this.recipeOf(job.request);
       claimed = claimForSubmit(this.jobs, job, this.now());
-      if (!claimed) return { kind: "existing", job: loadJob(this.jobs, job.id) };
-      const body = await this.body(recipe, claimed.request.input);
-      return await this.execute(claimed, body);
+      if (!claimed || this.inFlight.has(job.id)) return { kind: "existing", job: loadJob(this.jobs, job.id) };
+      const sending = claimed;
+      return await this.track(job.id, async () => this.collect(sending, await this.body(recipe, sending.request.input)));
     } catch (cause) {
       const error = toJobError(cause);
       const current = this.jobs.get(job.id);
@@ -185,6 +196,7 @@ export class RouterExecutor implements Executor {
     if (job.status === "completed") return { kind: "completed", job };
     if (job.status === "failed") return { kind: "failed", job, error: job.error };
     if (job.status === "retrieving") return { kind: "ready", job };
+    if (this.inFlight.has(job.id)) return { kind: "pending", job, retryAfterMs: 5000, queuePosition: null };
     if (job.status === "submitting" && this.now() - job.updatedAt < this.staleSubmitMs) {
       return { kind: "pending", job, retryAfterMs: 5000, queuePosition: null };
     }
@@ -260,8 +272,42 @@ export class RouterExecutor implements Executor {
     return this.models.run(recipe.model, native, { idempotencyKey: job.id, maxBytes: MAX_RESULT_BYTES });
   }
 
+  /** Whether a `models.run` call for this job is pending in this process. */
+  isInFlight(jobId: string): boolean {
+    return this.inFlight.has(jobId);
+  }
+
+  /** Re-collects the request under the same key, unless a call for it is already pending here. */
+  private async execute(job: Job): Promise<SubmitOutcome> {
+    if (this.inFlight.has(job.id)) return { kind: "existing", job: loadJob(this.jobs, job.id) };
+    return this.track(job.id, () => this.collect(job));
+  }
+
+  /**
+   * Marks a job in flight from before its body is built until Router answers, refreshing the job
+   * every `heartbeatMs` meanwhile so its age reflects reality.
+   */
+  private async track(jobId: string, work: () => Promise<SubmitOutcome>): Promise<SubmitOutcome> {
+    this.inFlight.add(jobId);
+    const heartbeat = setInterval(() => {
+      try {
+        const current = this.jobs.get(jobId);
+        if (current && current.status === "submitting") patchJob(this.jobs, current, { notice: IN_FLIGHT_NOTICE }, this.now());
+      } catch {
+        // A lost race just skips one heartbeat.
+      }
+    }, this.heartbeatMs);
+    heartbeat.unref?.();
+    try {
+      return await work();
+    } finally {
+      clearInterval(heartbeat);
+      this.inFlight.delete(jobId);
+    }
+  }
+
   /** Sends (or re-collects) the request and records what came back. */
-  private async execute(job: Job, body?: Record<string, unknown>): Promise<SubmitOutcome> {
+  private async collect(job: Job, body?: Record<string, unknown>): Promise<SubmitOutcome> {
     const recipe = this.recipeOf(job.request);
     let result: RunResult;
     try {

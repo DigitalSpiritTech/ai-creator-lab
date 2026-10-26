@@ -4,7 +4,7 @@ Status: Phase 0 (planning). Written October 26, 2026. Read this before changing 
 
 ## Why this exists
 
-Primary goal: an open-source studio that creators can run on their own Comfy account as an alternative to closed creator platforms, built and shared in public. Secondary goal: enter the Comfy "Open Source Higgsfield" competition (submissions close October 30, 2026, 9 a.m. Pacific; Ted's own submission target is October 29). The competition shapes the MVP cut, not the product.
+Primary goal: an open-source studio that creators can run on their own Comfy account as an alternative to closed creator platforms, built and shared in public. Secondary goal: enter the Comfy "Open Source Higgsfield" competition (submissions close October 30, 2026, 9 a.m. Pacific; the maintainer's own submission target is October 29). The competition shapes the MVP cut, not the product.
 
 Audience: non-technical creators, many of them building UGC-style content for a single affiliate or owned product. They will pay for a Comfy Cloud plan and credits. They will not install model files, write workflows, or read API docs.
 
@@ -66,7 +66,7 @@ Layers, bottom to top:
 6. Agent: the UGC Creator "creative director" system prompt plus stage guidance; proposes actions; never spends without the UI gate or the user's auto-approve setting under the allowance.
 7. UI: workspace shell, chat panel with tool cards (candidate grids with Select, Approve, Archive), asset grid, settings.
 
-Partner-node workflows already in Ted's Cloud workspace (for example a Krea 3 image edit) are candidate `image_edit` recipes once a sidecar exists.
+Partner-node workflows already in the maintainer's Cloud workspace (for example a Krea 3 image edit) are candidate `image_edit` recipes once a sidecar exists.
 
 The live Router catalog (262 models on October 26) also carries `ltx/ltx-2-5-fast` and `ltx/ltx-2-5-pro`, `krea/krea-3`, `qwen/qwen-image-3.0`, and the Anthropic and OpenAI text models, including `anthropic/claude-opus-5-5`, which answers with the native Anthropic Messages shape. So a credits-only user can run the whole flow, assistant included, with one Comfy key and no plan; the Cloud plan is what adds open-weights workflows.
 
@@ -74,7 +74,7 @@ Comfy product map: Router for hosted partner models (credits only, no plan, 24-h
 
 ## Carry-over from the previous project
 
-Source path, read-only reference: `/Users/teddarling/Documents/open-higgs`. Port code, not docs. Reformat ported code to this repo's conventions. Remove references to removed features. Never copy its documentation prose, screenshots, or private names.
+Source path: `../open-higgs`, the previous project folder beside this one (read-only reference). Port code, not docs. Reformat ported code to this repo's conventions. Remove references to removed features. Never copy its documentation prose, screenshots, or private names.
 
 Port and keep: `src/server/store.ts` (restructure tables for the new domain), `http.ts`, `runtime.ts`, `references.ts`, `reference-upload.ts`, `job-input.ts`, `asset-response.ts`, `video-media.ts`, `scene-export.ts` (becomes assembly), `router-provider.ts`, `router-service.ts`, `router-media.ts`, `router-download.ts`, `router-billing.ts`, `router-approval.ts`, `router-errors.ts`, `model-library.ts` (Router catalog fetch), `workflow-discovery.ts` (slot detection), `mock-provider.ts`, `src/lib/router-budget.ts`, `src/lib/contracts.ts` (split by domain), `src/components/ui/*`, `src/proxy.ts`, and the tests for those modules.
 
@@ -84,7 +84,7 @@ Do not port: `scene-workflow.tsx`, `cinematic.ts`, `model-library.tsx`, the Rout
 
 ## Day plan (America/Chicago)
 
-October 26: Phase 0 (this plan, product doc, task board, agents, skills). Ted confirms a Comfy Cloud account with API access and a credit balance, and an Anthropic key.
+October 26: Phase 0 (this plan, product doc, task board, agents, skills). The maintainer confirms a Comfy Cloud account with API access and a credit balance, and an Anthropic key.
 
 October 26, evening (done): the spike ran ahead of schedule. Z-Image text-to-image, Qwen Image Edit 2511 two-reference composition, and LTX 2.5 image-to-video with dialogue all succeeded on Comfy Cloud with open weights; Nano Banana 2.1 composition and a Claude Opus 5.5 call succeeded on Router. Total 36 credits. Defaults are recorded in docs/VERIFICATION.md. Three starter workflows with sidecars are in `workflows/`.
 
@@ -108,7 +108,7 @@ October 30, morning: buffer for submission form issues only.
 ## Decisions log
 
 - 2026-10-26: Fresh repository in `ai-creator-lab`, no history from the previous project.
-- 2026-10-26: Keep Next.js (Ted's choice for portfolio and work visibility).
+- 2026-10-26: Keep Next.js (the maintainer's choice for portfolio and work visibility).
 - 2026-10-26: Relax TSDoc and formatting rules for contributors.
 - 2026-10-26: First App is UGC Creator; first content type is Ad.
 - 2026-10-26: "Library" replaces the Elements concept; "Archive" replaces Trash.

@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { toFailure } from "@/lib/domain/failure";
 import { type Store, openStore } from "@/server/store";
+import { recoveryEnabled, startRecoveryOnce } from "@/server/tools/recovery";
 
 const holder = globalThis as typeof globalThis & { __creatorLabStore?: Store };
 
@@ -16,9 +17,15 @@ export function dataDirectory(): string {
   return resolve(/* turbopackIgnore: true */ process.env.STUDIO_DATA_DIR || ".data");
 }
 
-/** Opens the store on first use (creating the data directory) and reuses it for the process. */
+/**
+ * Opens the store on first use (creating the data directory) and reuses it for the process. The
+ * first open also starts restart recovery in the background, as a fallback for `instrumentation.ts`.
+ */
 export function getStore(): Store {
-  if (!holder.__creatorLabStore) holder.__creatorLabStore = openStore(dataDirectory());
+  if (!holder.__creatorLabStore) {
+    holder.__creatorLabStore = openStore(dataDirectory());
+    if (recoveryEnabled()) void startRecoveryOnce(holder.__creatorLabStore);
+  }
   return holder.__creatorLabStore;
 }
 

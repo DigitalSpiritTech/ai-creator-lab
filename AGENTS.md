@@ -18,11 +18,11 @@ Next.js 16 App Router, React 19, TypeScript, Tailwind 4 with shadcn/ui, Node 22 
 
 ## Safety rules
 
-- Paid generation runs only when `GENERATION_ALLOWANCE_USD` in `.env.local` is above zero. Agents never create, edit, or suggest values for that variable; Ted sets it. Every real provider run is logged in `docs/VERIFICATION.md`.
-- Comfy credits are the real budget. Cloud workflow runs and Router calls both draw from the same credit balance; the ledger converts at 210 credits per USD (the observed Router rate, matching the Base plan's monthly rate), so a $5 allowance is about 1,050 credits for the entire build, spike included. Before and after every real run, read the account's credit balance, log the delta and the running total in `docs/VERIFICATION.md`, post a note at 50 percent and 80 percent of the cap, and stop submitting at 100 percent until Ted raises the allowance. Never spend the whole balance because it is there.
+- Paid generation runs only when `GENERATION_ALLOWANCE_USD` in `.env.local` is above zero. Agents never create, edit, or suggest values for that variable; the maintainer sets it. Every real provider run is logged in `docs/VERIFICATION.md`.
+- Comfy credits are the real budget. Cloud workflow runs and Router calls both draw from the same credit balance; the ledger converts at 210 credits per USD (the observed Router rate, matching the Base plan's monthly rate), so a $5 allowance is about 1,050 credits for the entire build, spike included. Before and after every real run, read the account's credit balance, log the delta and the running total in `docs/VERIFICATION.md`, post a note at 50 percent and 80 percent of the cap, and stop submitting at 100 percent until the maintainer raises the allowance. Never spend the whole balance because it is there.
 - Never commit `.env.local`, `.data/`, keys, or media from real runs. Keys are read on the server only and never appear in client bundles, API responses, logs, or error messages.
 - Privacy: no private character names, private reference images, or private project details anywhere in this repository, including tests, fixtures, screenshots, and commit messages. Use the invented example persona in `docs/PRODUCT.md`.
-- Porting from `/Users/teddarling/Documents/open-higgs` is allowed only for the files listed in `docs/PLAN.md`. Port code, reformat it, drop removed features. Never copy its documentation prose or screenshots.
+- Porting from `../open-higgs` (the previous project folder beside this one, read-only reference) is allowed only for the files listed in `docs/PLAN.md`. Port code, reformat it, drop removed features. Never copy its documentation prose or screenshots.
 - Content stays SFW. Body references use athleticwear.
 
 ## Definition of done
