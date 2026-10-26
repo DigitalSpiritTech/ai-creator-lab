@@ -1,0 +1,2363 @@
+{
+  "recordedAt": "2026-10-26T20:55:48.935Z",
+  "data": [
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-fable-5",
+      "model": "claude-fable-5",
+      "provider": "anthropic",
+      "schema_etag": "\"36c705653d76115fa6b8eee32a5c2566503c8c06083c404ad00cb374ca9e81ef\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-fable-5-1",
+      "model": "claude-fable-5-1",
+      "provider": "anthropic",
+      "schema_etag": "\"aafeafd2d847e23dffa98deda92a8f2a088421edfc9090bcbb8e18ef9603a99e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-haiku-4-5-20251001",
+      "model": "claude-haiku-4-5-20251001",
+      "provider": "anthropic",
+      "schema_etag": "\"f6d56cc1ba8cd6e5c0018a9376121f4767e05809a181808a3451d4d49952781d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-opus-4-6",
+      "model": "claude-opus-4-6",
+      "provider": "anthropic",
+      "schema_etag": "\"7618442347adb4de5191a7766cf5b06f2f48108d770af92be14ba326474f61e8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-opus-4-7",
+      "model": "claude-opus-4-7",
+      "provider": "anthropic",
+      "schema_etag": "\"046a3a46e8871dad713e6bd75dce1d6b00c2ebae89d993723a91688fc9a524ab\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-opus-4-8",
+      "model": "claude-opus-4-8",
+      "provider": "anthropic",
+      "schema_etag": "\"326f0fc78312022b4d427e2f843ca2ba11e9012770ea5d14782c5bf6e5c010cd\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-opus-5",
+      "model": "claude-opus-5",
+      "provider": "anthropic",
+      "schema_etag": "\"9f36838f07f03633962292cb2bfc2c61173530ccaf6815fa50e87974c1c89c3e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-opus-5-5",
+      "model": "claude-opus-5-5",
+      "provider": "anthropic",
+      "schema_etag": "\"e404a72b2d2be2448fa2bfae619b4c9274f965b277dd90c167ee7a6d0a6a9c91\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-sonnet-4-5-20250929",
+      "model": "claude-sonnet-4-5-20250929",
+      "provider": "anthropic",
+      "schema_etag": "\"c568265b4c55e2c7881de3784b91f1f55e5d6b4f96cf98f08e95f6a4cf32ad30\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-sonnet-4-6",
+      "model": "claude-sonnet-4-6",
+      "provider": "anthropic",
+      "schema_etag": "\"20f9b83c248a7be89a46e63681cf605f494aaaa0609547925f5b4271c869edb9\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-sonnet-5",
+      "model": "claude-sonnet-5",
+      "provider": "anthropic",
+      "schema_etag": "\"c586a90cde3752a35ce32a520ab55fd7365551328c61e77aaaef88ef22e3238e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "anthropic/claude-sonnet-5-5",
+      "model": "claude-sonnet-5-5",
+      "provider": "anthropic",
+      "schema_etag": "\"df55e81141cda21f593ad0b2c10ffcddc5dbc7594c7f01b5ca87b4079c6fca7e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "beeble/switchx",
+      "model": "switchx",
+      "provider": "beeble",
+      "schema_etag": "\"8aa3b6eb31ae2d0c2e9ce86059b7217b340f805de1f3d495720c8d51c1c06492\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/erase-v1",
+      "model": "erase-v1",
+      "provider": "bfl",
+      "schema_etag": "\"278fe66701b077c1306a78a5f5ce94f50013f49c7077aadda143f7e68f56717e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/flux-2-max",
+      "model": "flux-2-max",
+      "provider": "bfl",
+      "schema_etag": "\"bef9d28e2f6853f372dc3c8aefec11fefdb7565c505dcd34801770d4487e3ea9\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/flux-2-pro",
+      "model": "flux-2-pro",
+      "provider": "bfl",
+      "schema_etag": "\"971cef065ed009fe3a9eb98b8fc0ddcf00f9c021ff0bd236b93a36c98770fb87\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/flux-3-image",
+      "model": "flux-3-image",
+      "provider": "bfl",
+      "schema_etag": "\"02fcae9188d8d4c561ac3de3039b95f73500a2cb32b38056aa19034e69dee0ba\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/flux-3-video",
+      "model": "flux-3-video",
+      "provider": "bfl",
+      "schema_etag": "\"fd1b7c2b3d52ca10f0e477fdabab9d938bddf3b05cc9b3b7a0ebf8e6159869fc\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/flux-kontext-max",
+      "model": "flux-kontext-max",
+      "provider": "bfl",
+      "schema_etag": "\"063358910eceac21fd3c39f0c5e50b550e863aa4862ec5afc0dc92acc9820546\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/flux-kontext-pro",
+      "model": "flux-kontext-pro",
+      "provider": "bfl",
+      "schema_etag": "\"6ca1f30e887c7fca6db3c548c98ac71b929bce90e48ba060badec4005cad9053\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/flux-pro-1.0-expand",
+      "model": "flux-pro-1.0-expand",
+      "provider": "bfl",
+      "schema_etag": "\"f85bfe66b8f1220adf6aefa126ff9a469fccddb007c23bc00acaa649585383fb\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/flux-pro-1.0-fill",
+      "model": "flux-pro-1.0-fill",
+      "provider": "bfl",
+      "schema_etag": "\"081338784a94c77a1bef477e540e5a9e67bee140ca666906ba55a2d201d9358a\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/flux-pro-1.1",
+      "model": "flux-pro-1.1",
+      "provider": "bfl",
+      "schema_etag": "\"b27fa7a15044821cc736b5a99e3aa4cbdb6daeea9489b7c46522e18b820f6a31\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/flux-pro-1.1-ultra",
+      "model": "flux-pro-1.1-ultra",
+      "provider": "bfl",
+      "schema_etag": "\"4c544a0715271708893ad25f7af03fd8ec80a7b659688e03ff69932a7649013b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/video-edit-v1",
+      "model": "video-edit-v1",
+      "provider": "bfl",
+      "schema_etag": "\"e3b8aef9e802a61aaf18a30219b4b594114443b1ad819fc12b406bf0385752b3\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/video-upscale-v1",
+      "model": "video-upscale-v1",
+      "provider": "bfl",
+      "schema_etag": "\"0a389c7594569058a2e8b1b7db97736ff48d1da6cc559ed9dae3e9edfb25b3ff\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bfl/vto-v1",
+      "model": "vto-v1",
+      "provider": "bfl",
+      "schema_etag": "\"b0e27a071a96cc96955877795bc841248a6e9dfc797779d60a1c5a35f4eb4d3e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/fibo",
+      "model": "fibo",
+      "provider": "bria",
+      "schema_etag": "\"0c74d24e67144d113d2552377df3a531a900076ff6f805c4eb3484a29139ae95\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image",
+      "model": "image",
+      "provider": "bria",
+      "schema_etag": "\"69a353ff8acee9a65f38304a215cae5cc0808264afbca7b3d6c0117687d12a77\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-add-object-by-text",
+      "model": "image-edit-add-object-by-text",
+      "provider": "bria",
+      "schema_etag": "\"91039f14f4d777d92cbb9d8bfc5030a0b4f676559e27377a1a9e5bbb536fc5e0\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-erase",
+      "model": "image-edit-erase",
+      "provider": "bria",
+      "schema_etag": "\"ebebc6e3f8555d72cdb70ad95c2aa262019837d42a33d177bcd397d7617472a6\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-erase-by-text",
+      "model": "image-edit-erase-by-text",
+      "provider": "bria",
+      "schema_etag": "\"a9a6df2ce23c2099944044682d1214fe7d0a0a86b771187f4e641a422a313e9f\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-erase-foreground",
+      "model": "image-edit-erase-foreground",
+      "provider": "bria",
+      "schema_etag": "\"c256b926d4a311598bfa15c775e1b8e8ba17877c7d6c3dcf7bf2fb14bc5fbc26\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-expand",
+      "model": "image-edit-expand",
+      "provider": "bria",
+      "schema_etag": "\"ca7298f346e91abfd61db83b95cf4a91a26a45818a7116c502e1991591c0ad5c\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-gen-fill",
+      "model": "image-edit-gen-fill",
+      "provider": "bria",
+      "schema_etag": "\"fb5887f5219ed6b96add68dd4b25fae3b17a1c425b17cdeb445fd7914470fa86\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-increase-resolution",
+      "model": "image-edit-increase-resolution",
+      "provider": "bria",
+      "schema_etag": "\"3f18f7624e34bbe96e059e33580b25240ab381b99cf2837881556d126abcfb0f\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-product-holding",
+      "model": "image-edit-product-holding",
+      "provider": "bria",
+      "schema_etag": "\"98af580c298669c459dd09b11a0ff6f8a2588d88f3cd48e568e56de89c13a9c9\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-product-virtual-tryon",
+      "model": "image-edit-product-virtual-tryon",
+      "provider": "bria",
+      "schema_etag": "\"f5f40a462fe4e9fa913995580e801b0dfc29225447209033e224efa244cc60eb\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-relight",
+      "model": "image-edit-relight",
+      "provider": "bria",
+      "schema_etag": "\"d9fdd685943da39d061e349b3a4169ef8e6d7e995d118d4b58390d42c09133f0\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-remove-background",
+      "model": "image-edit-remove-background",
+      "provider": "bria",
+      "schema_etag": "\"f97bf54fd98e007007bcf9435eb52e6acbece90c2d3fbb6ba4ceec87204a4057\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-remove-background-guided",
+      "model": "image-edit-remove-background-guided",
+      "provider": "bria",
+      "schema_etag": "\"979d0c8c127c673708617107d658f1e845754ea86234e904fac73617c46713ec\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-replace-background",
+      "model": "image-edit-replace-background",
+      "provider": "bria",
+      "schema_etag": "\"d60f1a01153dc12cf338eabed80c595248b3eaafca858859dcde994384d98d4f\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-replace-object-by-text",
+      "model": "image-edit-replace-object-by-text",
+      "provider": "bria",
+      "schema_etag": "\"09315b74efc7b5ea520cc77ccb42d8dd65a79982e77232c5d4c0c19f1e5f2828\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-reseason",
+      "model": "image-edit-reseason",
+      "provider": "bria",
+      "schema_etag": "\"2a65a7f5228606d4b3d552c5a9c20748984d11803887f1e9c190e3e52b7395da\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/image-edit-restore",
+      "model": "image-edit-restore",
+      "provider": "bria",
+      "schema_etag": "\"1bfad7fdcfb18b318bb5c5768034b1683dde2ad6dbb31ceb5a5d5217913dbea8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/video-edit-erase",
+      "model": "video-edit-erase",
+      "provider": "bria",
+      "schema_etag": "\"95ab066321377fedfbad59bf6a3ff8d2ebdc900ab9835d184136e6d2b9fd2619\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/video-edit-green-screen",
+      "model": "video-edit-green-screen",
+      "provider": "bria",
+      "schema_etag": "\"c674afc8dbb9f728e53827e15db02e7edf0b6342fcad7441a5b226d5e6fb1417\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/video-edit-remove-background",
+      "model": "video-edit-remove-background",
+      "provider": "bria",
+      "schema_etag": "\"249711d7055c25fa530ee5893438ff8063c09d1b5f7ca453d715943d830e72c9\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "bria/video-edit-replace-background",
+      "model": "video-edit-replace-background",
+      "provider": "bria",
+      "schema_etag": "\"b153126bd5960967f334a11674ea8c04bf7577d3bb82fb21103e3c0c67084ba1\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "byteplus/dreamina-seedance-2-0-260128",
+      "model": "dreamina-seedance-2-0-260128",
+      "provider": "byteplus",
+      "schema_etag": "\"3f0083b7be2639145d64988eb1b12668016855e6eb2a1805daf632058b703263\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "byteplus/dreamina-seedance-2-0-fast-260128",
+      "model": "dreamina-seedance-2-0-fast-260128",
+      "provider": "byteplus",
+      "schema_etag": "\"5fc1b9a7649a2088a02b16c38e51cf373f2ce76864596cfe17823be1c13193d7\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "byteplus/dreamina-seedance-2-0-mini",
+      "model": "dreamina-seedance-2-0-mini",
+      "provider": "byteplus",
+      "schema_etag": "\"c55af40dcd6aa02e58970f52b2e2e884bf938bfc9603c14894200fcd4a89577a\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "byteplus/dreamina-seedance-2-5-260628",
+      "model": "dreamina-seedance-2-5-260628",
+      "provider": "byteplus",
+      "schema_etag": "\"2833fe9cbcc334fb54bd06d9213f230ce8f749bb7ddfe083356df390d37caf05\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "byteplus/seed-2-0-lite-260228",
+      "model": "seed-2-0-lite-260228",
+      "provider": "byteplus",
+      "schema_etag": "\"57f38276dabcc9e6fb39d28166c68e860fd186527dd832fa736e451fbb07c189\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "byteplus/seed-2-0-mini-260215",
+      "model": "seed-2-0-mini-260215",
+      "provider": "byteplus",
+      "schema_etag": "\"dc1b72972ea0a41742bdfc9f9a2e3137d80b1dd79db2b11bc74f074e809e9dbb\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "byteplus/seed-2-0-pro-260328",
+      "model": "seed-2-0-pro-260328",
+      "provider": "byteplus",
+      "schema_etag": "\"12a45de14bf078cca9c61b9a805724ae836b774b93dbfafa28125fc219fefb80\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "byteplus/seed-audio-1.0",
+      "model": "seed-audio-1.0",
+      "provider": "byteplus",
+      "schema_etag": "\"ca2172c7533e71f8eacc26dbc67acbf016bc1258fcdb6065bc647f9d21a6b397\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "byteplus/seed-audio-1.0-multilingual",
+      "model": "seed-audio-1.0-multilingual",
+      "provider": "byteplus",
+      "schema_etag": "\"1fbcebda2cfd71ff71d675ffddb664e898701d329e95f83161ce8cf12c122dd0\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "byteplus/seedance-1-0-pro-250528",
+      "model": "seedance-1-0-pro-250528",
+      "provider": "byteplus",
+      "schema_etag": "\"79157143cf17e3da0210ec0b31a2b9cf1c601a686e8ef120002ba65f26db7113\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "byteplus/seedance-1-0-pro-fast-251015",
+      "model": "seedance-1-0-pro-fast-251015",
+      "provider": "byteplus",
+      "schema_etag": "\"f799ceab1c641e71cb4a842f3fcc145306822394acfdc9535b086595db539d1a\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "byteplus/seedance-1-5-pro-251215",
+      "model": "seedance-1-5-pro-251215",
+      "provider": "byteplus",
+      "schema_etag": "\"1ec386f5cf1a599b3f90dd730904c7d25816a1ed3126ef5dea359fbf3ffedf27\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "byteplus/seedream-4-0-250828",
+      "model": "seedream-4-0-250828",
+      "provider": "byteplus",
+      "schema_etag": "\"702c7c753068befcae1cc3ff44fe8e8966ab638c613a7eab34325fda3b95865c\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "byteplus/seedream-4-5-251128",
+      "model": "seedream-4-5-251128",
+      "provider": "byteplus",
+      "schema_etag": "\"33aa893b6813d2906bb306daae54411b73bbf752e07f91a815dc9ed9b6aabbb5\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "byteplus/seedream-5-0-260128",
+      "model": "seedream-5-0-260128",
+      "provider": "byteplus",
+      "schema_etag": "\"eeb7ed6d72091c5b4bb72f267c1e07834fcd7154cfe87946521ced8eda1e33ce\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "byteplus/seedream-5-0-flash-260915",
+      "model": "seedream-5-0-flash-260915",
+      "provider": "byteplus",
+      "schema_etag": "\"dee97b16b1e1a719679c92a07dd743b141f2f55dfa8b83c12e2d0a5ed558dc8a\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "byteplus/seedream-5-0-pro-260628",
+      "model": "seedream-5-0-pro-260628",
+      "provider": "byteplus",
+      "schema_etag": "\"bdc822da4f2a571472f8c5a141be21cb676876e704b2c3af569a515b5747999a\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "elevenlabs/eleven_multilingual_v2",
+      "model": "eleven_multilingual_v2",
+      "provider": "elevenlabs",
+      "schema_etag": "\"4d738f1d363075f0fcc540a2ff509fa723cf70a25a4f26390874fde5a892f8ee\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "elevenlabs/eleven_sfx_v2",
+      "model": "eleven_sfx_v2",
+      "provider": "elevenlabs",
+      "schema_etag": "\"318316a7db64b5f79d33433e677ce021605e110e1bffb4232087835389221383\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "elevenlabs/eleven_v3",
+      "model": "eleven_v3",
+      "provider": "elevenlabs",
+      "schema_etag": "\"5503638cce103d1cdeb0a7babc0e97faf6533be33296dac9bdcdd379b8892bc2\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "elevenlabs/eleven_v4",
+      "model": "eleven_v4",
+      "provider": "elevenlabs",
+      "schema_etag": "\"eb1c5feccae77a4b9b5abe70b6813cadc333db5b6d46cd1b4c15568600ff021a\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "elevenlabs/eleven_v4_turbo",
+      "model": "eleven_v4_turbo",
+      "provider": "elevenlabs",
+      "schema_etag": "\"d52bb290a458cb15979eace1512dc626a15eb4a7e0ecf233d55bdb14ca353a8e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/crystal-upscaler",
+      "model": "crystal-upscaler",
+      "provider": "fal",
+      "schema_etag": "\"13355af27e4c2379c6981df92c62195063b09b734eab615a28a2acb435f914eb\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/crystal-video-upscaler",
+      "model": "crystal-video-upscaler",
+      "provider": "fal",
+      "schema_etag": "\"9d702ed9c5798ce3e65b874d5dbe7c2d2106991e9266568cb821ef9967fdf713\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/fal-gpt-image-2",
+      "model": "fal-gpt-image-2",
+      "provider": "fal",
+      "schema_etag": "\"639a0ca748cfe9b2fb85da834ae31175fe8c40a3bf83a0d197c13ea0daffdbfb\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/fal-gpt-image-2.5-flare",
+      "model": "fal-gpt-image-2.5-flare",
+      "provider": "fal",
+      "schema_etag": "\"f3fa71d2a814cf95806135f30be0e8969af1198df4f419125176204e73ca080b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/fal-gpt-image-2.5-sunburst",
+      "model": "fal-gpt-image-2.5-sunburst",
+      "provider": "fal",
+      "schema_etag": "\"aa9f919d2b5b28f2691a533ec7a35d234b07a7814ff09dcf59dbd7d0efb5cbf8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/fal-nano-banana-2",
+      "model": "fal-nano-banana-2",
+      "provider": "fal",
+      "schema_etag": "\"6483cdb1612fd20afcc1b2cc14f3c621f9cf7641db236d386d65ca2b1b519f5d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/fal-nano-banana-pro",
+      "model": "fal-nano-banana-pro",
+      "provider": "fal",
+      "schema_etag": "\"17a010cb8d0c9c54075dff93fa7526ab28788e11ef492c6874ff3c3715ed6021\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/fal-seedance-2.0",
+      "model": "fal-seedance-2.0",
+      "provider": "fal",
+      "schema_etag": "\"1822ec8bfaed95465b53f7b768869a951ec64b786fe5c64e9f6f70fd0c4f57c4\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/fal-seedance-2.5",
+      "model": "fal-seedance-2.5",
+      "provider": "fal",
+      "schema_etag": "\"813cc1d9988b5640abcc4e3efc1221280559b2f1f220af9dface2474b089de25\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/flux-3-max",
+      "model": "flux-3-max",
+      "provider": "fal",
+      "schema_etag": "\"ec29a2cb6b5a377135ef47e54e04540c8b49a29e948ca1784eb34ccdf465323c\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/h3-max",
+      "model": "h3-max",
+      "provider": "fal",
+      "schema_etag": "\"28cfe2979a9c5a03edd32ae271011eeec15506b8cf570ef2d15f45218b43bc6b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/h3-max-turbo",
+      "model": "h3-max-turbo",
+      "provider": "fal",
+      "schema_etag": "\"75f2be648c1618369eb77a1b0a4a01e70b63e8b0ac0181d148147cd2c95fda80\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "fal/patina",
+      "model": "patina",
+      "provider": "fal",
+      "schema_etag": "\"c3deae8a9ecee67e479d4c943900b4457bc08cd1629f499cf1e1863c901b2c91\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "freepik/ai-image-upscaler-precision-v2",
+      "model": "ai-image-upscaler-precision-v2",
+      "provider": "freepik",
+      "schema_etag": "\"ea451f64b36f9c6203338fbd21c0f87d788ebbe084c3d2d2e7a3a6cf74035aaa\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "freepik/ai-skin-enhancer-creative",
+      "model": "ai-skin-enhancer-creative",
+      "provider": "freepik",
+      "schema_etag": "\"8135778e45196093f41df3621bc2d0ff4572d882fbba3fd776079c67f3c4d022\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "freepik/ai-skin-enhancer-faithful",
+      "model": "ai-skin-enhancer-faithful",
+      "provider": "freepik",
+      "schema_etag": "\"cb385cab858a13460baea537ff4dccef194f0ed9822d88c7e181c3fbd14f35c6\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "freepik/ai-skin-enhancer-flexible",
+      "model": "ai-skin-enhancer-flexible",
+      "provider": "freepik",
+      "schema_etag": "\"a06455fa58c2231cbb4330207e503b10ba8433509567dc50c3e68fc187a79108\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "gemini-interactions/gemini-omni-1.1-flash",
+      "model": "gemini-omni-1.1-flash",
+      "provider": "gemini-interactions",
+      "schema_etag": "\"b98432e33621fe300231b7603d63c7128e4ba91679eecb56621de249e65fdec1\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "gemini-interactions/gemini-omni-flash-preview",
+      "model": "gemini-omni-flash-preview",
+      "provider": "gemini-interactions",
+      "schema_etag": "\"ba4d8e61d3fd779989d781de56fbc912a76e697d1a549c577b8f1908dbfd121b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "heygen/starfish",
+      "model": "starfish",
+      "provider": "heygen",
+      "schema_etag": "\"717e594789b1ab23fc2439fa049796adfd6c7ef32210a11645cb8d7a07016efd\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "higgsfield/higgsfield-genjutsu-motion-transfer-v1.0",
+      "model": "higgsfield-genjutsu-motion-transfer-v1.0",
+      "provider": "higgsfield",
+      "schema_etag": "\"6bfab9891cf17c13040a4cb5ed5c38260195a4babda0970e2ee689d5f9adf4c4\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "higgsfield/higgsfield-kling-3-4k",
+      "model": "higgsfield-kling-3-4k",
+      "provider": "higgsfield",
+      "schema_etag": "\"386142cbe581b3d58a8480b02c3c7b8df089389dadc144b0e9a0ddae9a1ba688\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "higgsfield/higgsfield-kling-3-pro",
+      "model": "higgsfield-kling-3-pro",
+      "provider": "higgsfield",
+      "schema_etag": "\"65b5259a52b491108ccc68be8b6a4c8612bd4a19ff5846089ed1f783bbb2f7b5\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "higgsfield/higgsfield-kling-3-std",
+      "model": "higgsfield-kling-3-std",
+      "provider": "higgsfield",
+      "schema_etag": "\"27e9393fef3764cceb955a72504f787e4dea19b8aee35e2e40ca525e80cda37a\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "higgsfield/higgsfield-kling-3-turbo",
+      "model": "higgsfield-kling-3-turbo",
+      "provider": "higgsfield",
+      "schema_etag": "\"2254ae4d089f08f2edcdf265c3e4100e10d7ee1a6d8154d36d99ab9f8a2322c1\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "higgsfield/higgsfield-seedance-2.0",
+      "model": "higgsfield-seedance-2.0",
+      "provider": "higgsfield",
+      "schema_etag": "\"9313901e6cdb7087a245b95dd64e25a2b86c40102a0f8359c31720f0c5bc90b3\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "higgsfield/higgsfield-seedance-2.5",
+      "model": "higgsfield-seedance-2.5",
+      "provider": "higgsfield",
+      "schema_etag": "\"868af5437328950ef1fe529c4f35cd7ceea270d2d3dc2ab299c48c41656c3a72\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "higgsfield/higgsfield-wan-3",
+      "model": "higgsfield-wan-3",
+      "provider": "higgsfield",
+      "schema_etag": "\"5ce6cf4c77128868a1f5b977fac7665873958153fcad5d1330bc702598febcd5\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "ideogram/ideogram-4-5",
+      "model": "ideogram-4-5",
+      "provider": "ideogram",
+      "schema_etag": "\"018fc6696906ba257d4317443977546c4a6485ecedfa53d0156da52e75dbb4b3\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "ideogram/ideogram-v3",
+      "model": "ideogram-v3",
+      "provider": "ideogram",
+      "schema_etag": "\"adfc0e87544f64a4c50b77a2c3a4437ca1f8ec2ab8a8a05dbb23d64352c59ed2\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "ideogram/ideogram-v4",
+      "model": "ideogram-v4",
+      "provider": "ideogram",
+      "schema_etag": "\"f948c6fdab091661b14de0627ca59aac7b9c861313eb7d47f179c1b17bf1a8cd\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "ideogram/p-image-ideogram",
+      "model": "p-image-ideogram",
+      "provider": "ideogram",
+      "schema_etag": "\"d48b4379c94c2740cfdfcf6dd1264e62b5f2261d70385018f52224b5baf0f058\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "kling/kling-3.0-turbo",
+      "model": "kling-3.0-turbo",
+      "provider": "kling",
+      "schema_etag": "\"62ef372eb19830a0c7b3cb2a51e2a302fa7cf0aac10f40f3def4051ab13fe1e6\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "kling/kling-image-o1",
+      "model": "kling-image-o1",
+      "provider": "kling",
+      "schema_etag": "\"d20e2bf975a926df0674efa0b2c468fa41a4cb809202c1e6470c6292cc0df94a\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "kling/kling-v2-5-turbo",
+      "model": "kling-v2-5-turbo",
+      "provider": "kling",
+      "schema_etag": "\"1141ab98396deed3b0eed342839a34c8072e9eed0a97ffde9c62f4739e53d958\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "kling/kling-v2-6",
+      "model": "kling-v2-6",
+      "provider": "kling",
+      "schema_etag": "\"ff6049cae93ae285b407e89795dfc3e691a1c5e253308fff631bb8c1bd85f91a\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "kling/kling-v3",
+      "model": "kling-v3",
+      "provider": "kling",
+      "schema_etag": "\"a60673f2f3737c1de58259af369679c37e51d66e96ae77d558a8625e7b8215e8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "kling/kling-v3-omni",
+      "model": "kling-v3-omni",
+      "provider": "kling",
+      "schema_etag": "\"394332e6a1e5070be21031587648a20afd67691b0a2c43a96516ce3300ff2853\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "kling/kling-video-o1",
+      "model": "kling-video-o1",
+      "provider": "kling",
+      "schema_etag": "\"8acc76ae391ef20586644e3bcc67c790167e55a110c37f3db29cf2d9d4b4b256\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "kling/videos-avatar-image2video",
+      "model": "videos-avatar-image2video",
+      "provider": "kling",
+      "schema_etag": "\"7f0145c118a048608f60f6e201dea3ac5f3bc5e6e6dd82ec9606a74cf244646d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "kling/videos-lip-sync",
+      "model": "videos-lip-sync",
+      "provider": "kling",
+      "schema_etag": "\"72156e337f4e6b11393279a57efb55fb193d4077c150da92ed3ab6cdfc572af1\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "kling/videos-video-extend",
+      "model": "videos-video-extend",
+      "provider": "kling",
+      "schema_etag": "\"c8e56535bd1b879fbafbeaf3f80dceccc1548e9565fe39a8b2a93dc6b04022a5\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "krea/krea-2",
+      "model": "krea-2",
+      "provider": "krea",
+      "schema_etag": "\"83efd1df53d3d5d4e626bc05ee35e655c6f471eb43778e76c628b4d13d40ed16\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "krea/krea-2-large",
+      "model": "krea-2-large",
+      "provider": "krea",
+      "schema_etag": "\"c720b0e2458a211d5980fcf78df218a4ce829b6d6ad8c1de3d9cf635836002ed\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "krea/krea-2-medium",
+      "model": "krea-2-medium",
+      "provider": "krea",
+      "schema_etag": "\"c31d12b4455bb3e4fce727480affda26c6f9d899a105cfdf026ed4b2d34d32d3\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "krea/krea-2-medium-turbo",
+      "model": "krea-2-medium-turbo",
+      "provider": "krea",
+      "schema_etag": "\"d141d92002a3f2e304e84eb97774c9af99cb7196663992020a8d613b789781f7\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "krea/krea-3",
+      "model": "krea-3",
+      "provider": "krea",
+      "schema_etag": "\"7211cce1e95b438c7d755c667c1759546b954f781200bda31115bd565a7860e2\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "ltx/ltx-2-5-fast",
+      "model": "ltx-2-5-fast",
+      "provider": "ltx",
+      "schema_etag": "\"2fcef88fd397a1a8cccf24e571846189f1ed477b2016e930902e09c000d86e6d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "ltx/ltx-2-5-pro",
+      "model": "ltx-2-5-pro",
+      "provider": "ltx",
+      "schema_etag": "\"a6894a71c766a56da82ab9f0597b66571e6fed6904e8db0307e27477dd18e3e5\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "luma/photon-1",
+      "model": "photon-1",
+      "provider": "luma",
+      "schema_etag": "\"6b1973796ce12224494cacb73358ebe375a1ce8039a305a8f97d599b5de4dd68\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "luma/photon-flash-1",
+      "model": "photon-flash-1",
+      "provider": "luma",
+      "schema_etag": "\"bd25f777b47d17f0ab132fe7941064bcee50fc8d39e3bc25c73c5c9046d1ef4d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "luma/ray-2",
+      "model": "ray-2",
+      "provider": "luma",
+      "schema_etag": "\"bc4c4be96f502f69e80d9aae55f39ed5aec50dfb74ae1a626bf5b31d773e7ce1\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "luma/ray-flash-2",
+      "model": "ray-flash-2",
+      "provider": "luma",
+      "schema_etag": "\"634bf2901f59ad001ed47b81ad99849c98dbccb265cc694a6dced7b883b126d6\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "luma_2/ray-3.2",
+      "model": "ray-3.2",
+      "provider": "luma_2",
+      "schema_etag": "\"fa279ca85d327af22403bab23be66a61b39d2eca2622e9c551aaaa4eef2206a8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "luma_2/uni-1",
+      "model": "uni-1",
+      "provider": "luma_2",
+      "schema_etag": "\"bf8e25529589b6234decaeccbe4b5e8e011d7139947b3631cace3b22f321fffe\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "luma_2/uni-1-max",
+      "model": "uni-1-max",
+      "provider": "luma_2",
+      "schema_etag": "\"3caeaaa29e925ef220c2e7c53128954996a6ad81476bc41294d94ec1fe48aef4\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "meshy/animations",
+      "model": "animations",
+      "provider": "meshy",
+      "schema_etag": "\"7748c889881c9d5749f32587fc2572315203030c8035e6e32a52f684605d2dc6\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "meshy/meshy-6",
+      "model": "meshy-6",
+      "provider": "meshy",
+      "schema_etag": "\"0d7192197b1e9b26366f52fe5262085cf20b83b8db453b4781feef3fec951c8c\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "meshy/meshy-7",
+      "model": "meshy-7",
+      "provider": "meshy",
+      "schema_etag": "\"152e0a12ff733bf52ec9667c690a9e398c7fe80359a01e60f938a30bba6c23ad\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "meshy/meshy-7.1",
+      "model": "meshy-7.1",
+      "provider": "meshy",
+      "schema_etag": "\"0791644f48bd5e92de97a10c5d17f7f33ebf780a31cd310aa336c0544c52a807\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "meshy/remesh",
+      "model": "remesh",
+      "provider": "meshy",
+      "schema_etag": "\"7d77c9f5283d2086069f8082e6958ed831188a036faa2a0b8beeb8bd79f69a56\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "meshy/rigging",
+      "model": "rigging",
+      "provider": "meshy",
+      "schema_etag": "\"7e97efdf9549858837718a6fbe9f1481115a183cad00e72d320337710c380f39\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "minimax/minimax-h3",
+      "model": "minimax-h3",
+      "provider": "minimax",
+      "schema_etag": "\"752fde4a864d1998687c15d2e07650de09212f118b9e890d6ff07a429b256dcf\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "moonvalley/image-to-video",
+      "model": "image-to-video",
+      "provider": "moonvalley",
+      "schema_etag": "\"1c7208d27d8db80cbc6cf6c35876eca831ac488aae90995c8aac83b7ce749ef9\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "moonvalley/text-to-video",
+      "model": "text-to-video",
+      "provider": "moonvalley",
+      "schema_etag": "\"bdedf8214e91cb7922762c6ec05c5651f96425b4870e17ec456e61c7e42d2f1c\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "moonvalley/video-to-video",
+      "model": "video-to-video",
+      "provider": "moonvalley",
+      "schema_etag": "\"27ef8bfb95eca177f1633d695d8c1d0760dae741307f3ad7343282d5d4fcfff0\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-4.1",
+      "model": "gpt-4.1",
+      "provider": "openai",
+      "schema_etag": "\"e20a1a86b9d41bd2473cb9358e756567fcd87cb951962fcef5349f083b61668f\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-4.1-mini",
+      "model": "gpt-4.1-mini",
+      "provider": "openai",
+      "schema_etag": "\"24b4603032b86650300e6735c5c481102769adc2fbbeeb41eaa4113dda073ff8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-4.1-nano",
+      "model": "gpt-4.1-nano",
+      "provider": "openai",
+      "schema_etag": "\"09edda220447f0d737807ab5ec3cbbee6e78a5d750672e80694b375d58ca482e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-4o",
+      "model": "gpt-4o",
+      "provider": "openai",
+      "schema_etag": "\"f4aae2ea82013d41a19f3266928cc0638f3279c349b71f3887ed3665e0f156c7\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-5",
+      "model": "gpt-5",
+      "provider": "openai",
+      "schema_etag": "\"77a9803c7ca4e765cb52960a25e92f414d6df8306824ad69b05830a196692f7d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-5-mini",
+      "model": "gpt-5-mini",
+      "provider": "openai",
+      "schema_etag": "\"63f1dd10ef66c79f0d74b5bd1c508b3db4b28371482e2b04ce607a10a3f12e40\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-5-nano",
+      "model": "gpt-5-nano",
+      "provider": "openai",
+      "schema_etag": "\"b08a93f5f277071e30e3982613b6adfb2b7008fc0ad4ef7448c159b538640edc\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-5.5",
+      "model": "gpt-5.5",
+      "provider": "openai",
+      "schema_etag": "\"ca62e4edbc7a5caf805d391f426bb75f07aa4eb91ceb2525567aae54d50f2989\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-5.5-pro",
+      "model": "gpt-5.5-pro",
+      "provider": "openai",
+      "schema_etag": "\"0f35ba2aa54fdbf0fdbaa2a4b72ad8cafb1c7627456a90dfab1f1f1926733141\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-5.6-luna",
+      "model": "gpt-5.6-luna",
+      "provider": "openai",
+      "schema_etag": "\"72e83665fabdac7430525b1f7bcc27dd8cc6c12e2204e69a5aebd82bfface16b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-5.6-sol",
+      "model": "gpt-5.6-sol",
+      "provider": "openai",
+      "schema_etag": "\"573729b92a020c1fa4d2a035cb51e456f1a40a0a5fe298749ac5bc2430648004\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-5.6-terra",
+      "model": "gpt-5.6-terra",
+      "provider": "openai",
+      "schema_etag": "\"bad794d5c9b4c10ce3c78b342d8b8a4ab5ca760879b91f6ef39e8710f7cf95d2\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-6-astra",
+      "model": "gpt-6-astra",
+      "provider": "openai",
+      "schema_etag": "\"a85f63745a2fd8438361a3f2a770ee3086cf60b27ecd961b31277a7b19693fd5\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-6-luna",
+      "model": "gpt-6-luna",
+      "provider": "openai",
+      "schema_etag": "\"4d6b9365e02448bccbe1679c4022eec788c15bbad99d7492d3515bbb6243e6e8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/gpt-6-sol",
+      "model": "gpt-6-sol",
+      "provider": "openai",
+      "schema_etag": "\"fe5eeaed35edb3885fc6a7cd9284a7bdd76575ed503774122be024ae5415d67c\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "openai/gpt-image-1",
+      "model": "gpt-image-1",
+      "provider": "openai",
+      "schema_etag": "\"a3c124657f22804ad1085a2d80165548f612ac9016e0d7d352256f151e99a529\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "openai/gpt-image-1.5",
+      "model": "gpt-image-1.5",
+      "provider": "openai",
+      "schema_etag": "\"b505b3bb3a2b7508cf4cc8db999b9c80c82c50f7c530f378f5929bc7ff865f8b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "openai/gpt-image-2",
+      "model": "gpt-image-2",
+      "provider": "openai",
+      "schema_etag": "\"01cdcfe2ac97d6fa5a40598a120fdabccc0962d7f5961b2cabe9711f0f644e6e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "openai/gpt-image-2.5-flare",
+      "model": "gpt-image-2.5-flare",
+      "provider": "openai",
+      "schema_etag": "\"12f760d55ba8871deff1ca5791633ac502cb04e5c5c2ce46be47e67ee375b36d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "openai/gpt-image-2.5-sunburst",
+      "model": "gpt-image-2.5-sunburst",
+      "provider": "openai",
+      "schema_etag": "\"424fe980b86d28aad684db3221b90d82255021ed596f08d9499a01964afdecf9\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/o1",
+      "model": "o1",
+      "provider": "openai",
+      "schema_etag": "\"83ced9d92fb00eed2d8e9b6b627c509d2e6cf94317dedddc07602f20f0caba36\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/o1-pro",
+      "model": "o1-pro",
+      "provider": "openai",
+      "schema_etag": "\"be7162142ed136dcc907c8b87c7f449febb2f19f16141122849a6df52df1dc72\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/o3",
+      "model": "o3",
+      "provider": "openai",
+      "schema_etag": "\"4c6732f4ecc2758dce484e09fd2d3dd133b8f08609e06c38323da111e4829655\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "openai/o4-mini",
+      "model": "o4-mini",
+      "provider": "openai",
+      "schema_etag": "\"beec6e12ed3d5d20c8218d0d7c92de981cb1320cece1bd7bdda435a953f91221\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "openrouter/chat-completions",
+      "model": "chat-completions",
+      "provider": "openrouter",
+      "schema_etag": "\"dcb3c3bedcfcddb510d2754e2fc7d85c31030ba568d46862899ff6b55429cfaf\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "pika/pika-2.5-image-to-video",
+      "model": "pika-2.5-image-to-video",
+      "provider": "pika",
+      "schema_etag": "\"a591637fee186be09ac1df7843056a10ecf83c9f379def81cf0bf3280c1ae325\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "pika/pika-2.5-text-to-video",
+      "model": "pika-2.5-text-to-video",
+      "provider": "pika",
+      "schema_etag": "\"a1333c104675b73a97cfc6caf5d4039b27492ea73d180d6de4bca72f41555a15\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "pika/pika-gpt-image-2",
+      "model": "pika-gpt-image-2",
+      "provider": "pika",
+      "schema_etag": "\"7a9d6e9398b944d8be11cb531c5c4efc92bc647aae39d3f10ee6a07171381cde\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "pika/pika-nano-banana-2",
+      "model": "pika-nano-banana-2",
+      "provider": "pika",
+      "schema_etag": "\"d9df246ee9131050d2df857137dd74c4d0d680591766d49e847166277aab8c10\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "pika/pika-nano-banana-pro",
+      "model": "pika-nano-banana-pro",
+      "provider": "pika",
+      "schema_etag": "\"841bf41d6816649c29721341b000e4a4ab4b6e6ebf0108a26917b3ed60e6eda0\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "pika/pika-seedance-2.0",
+      "model": "pika-seedance-2.0",
+      "provider": "pika",
+      "schema_etag": "\"3874b231b338bff2624909a835470b2f2c1a17cf4c888afb93385bff826411a0\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "pruna/p-video-2",
+      "model": "p-video-2",
+      "provider": "pruna",
+      "schema_etag": "\"306e519ef8af426edd9bd35b7af5a35ce1b3fe260a9525a33a8a0dcad549ee33\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "qwen/qwen-image-3.0",
+      "model": "qwen-image-3.0",
+      "provider": "qwen",
+      "schema_etag": "\"1e5a48ec30ca15478784849d54d4686873d19c73a0e9024dd9d05eb6b003dcad\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "qwen/qwen-image-3.0-pro",
+      "model": "qwen-image-3.0-pro",
+      "provider": "qwen",
+      "schema_etag": "\"914bb0b2a7e423de267b0133a313f4e841db06f2ee88085df29314e186bbf726\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv2",
+      "model": "recraftv2",
+      "provider": "recraft",
+      "schema_etag": "\"9890e8679a1ea7ccc6eeb0cd096494e327512362791d05f546a84716af322677\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv3",
+      "model": "recraftv3",
+      "provider": "recraft",
+      "schema_etag": "\"c8c450b73b7d589aa0bbffbb3799a825b6401d02bcc1e59235d716e4f405a3d2\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4",
+      "model": "recraftv4",
+      "provider": "recraft",
+      "schema_etag": "\"5e96c3d10695bac9143023db9c1051b0e0ab352ef82f049cf333c62e5ae9b5a8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_1",
+      "model": "recraftv4_1",
+      "provider": "recraft",
+      "schema_etag": "\"5e1dc2bfe55ad2618fede0b772aeb1e31724de4d27651a9dc72d61aaf94a4db0\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_1_pro",
+      "model": "recraftv4_1_pro",
+      "provider": "recraft",
+      "schema_etag": "\"a794a3e2621753328a12234c2c6c75967ffa68b791231ef99bca6a523bb15f68\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_1_pro_vector",
+      "model": "recraftv4_1_pro_vector",
+      "provider": "recraft",
+      "schema_etag": "\"2f13f22f9e6e5d8ee75d227138d9edcf2e3ce6b6c2ba89e7d3a926d6fa3b4637\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_1_utility",
+      "model": "recraftv4_1_utility",
+      "provider": "recraft",
+      "schema_etag": "\"559c1ac254f21f59b5c77ebd816bbc6477ddaa98e3f11bd08e8499aa649aa4c3\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_1_utility_pro",
+      "model": "recraftv4_1_utility_pro",
+      "provider": "recraft",
+      "schema_etag": "\"c622b0858e93b71dd0029005275dcc1017d286189390d431b5780749317a153a\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_1_utility_pro_vector",
+      "model": "recraftv4_1_utility_pro_vector",
+      "provider": "recraft",
+      "schema_etag": "\"4a02360711c1b3c3eead4b865360b0c8697805d481002b226159d0d063ddb62d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_1_utility_vector",
+      "model": "recraftv4_1_utility_vector",
+      "provider": "recraft",
+      "schema_etag": "\"3df9be29c146c3e93ad0e45b0e90c7181b62bf80a573d83f38c5e0584fea6a63\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_1_vector",
+      "model": "recraftv4_1_vector",
+      "provider": "recraft",
+      "schema_etag": "\"f3e3a41af4f00b684cf4ed2b3b29d425a35fcd5d6c1c3623a7864274a68f3f89\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_pro",
+      "model": "recraftv4_pro",
+      "provider": "recraft",
+      "schema_etag": "\"a1fb8b134fcf64a95e664bb7b0dfb3afc5012adb681f68519a93ec877708f4b5\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_styles",
+      "model": "recraftv4_styles",
+      "provider": "recraft",
+      "schema_etag": "\"39b40288f2daa248f085b64d54a21f58b50ee5f0faf426848015bdc42fa31bbc\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_styles_pro",
+      "model": "recraftv4_styles_pro",
+      "provider": "recraft",
+      "schema_etag": "\"95d64c821f6d60096a2a344fad37eacfed401e37b9b2fa616656f43fc0d58418\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_styles_pro_vector",
+      "model": "recraftv4_styles_pro_vector",
+      "provider": "recraft",
+      "schema_etag": "\"8880fa1b8f314cea1d956bf79c7f292f8a1e9833705dbf212fb458566dbe59b8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "recraft/recraftv4_styles_vector",
+      "model": "recraftv4_styles_vector",
+      "provider": "recraft",
+      "schema_etag": "\"c73fd839d6f04469cc1e6226f51c6c3fd2c281a7e83db658c59efb2cd0954d23\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "runware/runware-gpt-image-2",
+      "model": "runware-gpt-image-2",
+      "provider": "runware",
+      "schema_etag": "\"0331fd90793d33bac086321ca5cb9c6eb6992f69d211e0d8b43dab81f7e34489\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "runware/runware-gpt-image-2.5-flare",
+      "model": "runware-gpt-image-2.5-flare",
+      "provider": "runware",
+      "schema_etag": "\"00b65597b5e0420366dbbe3731410a0fd67d28021611c1053d601dd8c2902e13\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "runware/runware-gpt-image-2.5-sunburst",
+      "model": "runware-gpt-image-2.5-sunburst",
+      "provider": "runware",
+      "schema_etag": "\"ecfa0681d3094a221d5c0db0f66d099effec473a27628312709b6fa3f3c0db57\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "runware/runware-nano-banana-2",
+      "model": "runware-nano-banana-2",
+      "provider": "runware",
+      "schema_etag": "\"23e949831524e61a59728258412d6fa018e45d9bb05ffe9bcd4126fdde69ab89\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "runware/runware-nano-banana-pro",
+      "model": "runware-nano-banana-pro",
+      "provider": "runware",
+      "schema_etag": "\"0f8ba4d6139db632dae6f3632eaf6b0d25480d0d56e7e8465310d63cfff86159\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "runware/runware-seedance-2.0",
+      "model": "runware-seedance-2.0",
+      "provider": "runware",
+      "schema_etag": "\"c5209c4a905ada83af81b46a2ffbc56429c0b960542d094a69e6c523e84712a8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "runware/runware-seedance-2.5",
+      "model": "runware-seedance-2.5",
+      "provider": "runware",
+      "schema_etag": "\"8af967478f65a5e96122264ad0c561a76d0d25643dfb40c3158109a4216a0d99\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "runway/aleph2",
+      "model": "aleph2",
+      "provider": "runway",
+      "schema_etag": "\"eef2e35afa49cea81a0fd3cb039c184c4dd099382ffb6f2cedb5957ddbc38054\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "runway/gen4_image",
+      "model": "gen4_image",
+      "provider": "runway",
+      "schema_etag": "\"0380f4d496a7d3129427758277eb694b8b2ed70085e285b0763fbd7b80fc3b61\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "runway/gen4_turbo",
+      "model": "gen4_turbo",
+      "provider": "runway",
+      "schema_etag": "\"daed454ba31c0089b52eb31e5c429bd55cc1c0fb13e4f0027858a5ee26f56119\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "synclabs/sync-3",
+      "model": "sync-3",
+      "provider": "synclabs",
+      "schema_etag": "\"c2fa21aa4f12e11c7e2c1d204d86e5d6308b05cdfb5a26679861120ac788966b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "tencent/hunyuan-3d-part",
+      "model": "hunyuan-3d-part",
+      "provider": "tencent",
+      "schema_etag": "\"728e3f7a10bac7a4f14d66830384b1530df4b34c273bbd2298e40fe402f41e54\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "tencent/hunyuan-3d-smart-topology",
+      "model": "hunyuan-3d-smart-topology",
+      "provider": "tencent",
+      "schema_etag": "\"2dd0864fbc2008cf2d30e5a1004f97bcd91c900e0f0874286f44ee760cb1218e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "tencent/hunyuan-3d-texture-edit",
+      "model": "hunyuan-3d-texture-edit",
+      "provider": "tencent",
+      "schema_etag": "\"9617845ebf83564b8409a578a6c5f18b3c120a50430749235fbfaafd50dad9d2\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "tencent/hunyuan-3d-uv",
+      "model": "hunyuan-3d-uv",
+      "provider": "tencent",
+      "schema_etag": "\"cfd898bba90b5d71d76f7285951adc50d242f2d0753a667bb36b8e2088112329\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "veed/clean-audio",
+      "model": "clean-audio",
+      "provider": "veed",
+      "schema_etag": "\"690170138a67d3de13eae14b02fd1ff3bc256b16e66b174924710207cc8d06d6\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "veed/clean-audio-video",
+      "model": "clean-audio-video",
+      "provider": "veed",
+      "schema_etag": "\"a60117c13ebed6a3872ed7f8aed105ecf88aa1ed2224f0cc2cff46fdaa09092e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "veed/fabric-1.0",
+      "model": "fabric-1.0",
+      "provider": "veed",
+      "schema_etag": "\"7836820d5958302796c539b5993962503cb2fa33fd86e269ea583e45a37c6c18\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "veed/lipsync-2.0",
+      "model": "lipsync-2.0",
+      "provider": "veed",
+      "schema_etag": "\"b30bcf9b9c4349f32e9c0063b5c6893e0fd4b8a8e99844ebf983fb056bfd971e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "veed/video-background-removal",
+      "model": "video-background-removal",
+      "provider": "veed",
+      "schema_etag": "\"e2e78ae7e5820a619cd91d29363555b3d870fe0e4062c0e04f17b161645f295f\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "veed/video-background-removal-fast",
+      "model": "video-background-removal-fast",
+      "provider": "veed",
+      "schema_etag": "\"c17c885f63cf8f18e8a68e36114c7f9832431e8c146f25c3f9b1c3ee70e2ca04\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "veed/video-background-removal-green-screen",
+      "model": "video-background-removal-green-screen",
+      "provider": "veed",
+      "schema_etag": "\"65d4a787654ddcf46868852e6fb1c81e0e979ccec35615158af210a6e7733f69\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "veo/veo-3.1-fast-generate-001",
+      "model": "veo-3.1-fast-generate-001",
+      "provider": "veo",
+      "schema_etag": "\"3abb8047c6804b947be70eb7aefbc2e0b501142c441efa8d7a6a360ec39b34a4\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "veo/veo-3.1-generate-001",
+      "model": "veo-3.1-generate-001",
+      "provider": "veo",
+      "schema_etag": "\"fa6bbc0f9753cba100475280265d8dfd70e36c2b504fa91d90ae32d13e1a10e9\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "veo/veo-3.1-lite-generate-001",
+      "model": "veo-3.1-lite-generate-001",
+      "provider": "veo",
+      "schema_etag": "\"6376149701e1140034b2a826148df4d353aae4605f4f172e842b13fe66df18f0\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-2.5-flash",
+      "model": "gemini-2.5-flash",
+      "provider": "vertexai",
+      "schema_etag": "\"8df0468ea5630be8dea7de29a998a1f2956a9f6f4b863e22190ee2e38e5daf60\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-2.5-flash-image",
+      "model": "gemini-2.5-flash-image",
+      "provider": "vertexai",
+      "schema_etag": "\"ed2ffdcb3df6d7046f825b5981910c13cabf282c4f958ed10588296e9d6c8e25\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-2.5-pro",
+      "model": "gemini-2.5-pro",
+      "provider": "vertexai",
+      "schema_etag": "\"19c84f2c12e0fcb442d0af0de80606ae3419dde3714405b5e5047138628a34ee\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-3-pro-image",
+      "model": "gemini-3-pro-image",
+      "provider": "vertexai",
+      "schema_etag": "\"d119e642e0a47fb3af543ac0436e631556744b5edce91420f10dc2fbb26b76ea\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-3.1-flash-image",
+      "model": "gemini-3.1-flash-image",
+      "provider": "vertexai",
+      "schema_etag": "\"8cfd56a751f86912bb641b1a7826362663deeec7ffd977cdbd74e95f86a18a33\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-3.1-flash-lite",
+      "model": "gemini-3.1-flash-lite",
+      "provider": "vertexai",
+      "schema_etag": "\"87ad8dc9d5e8be3d89c1d35e55a48b67ec3278566fb8f356d9805a9e4d0dd639\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-3.1-flash-lite-image",
+      "model": "gemini-3.1-flash-lite-image",
+      "provider": "vertexai",
+      "schema_etag": "\"40f253c418c789207960573cd0ca514140063892b05e48604be658bd89b33dec\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-3.1-pro-preview",
+      "model": "gemini-3.1-pro-preview",
+      "provider": "vertexai",
+      "schema_etag": "\"5cd6f45fbf2d06cca608163f700f9979f8112e63f356c36e2e2c4d5f01d5dbb7\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-3.5-flash",
+      "model": "gemini-3.5-flash",
+      "provider": "vertexai",
+      "schema_etag": "\"8660134f97aefe4bf92e7e2c7bea78dc8187ee6748120cab4f9ef9b14938a232\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-3.7-flash",
+      "model": "gemini-3.7-flash",
+      "provider": "vertexai",
+      "schema_etag": "\"b47f8f2c9d1e1cad44988843a2c0eccb6b26c921f56c80f7f01483193f1a4d31\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-3.8-flash",
+      "model": "gemini-3.8-flash",
+      "provider": "vertexai",
+      "schema_etag": "\"7344512fce2c9755c188fc0c3eb3180ef66634a9186e7a3acd43dba9c86af49b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "vertexai/gemini-nano-banana-2.1",
+      "model": "gemini-nano-banana-2.1",
+      "provider": "vertexai",
+      "schema_etag": "\"d69cd301d40e329a8502ccf784aa112e29d0e547a7251df93fdd343c3e0210a3\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/happyhorse-1.0-i2v",
+      "model": "happyhorse-1.0-i2v",
+      "provider": "wan",
+      "schema_etag": "\"f73604d9bd25d62bbcc121d93e4d9053a534e27e5e16d602fb6c46fd7bf75e42\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/happyhorse-1.0-r2v",
+      "model": "happyhorse-1.0-r2v",
+      "provider": "wan",
+      "schema_etag": "\"781159bbc6b98b6ea740b4f080dc83be5e6b7e9f76cc7ad88c86e30689b93c3d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/happyhorse-1.0-t2v",
+      "model": "happyhorse-1.0-t2v",
+      "provider": "wan",
+      "schema_etag": "\"a5f114b4b89fd468dff85745020c71c7fb6374e468a422bbdddc2fbb47af41bb\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/happyhorse-1.0-video-edit",
+      "model": "happyhorse-1.0-video-edit",
+      "provider": "wan",
+      "schema_etag": "\"233ef1335dbd3072692c0df699a9710b18eeb4f338cef84f84e6ba1751a4251d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/happyhorse-1.1-i2v",
+      "model": "happyhorse-1.1-i2v",
+      "provider": "wan",
+      "schema_etag": "\"0fc95785da188b2306777a393615c10f91c1db6064230490561edb424c9460a2\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/happyhorse-1.1-r2v",
+      "model": "happyhorse-1.1-r2v",
+      "provider": "wan",
+      "schema_etag": "\"acc10b99e4bb0f747ff504c8cc0fe8873165ac0994ebade5f7bb161a8cf096a5\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/happyhorse-1.1-t2v",
+      "model": "happyhorse-1.1-t2v",
+      "provider": "wan",
+      "schema_etag": "\"6d265a293e7e469bb294f7e5b44c24a143a8456b66b563d3db7f7dbf769619bf\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.5-i2i-preview",
+      "model": "wan2.5-i2i-preview",
+      "provider": "wan",
+      "schema_etag": "\"a7331ebfd4a9e68d378b93a96b5d4c5e73bc6b8be7a4d3af9f84313932516240\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.5-i2v-preview",
+      "model": "wan2.5-i2v-preview",
+      "provider": "wan",
+      "schema_etag": "\"73edcdea85eeaeb8544e7e77657746ae1e7d928cd8d677b05e079f511590428e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.5-t2i-preview",
+      "model": "wan2.5-t2i-preview",
+      "provider": "wan",
+      "schema_etag": "\"719cdc535c746bbc7ed80be1eab5dc4a525bda6949ea0ec5a6561d1fdb1ded08\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.5-t2v-preview",
+      "model": "wan2.5-t2v-preview",
+      "provider": "wan",
+      "schema_etag": "\"96cb0f43704e79a23080e09603f77b3d19c9523050381238fc625df9162c6765\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.6-i2v",
+      "model": "wan2.6-i2v",
+      "provider": "wan",
+      "schema_etag": "\"f1c5c866d18365e6aee6ace4fc130a85dbb60012fdf1b8154d51d3b5fd66819b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.6-r2v",
+      "model": "wan2.6-r2v",
+      "provider": "wan",
+      "schema_etag": "\"4be476559891d61e2d8b337b9f0cafc10fcdcc92baa5326b365e8f4140c86851\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.6-t2v",
+      "model": "wan2.6-t2v",
+      "provider": "wan",
+      "schema_etag": "\"d2dbc4045a68535fe5f942a4e8ea140e887ed289d92cb9d680cff4ad5fce390c\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.7-i2v",
+      "model": "wan2.7-i2v",
+      "provider": "wan",
+      "schema_etag": "\"74e2aa71ff567f76298f598481702175f9d4377cbdb18196fcc5671125152d3b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.7-r2v",
+      "model": "wan2.7-r2v",
+      "provider": "wan",
+      "schema_etag": "\"af3438480f8bbf3b830fbf7bf987bafad1c41bda326c9152ce8360cdb9e5beae\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.7-t2v",
+      "model": "wan2.7-t2v",
+      "provider": "wan",
+      "schema_etag": "\"a4f4919b584f0c1aa84fa1aa1150b6346474c86cc26e078a04b2a276eba7123b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan2.7-videoedit",
+      "model": "wan2.7-videoedit",
+      "provider": "wan",
+      "schema_etag": "\"dd92bb680489fced04db25d2b7a1f07b0296307d7dc81bad41e2b357f233d04d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan3.0-video",
+      "model": "wan3.0-video",
+      "provider": "wan",
+      "schema_etag": "\"4664bf8455662280bc3aa5d944b61b76dae049ef697d0c796ec9c002fcf1cbb2\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wan/wan3.0-video-prime",
+      "model": "wan3.0-video-prime",
+      "provider": "wan",
+      "schema_etag": "\"807fae16d9cf6ef974f47177ff6d26b8f35f84e99d094dad371a1c8e6730e151\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "wavespeed/flashvsr",
+      "model": "flashvsr",
+      "provider": "wavespeed",
+      "schema_etag": "\"ba58d8125503e087de5425a48119e050574ba1de190b46e1d35f0e3ad666a7b9\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "wavespeed/seedvr2",
+      "model": "seedvr2",
+      "provider": "wavespeed",
+      "schema_etag": "\"0119a79a57d10d64a9ba5cf3d4de81cfa0e273e8973c5a8a1db495826bfae495\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "no"
+      },
+      "id": "wavespeed/ultimate-image-upscaler",
+      "model": "ultimate-image-upscaler",
+      "provider": "wavespeed",
+      "schema_etag": "\"e7b3b64e988aa147460e675d076952a3fd1c041719cdaf60f4ece773e7873ff8\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wavespeed/wavespeed-gpt-image-2",
+      "model": "wavespeed-gpt-image-2",
+      "provider": "wavespeed",
+      "schema_etag": "\"e12146ff1e6e330f47bdfa9ed9eacdfc8425bef6d991f6b13f330646da6555c6\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wavespeed/wavespeed-gpt-image-2.5-flare",
+      "model": "wavespeed-gpt-image-2.5-flare",
+      "provider": "wavespeed",
+      "schema_etag": "\"c12eb6568e7a406d751d92647451cd3c06f955922230e302feee121e11ad769c\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wavespeed/wavespeed-gpt-image-2.5-sunburst",
+      "model": "wavespeed-gpt-image-2.5-sunburst",
+      "provider": "wavespeed",
+      "schema_etag": "\"2b7604553f145ae55785d1a47a767948e0e524ad9d167ce248a3f51a2e294399\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wavespeed/wavespeed-nano-banana-2",
+      "model": "wavespeed-nano-banana-2",
+      "provider": "wavespeed",
+      "schema_etag": "\"5a0d92f280899bc773888bcd4255ccb1bddd4adc202f2dffcb031355b2c37ddd\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wavespeed/wavespeed-nano-banana-pro",
+      "model": "wavespeed-nano-banana-pro",
+      "provider": "wavespeed",
+      "schema_etag": "\"5c10296420e4e9e77fcd8e12e214087f19f1f5001819240d28da974defbf0cf3\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wavespeed/wavespeed-seedance-2.0",
+      "model": "wavespeed-seedance-2.0",
+      "provider": "wavespeed",
+      "schema_etag": "\"b517da746c232a371a698de7bd36da8163b06fb16fbfb400f3f144ebdfeb3c30\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "unknown"
+      },
+      "id": "wavespeed/wavespeed-seedance-2.5",
+      "model": "wavespeed-seedance-2.5",
+      "provider": "wavespeed",
+      "schema_etag": "\"0d1378b6854724daecfc4238a86ab9d091dcf683f81c66e3cb96d27a5e24f68c\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "xai/grok-imagine-image",
+      "model": "grok-imagine-image",
+      "provider": "xai",
+      "schema_etag": "\"d0ae8577ba34e4bc9d403f13007ae3331edd531cd01548c2c1faefced3c3d622\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "xai/grok-imagine-image-2.0",
+      "model": "grok-imagine-image-2.0",
+      "provider": "xai",
+      "schema_etag": "\"9f5c092e08ca9d0856484e194e5bd654bf5cdba8dd262a77e55b1a19020259c4\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "xai/grok-imagine-image-pro",
+      "model": "grok-imagine-image-pro",
+      "provider": "xai",
+      "schema_etag": "\"ff7f9bacc595bbd6369e2fde58d57b877ee77c523e3e56a5ec2e22dd5ede599e\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "xai/grok-imagine-image-quality",
+      "model": "grok-imagine-image-quality",
+      "provider": "xai",
+      "schema_etag": "\"ce223691a7719b410c8ea9918096bf4abfbb1b1eb89d26fa3919362517efb953\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "xai/grok-imagine-video",
+      "model": "grok-imagine-video",
+      "provider": "xai",
+      "schema_etag": "\"307c47da0a898f678939123acc299806c927166a35acad57ec40c580c2e4247d\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "xai/grok-imagine-video-1.5",
+      "model": "grok-imagine-video-1.5",
+      "provider": "xai",
+      "schema_etag": "\"18cf62ab342ba81869cb2d2e6617aaa53d7638a8d2c07e5fd615c601f7943e76\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "xai/grok-imagine-video-1.5-lite",
+      "model": "grok-imagine-video-1.5-lite",
+      "provider": "xai",
+      "schema_etag": "\"0f294e18b5390aaa1fbf499dba49635ef6f8f43702af1a6387338e92172a373b\""
+    },
+    {
+      "billing": {
+        "charges_on_policy_rejection": "yes"
+      },
+      "id": "xai/grok-imagine-video-1.5-preview",
+      "model": "grok-imagine-video-1.5-preview",
+      "provider": "xai",
+      "schema_etag": "\"a60bc6d2b1294ae3f1538877780c15e7ce0969c39c16bc72526a8e5cc19cbb80\""
+    }
+  ]
+}

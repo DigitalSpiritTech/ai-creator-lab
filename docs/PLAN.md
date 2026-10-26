@@ -98,7 +98,7 @@ October 30, morning: buffer for submission form issues only.
 
 ## Risks and the answer to each
 
-- Cloud workflows reference model files by name and the previous project's graphs used GX10-specific quantized files. Answer: build starter workflows from Comfy Cloud's own templates, not from the old graphs.
+- Cloud workflows reference model files by name and the previous project's graphs were built for one specific local machine. Answer: starter workflows are checked against Cloud's model library (done October 26; the names matched).
 - Standard plan allows one concurrent workflow. Answer: the job runner is serial per target; the UI shows queue position.
 - Partner moderation can reject creator content. Answer: errors are surfaced per candidate with the provider's reason; the user can switch recipes.
 - Credits spent by autonomous agents. Answer: allowance defaults to zero; agents never change it; every real run is logged with the credit balance before and after; the whole build, spike included, is capped at the allowance (about 1,050 credits for $5), with notices at 50 and 80 percent and a hard stop at 100.

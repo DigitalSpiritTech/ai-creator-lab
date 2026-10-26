@@ -1,0 +1,33 @@
+{
+  "note": "Comfy Cloud v2 job states as read through @comfyorg/sdk 0.5.0 during the October 26 spike. Output bytes are generated locally by the tests.",
+  "succeeded": {
+    "id": "e145a3af-431b-4e1f-b6b6-78f9029c9f0d",
+    "states": [
+      { "status": "queued", "queuePosition": 1 },
+      { "status": "running", "queuePosition": null },
+      { "status": "succeeded", "queuePosition": null, "metrics": { "queue_ms": 8400, "execution_ms": 7700 } }
+    ]
+  },
+  "failed": {
+    "id": "6c1b8f0e-2f77-4a3e-9d55-3f1e2d9b7a10",
+    "states": [
+      {
+        "status": "failed",
+        "queuePosition": null,
+        "error": {
+          "class_type": "ImageScaleToTotalPixels",
+          "code": "node_execution_error",
+          "message": "Prompt outputs failed validation. node 30 (ImageScaleToTotalPixels): resolution_steps required_input_missing",
+          "node_id": "30"
+        }
+      }
+    ]
+  },
+  "ltx": {
+    "id": "371d686a-ee2f-4926-81cf-441830a4de13",
+    "states": [
+      { "status": "running", "queuePosition": null },
+      { "status": "succeeded", "queuePosition": null, "metrics": { "queue_ms": 2100, "execution_ms": 44000 } }
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "note": "Router result documents per model family, in the shapes the provider schemas publish and the earlier integration parsed. URLs are placeholders.",
+  "gemini_file": {
+    "candidates": [
+      {
+        "content": {
+          "role": "model",
+          "parts": [
+            { "text": "Composing the scene.", "thought": true },
+            { "fileData": { "fileUri": "https://storage.googleapis.com/router-output/result.png?signature=opaque", "mimeType": "image/png" } }
+          ]
+        },
+        "finishReason": "STOP"
+      }
+    ],
+    "usageMetadata": { "promptTokenCount": 2580, "candidatesTokenCount": 1290 }
+  },
+  "gemini_blocked": {
+    "candidates": [
+      {
+        "content": { "role": "model", "parts": [] },
+        "finishReason": "IMAGE_SAFETY",
+        "finishMessage": "The image was not generated because it may violate the safety policy."
+      }
+    ]
+  },
+  "flux": { "id": "4d1c2b7e", "status": "Ready", "result": { "sample": "https://delivery-eu1.bfl.ai/results/4d1c2b7e/sample.png?se=opaque" } },
+  "minimax": { "task": { "status": "succeeded", "content": { "url": "https://cdn.minimax-video.com/output/clip.mp4" } } },
+  "wan": { "output": { "task_status": "SUCCEEDED", "video_url": "https://dashscope-463f.oss-accelerate.aliyuncs.com/result.mp4" } },
+  "kling": { "code": 0, "data": { "task_status": "succeed", "task_result": { "videos": [{ "url": "https://cdn.klingai.com/output/clip.mp4" }] } } },
+  "seedance": { "status": "succeeded", "content": { "video_url": "https://ark-content-generation.bytepluses.com/clip.mp4" } },
+  "ltx": { "id": "3f7a1b28-5c0d-4e91-8a6f-1b2c3d4e5f60", "status": "completed", "result": { "video_url": "https://storage.ltx.video/generated.mp4" } },
+  "ltx_moderated": { "id": "3f7a1b28-5c0d-4e91-8a6f-1b2c3d4e5f61", "status": "failed", "error": { "type": "content_moderation", "message": "The prompt was flagged." } }
+}
