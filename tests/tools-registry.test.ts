@@ -26,6 +26,10 @@ const ROSTER = [
   "assemble_ad",
   "list_assets",
   "list_recipes",
+  "link_library_item",
+  "unlink_library_item",
+  "archive_library_item",
+  "create_set",
 ];
 
 const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));

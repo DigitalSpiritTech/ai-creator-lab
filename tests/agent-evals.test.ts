@@ -452,7 +452,6 @@ describe("agent evals", () => {
 
   test(
     "a Library character whose face and body were generated in another project can make a sheet here",
-    { todo: "Tools layer: proposal references reject assets generated in another project, so step 13 (same character, new project) fails at generate_reference_sheet." },
     async () => {
       const harness = setup();
       const { project, store, now } = harness;

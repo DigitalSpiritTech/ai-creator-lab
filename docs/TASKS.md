@@ -13,7 +13,7 @@ Cut order if behind schedule: E7 MCP server, A8 Set library item, B7 first/last 
 - [x] A5 Assembly: ffmpeg join of approved clips in script order to 1080 x 1920 at 24 fps, scale and pad, audio re-encode with silence fill, mute option, poster extraction, ffprobe verification, source record. Acceptance: synthetic clips of mixed sizes and frame rates join correctly; output metadata asserted; export survives restart. Done, uncommitted: `src/server/assembly/`, the `assemble_ad` tool renders and saves the export record and an `export` asset, idempotent by export id; `tests/assembly-render.test.ts`.
 - [x] A6 Captions: burn on-screen text per beat with drawtext inside the safe area, font bundled or detected. Acceptance: visual check on a synthetic export; text never clipped at 1080 x 1920. Done, uncommitted: DejaVu Sans Bold bundled in `assets/fonts/` with its license (override with `CAPTION_FONT_PATH`); layout sized from the font's advance widths; frames checked by eye and by pixel difference in `tests/assembly-render.test.ts`.
 - [x] A7 Archive and delete: archive and restore; delete-everywhere removes files, marks references broken, and refuses when an export depends on the asset unless confirmed. Acceptance: tests cover each path. Done, uncommitted: `tests/assembly-archive-delete.test.ts` against real files and rendered exports.
-- [ ] A8 Set library item (stretch): location references usable as an extra reference in stills.
+- [x] A8 Set library item (stretch): location references usable as an extra reference in stills. Done after `516b21a`: `create_set`, `link_library_item`, and still prompts reference the set whose name the beat setting names.
 - [x] A9 HTTP acceptance smoke: isolated temp workspace, mock executor, full flow through HTTP routes, restart, relocated restore. Acceptance: `npm run test:acceptance` passes. Done, uncommitted: `scripts/acceptance-smoke.ts` builds, runs `next start` on a temp data directory with placeholder keys and a zero allowance, drives the flow over the API routes, restarts, and relocates; `ACCEPTANCE_LAYER=tools` runs the same flow through `callTool`.
 
 ## B. Providers and catalog (provider-engineer)
@@ -30,15 +30,15 @@ Cut order if behind schedule: E7 MCP server, A8 Set library item, B7 first/last 
 
 ## C. Agent (creative-prompts)
 
-- [ ] C1 Creative director system prompt for UGC Creator: role, stage guidance, rules (never claims generation happened, never invents identity details, only product claims from the product card, SFW), tool usage policy. Stored in `src/server/agent/prompts/`.
-- [ ] C2 Tool descriptions and argument schemas written for the model (short, example-rich), generated from the A4 registry plus prose.
-- [ ] C3 Structured schemas: brief, character bible (with the visual core string), product card, script with beats, shot plan. Acceptance: schema fixtures parse; invalid LLM output is rejected with a retry prompt.
-- [ ] C4 Prompt templates: face lock, body reference, still composition per beat type, LTX clip per beat type, refinement edit. Acceptance: snapshot tests; prompts stay under each recipe's limits.
+- [x] C1 Creative director system prompt for UGC Creator: role, stage guidance, rules (never claims generation happened, never invents identity details, only product claims from the product card, SFW), tool usage policy. Stored in `src/server/agent/prompts/`. Done in `516b21a`.
+- [x] C2 Tool descriptions and argument schemas written for the model (short, example-rich), generated from the A4 registry plus prose. Done in `516b21a`.
+- [x] C3 Structured schemas: brief, character bible (with the visual core string), product card, script with beats, shot plan. Acceptance: schema fixtures parse; invalid LLM output is rejected with a retry prompt. Done in `516b21a`.
+- [x] C4 Prompt templates: face lock, body reference, still composition per beat type, LTX clip per beat type, refinement edit. Acceptance: snapshot tests; prompts stay under each recipe's limits. Done in `516b21a`.
 - [ ] C9 Assistant via Router (after C5): an LLM provider that posts the same Anthropic Messages body to `anthropic/claude-opus-5-5` on Router with the Comfy key, so a user without an Anthropic key still gets the assistant. Acceptance: the scripted eval passes against a recorded Router fixture; settings let the user choose direct Anthropic or Router.
-- [ ] C5 Agent loop: Anthropic SDK tool use with the registry, streaming to the UI, proposal cards for anything that spends, auto-approve under allowance as a user setting. Acceptance: offline test with a scripted model transcript drives brief to script without network.
+- [x] C5 Agent loop: Anthropic SDK tool use with the registry, streaming to the UI, proposal cards for anything that spends, auto-approve under allowance as a user setting. Acceptance: offline test with a scripted model transcript drives brief to script without network. Done in `516b21a`.
 - [ ] C6 Body reference step (cut candidate): prompt and tool wiring.
 - [ ] C8 Reference sheet step: wardrobe selection from the bible or the user, sheet prompt template from the character-bible skill, generation through an `image_edit` recipe with the face and body references as inputs, inspection checklist rendered on the card, approval stored on the project-character link; still prompts switch to the sheet as reference image 1 once one is approved. Acceptance: snapshot test of the prompt; a scripted conversation reaches an approved sheet; stills without a sheet fall back to face plus body.
-- [ ] C7 Offline evals: five scripted conversations (two references exist, one missing, none, user changes mind, user rejects all candidates) pass with the scripted model.
+- [x] C7 Offline evals: five scripted conversations (two references exist, one missing, none, user changes mind, user rejects all candidates) pass with the scripted model. Done in `516b21a`.
 
 ## D. UI (ui-builder)
 

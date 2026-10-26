@@ -16,7 +16,15 @@ import {
   refineStill,
   submitProposal,
 } from "@/server/tools/generation";
-import { saveCharacterBible, saveProduct, selectReference } from "@/server/tools/library";
+import {
+  archiveLibraryItem,
+  createSetTool,
+  linkLibraryItem,
+  saveCharacterBible,
+  saveProduct,
+  selectReference,
+  unlinkLibraryItem,
+} from "@/server/tools/library";
 import { getProjectState, saveBriefTool } from "@/server/tools/project";
 import { type Tool, type ToolContext, toJsonSchemaTools } from "@/server/tools/registry";
 import { planShots, saveScript } from "@/server/tools/script";
@@ -24,7 +32,13 @@ import { planShots, saveScript } from "@/server/tools/script";
 export { createToolContext, type GenerationContext, type Tool, type ToolContext } from "@/server/tools/registry";
 export { createGenerationContext } from "@/server/tools/generation-context";
 
-/** Every tool in the roster order of CLAUDE.md. */
+/**
+ * Every tool the assistant is offered, in roster order: get_project_state, save_brief,
+ * save_character_bible, propose_candidates, select_reference, generate_reference_sheet,
+ * save_product, save_script, plan_shots, compose_still, refine_still, generate_clip, approve,
+ * archive_asset, delete_asset_everywhere, assemble_ad, list_assets, list_recipes, then the Library
+ * tools link_library_item, unlink_library_item, archive_library_item, create_set.
+ */
 export const TOOLS: readonly Tool[] = [
   getProjectState,
   saveBriefTool,
@@ -44,6 +58,10 @@ export const TOOLS: readonly Tool[] = [
   assembleAd,
   listAssets,
   listRecipes,
+  linkLibraryItem,
+  unlinkLibraryItem,
+  archiveLibraryItem,
+  createSetTool,
 ];
 
 /** Tools the UI calls but the assistant is not offered (the spending gate). */

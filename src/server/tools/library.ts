@@ -13,8 +13,15 @@ import {
   type ProductItem,
   ProductFieldsSchema,
   ProductItemSchema,
+  LibraryItemSchema,
   ProjectLinkSchema,
+  type SetItem,
+  SetFieldsSchema,
+  SetItemSchema,
   chooseWardrobe,
+  createSet,
+  libraryItemName,
+  setLibraryItemArchived,
   createCharacter,
   createProduct,
   linkToProject,
@@ -24,7 +31,7 @@ import {
 } from "@/lib/domain/library";
 import type { Store } from "@/server/store";
 import { defineTool } from "@/server/tools/registry";
-import { archiveUnselected, checkRevision, jobSiblings, requireActiveAsset } from "@/server/tools/shared";
+import { archiveUnselected, checkRevision, jobSiblings, libraryItemAssetIds, requireActiveAsset } from "@/server/tools/shared";
 
 function requireCharacter(store: Store, id: string): CharacterItem {
   const item = store.library.getRequired(id);
@@ -125,5 +132,108 @@ export const saveProduct = defineTool({
       if (!input.projectId) return { product, link: null };
       store.projects.getRequired(input.projectId);
       return { product, link: store.library.link(linkToProject(input.projectId, product, time)) };
+    }),
+});
+
+export const linkLibraryItem = defineTool({
+  name: "link_library_item",
+  description:
+    "Attach an existing Library character, product, or set to a project so it can be used there. The item itself is not changed and the bible version stays the same. Linking again is a no-op. Archived items cannot be linked until restored.",
+  input: z.object({ projectId: IdSchema, itemId: IdSchema }).strict(),
+  output: ProjectLinkSchema,
+  run: ({ store, now }, input) =>
+    store.transaction(() => {
+      store.projects.getRequired(input.projectId);
+      const item = store.library.getRequired(input.itemId);
+      if (item.archived) fail("invalid", `${libraryItemName(item)} is archived. Restore it before linking.`);
+      return store.library.link(linkToProject(input.projectId, item, now()));
+    }),
+});
+
+/** Every asset an asset was made from, following provenance inputs a few generations back. */
+function ancestry(store: Store, assetId: string): Set<string> {
+  const seen = new Set<string>([assetId]);
+  let frontier = [assetId];
+  for (let depth = 0; depth < 6 && frontier.length; depth++) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      const asset = store.assets.get(id);
+      if (asset?.provenance.source !== "generated") continue;
+      for (const input of asset.provenance.inputs) {
+        if (!seen.has(input.assetId)) {
+          seen.add(input.assetId);
+          next.push(input.assetId);
+        }
+      }
+    }
+    frontier = next;
+  }
+  return seen;
+}
+
+export const unlinkLibraryItem = defineTool({
+  name: "unlink_library_item",
+  description:
+    "Detach a Library item from a project. The item stays in the Library unchanged. Refused while an approved still or clip in the project was made from the item's images (or the project's reference sheet), so approved shots never lose their source.",
+  input: z.object({ projectId: IdSchema, itemId: IdSchema }).strict(),
+  output: z.object({ projectId: IdSchema, itemId: IdSchema, unlinked: z.literal(true) }),
+  run: ({ store }, input) =>
+    store.transaction(() => {
+      const link = store.library.getLink(input.projectId, input.itemId) ?? fail("not_found", "This Library item is not linked to the project.");
+      const item = store.library.getRequired(input.itemId);
+      const held = new Set(libraryItemAssetIds(item));
+      if (link.kind === "character" && link.sheetAssetId) held.add(link.sheetAssetId);
+      for (const content of store.content.listByProject(input.projectId)) {
+        for (const shot of content.shots) {
+          for (const slot of ["still", "clip"] as const) {
+            const state = shot[slot];
+            if (state.state !== "approved") continue;
+            if ([...ancestry(store, state.assetId)].some((id) => held.has(id))) {
+              fail(
+                "invalid",
+                `Beat ${shot.beatIndex}'s approved ${slot} in "${content.title}" was made from ${libraryItemName(item)}'s images. Replace or archive that ${slot} before unlinking.`,
+              );
+            }
+          }
+        }
+      }
+      store.library.unlink(input.projectId, input.itemId);
+      return { projectId: input.projectId, itemId: input.itemId, unlinked: true as const };
+    }),
+});
+
+export const archiveLibraryItem = defineTool({
+  name: "archive_library_item",
+  description:
+    "Archive a Library character, product, or set so it is hidden from new selections (it cannot be linked or picked for new stills), or restore it with restore: true. Its assets and existing links are kept.",
+  input: z.object({ itemId: IdSchema, restore: z.boolean().default(false) }).strict(),
+  output: LibraryItemSchema,
+  run: ({ store, now }, input) =>
+    store.transaction(() => {
+      const item = store.library.getRequired(input.itemId);
+      const next = setLibraryItemArchived(item, !input.restore, now());
+      return next === item ? item : store.library.update(next);
+    }),
+});
+
+export const createSetTool = defineTool({
+  name: "create_set",
+  description:
+    "Create a Library set (a location): name, notes, and reference image asset ids. With projectId it is linked to that project. A beat whose setting names the set uses its first image as a location reference in stills.",
+  input: z
+    .object({
+      projectId: IdSchema.optional(),
+      set: SetFieldsSchema,
+    })
+    .strict(),
+  output: z.object({ set: SetItemSchema, link: ProjectLinkSchema.nullable() }),
+  run: ({ store, now, newId }, input) =>
+    store.transaction(() => {
+      const time = now();
+      for (const assetId of input.set.imageAssetIds ?? []) requireActiveAsset(store, assetId, ["image"]);
+      const set = store.library.create(createSet(newId(), input.set, time)) as SetItem;
+      if (!input.projectId) return { set, link: null };
+      store.projects.getRequired(input.projectId);
+      return { set, link: store.library.link(linkToProject(input.projectId, set, time)) };
     }),
 });

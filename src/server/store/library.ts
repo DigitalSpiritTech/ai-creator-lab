@@ -82,6 +82,11 @@ export function libraryRepository(database: DatabaseSync) {
     return record;
   }
 
+  /** Removes a project link. The Library item and its assets are untouched. */
+  function unlink(projectId: string, itemId: string): boolean {
+    return database.prepare("DELETE FROM project_links WHERE project_id = ? AND item_id = ?").run(projectId, itemId).changes > 0;
+  }
+
   function listLinks(projectId: string): ProjectLink[] {
     const rows = database
       .prepare("SELECT data FROM project_links WHERE project_id = ? ORDER BY json_extract(data, '$.linkedAt'), rowid")
@@ -93,6 +98,6 @@ export function libraryRepository(database: DatabaseSync) {
     return decodeAll(database.prepare("SELECT data FROM project_links ORDER BY rowid").all(), ProjectLinkSchema);
   }
 
-  return { get, getRequired, list, create, update, getLink, link, updateLink, listLinks, listAllLinks };
+  return { get, getRequired, list, create, update, getLink, link, unlink, updateLink, listLinks, listAllLinks };
 }
 export type LibraryRepository = ReturnType<typeof libraryRepository>;

@@ -87,6 +87,22 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     "List recipes for a capability with verified, open-weights, cost hint, and whether they can run now.",
     'Example: the user asks for a cheaper or open-weights way to make the stills.',
   ].join(" "),
+  link_library_item: [
+    "Attach an existing Library character, product, or set to this project without changing it (the bible version stays the same). Use it to reuse a character from an earlier project; its face and body then work as references here.",
+    'Example: the user says "use Avery again for this launch", so link Avery\'s itemId to this project.',
+  ].join(" "),
+  unlink_library_item: [
+    "Detach a Library item from this project; the item stays in the Library. Refused while an approved still or clip was made from its images.",
+    'Example: the user picked the wrong product for this project and nothing is approved with it yet.',
+  ].join(" "),
+  archive_library_item: [
+    "Archive a Library character, product, or set so it is hidden from new selections, or restore it with restore true. Its assets and links are kept.",
+    'Example: the user retires an old product and wants it out of the list.',
+  ].join(" "),
+  create_set: [
+    "Create a Library set (a location) with a name, notes, and reference image asset ids; with projectId it is linked here. Beats whose setting names the set get its image as a location reference in stills.",
+    'Example: the user uploads a photo of their kitchen and calls it "bright kitchen counter".',
+  ].join(" "),
 };
 
 /** The `tools` array for the assistant: the roster, with model-facing descriptions. */

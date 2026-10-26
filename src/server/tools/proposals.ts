@@ -21,6 +21,7 @@ import type { EstimateOutcome, ExecutorSet } from "@/server/executors";
 import type { RunDeps } from "@/server/executors/run";
 import type { ToolContext } from "@/server/tools/registry";
 import { requireGeneration } from "@/server/tools/registry";
+import { linkedReferenceIds, referenceableIn } from "@/server/tools/shared";
 
 export interface ProposalSpec {
   projectId: string;
@@ -88,11 +89,14 @@ export function pickRecipe(
 
 /** Loads proposal references, checking they are active stills from this project or the Library. */
 export function referenceAssets(context: ToolContext, projectId: string, references: { role: string; assetId: string }[]): Asset[] {
+  const linked = linkedReferenceIds(context.store, projectId);
   return references.map(({ assetId }) => {
     const asset = context.store.assets.getRequired(assetId);
     if (asset.state.state !== "active") fail("invalid", "Restore every reference image before using it.");
     if (asset.kind !== "image" && asset.kind !== "sheet") fail("invalid", "References must be still images or reference sheets.");
-    if (asset.projectId !== null && asset.projectId !== projectId) fail("invalid", "References must come from this project or the Library.");
+    if (!referenceableIn(context.store, projectId, asset, linked)) {
+      fail("invalid", "References must come from this project or from a Library item linked to it. Link the item first.");
+    }
     return asset;
   });
 }

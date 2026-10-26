@@ -14,6 +14,7 @@ import {
   type CharacterItem,
   type CharacterLink,
   type ProductItem,
+  type SetItem,
   chooseWardrobe,
 } from "@/lib/domain/library";
 import { GenerationProposalSchema, GenerationTargetSchema, type Job, JobSchema } from "@/lib/domain/job";
@@ -24,19 +25,40 @@ import type { Store } from "@/server/store";
 import { clipPrompt, referenceSheetPrompt, refinePrompt, stillPrompt, type StillPromptParts } from "@/server/tools/prompts";
 import { buildProposal, candidateRequestId, nearestAspect, proposalRequest, runDeps } from "@/server/tools/proposals";
 import { defineTool } from "@/server/tools/registry";
+import { referenceableIn } from "@/server/tools/shared";
 
 const count = z.number().int().min(1).max(4).default(4);
 
-function projectCast(store: Store, projectId: string): { character?: { item: CharacterItem; link: CharacterLink }; product?: ProductItem } {
-  let character: { item: CharacterItem; link: CharacterLink } | undefined;
-  let product: ProductItem | undefined;
+interface ProjectCast {
+  character?: { item: CharacterItem; link: CharacterLink };
+  product?: ProductItem;
+  sets: SetItem[];
+}
+
+/** The project's linked, unarchived Library items: the first character and product, and every set. */
+function projectCast(store: Store, projectId: string): ProjectCast {
+  const cast: ProjectCast = { sets: [] };
   for (const link of store.library.listLinks(projectId)) {
     const item = store.library.get(link.itemId);
     if (!item || item.archived) continue;
-    if (!character && item.kind === "character" && link.kind === "character") character = { item, link };
-    if (!product && item.kind === "product") product = item;
+    if (!cast.character && item.kind === "character" && link.kind === "character") cast.character = { item, link };
+    if (!cast.product && item.kind === "product") cast.product = item;
+    if (item.kind === "set") cast.sets.push(item);
   }
-  return { character, product };
+  return cast;
+}
+
+/**
+ * The linked set a beat takes place in: the one whose id or name the beat's setting names (either
+ * containing the other, ignoring case), or the only linked set when the beat names no setting.
+ */
+export function setForBeat(sets: SetItem[], setting: string): SetItem | undefined {
+  const wanted = setting.trim().toLowerCase();
+  if (!wanted) return sets.length === 1 ? sets[0] : undefined;
+  return sets.find((set) => {
+    const name = set.name.trim().toLowerCase();
+    return set.id === setting.trim() || name === wanted || wanted.includes(name) || name.includes(wanted);
+  });
 }
 
 export const proposeCandidates = defineTool({
@@ -133,7 +155,7 @@ export const composeStill = defineTool({
     const content = store.content.getRequired(input.contentId);
     const script = store.scripts.get(content.scriptId, content.scriptVersion) ?? fail("storage", "This content piece's script version is missing.");
     const beat = script.beats[input.beatIndex - 1] ?? fail("not_found", `Beat ${input.beatIndex} is not in the script.`);
-    const { character, product } = projectCast(store, content.projectId);
+    const { character, product, sets } = projectCast(store, content.projectId);
     const references: { role: string; assetId: string }[] = [];
     const add = (assetId: string) => {
       references.push({ role: `image${references.length + 1}`, assetId });
@@ -156,6 +178,11 @@ export const composeStill = defineTool({
       const photo = product.imageAssetIds.find((id) => store.assets.get(id)?.state.state === "active");
       parts.product = { name: product.name, image: photo ? add(photo) : undefined };
     }
+    const set = setForBeat(sets, beat.setting);
+    if (set) {
+      const photo = set.imageAssetIds.find((id) => store.assets.get(id)?.state.state === "active");
+      parts.set = { name: set.name, image: photo ? add(photo) : undefined };
+    }
     return buildProposal(context, {
       projectId: content.projectId,
       capability: references.length ? "image_edit" : "text_to_image",
@@ -177,6 +204,7 @@ export const refineStill = defineTool({
     .object({
       assetId: IdSchema,
       instruction: text(1000),
+      projectId: IdSchema.optional().describe("The project to refine in; defaults to the image's own project."),
       recipeId: RecipeIdSchema.optional(),
     })
     .strict(),
@@ -185,16 +213,20 @@ export const refineStill = defineTool({
     const { store } = context;
     const asset = store.assets.getRequired(input.assetId);
     if (asset.kind !== "image" && asset.kind !== "sheet") fail("invalid", "Only still images can be refined.");
-    if (!asset.projectId) fail("invalid", "Refine images inside a project.");
+    const projectId = input.projectId ?? asset.projectId ?? fail("invalid", "Say which project to refine this Library image in.");
+    if (!referenceableIn(store, projectId, asset)) {
+      fail("invalid", "This image is not part of the project or of a Library item linked to it. Link the item first.");
+    }
     const source = asset.provenance.source === "generated" ? store.jobs.get(asset.provenance.jobId) : undefined;
+    const target = source && source.projectId === projectId ? source.request.target : { kind: "loose" as const };
     return buildProposal(context, {
-      projectId: asset.projectId,
+      projectId,
       capability: "image_edit",
       recipeId: input.recipeId,
-      prompt: refinePrompt(input.instruction),
+      prompt: refinePrompt(input.instruction, asset.kind === "sheet" ? "sheet" : "still"),
       references: [{ role: "image1", assetId: asset.id }],
       count: 1,
-      target: source?.request.target ?? { kind: "loose" },
+      target,
       aspectRatio: nearestAspect(asset.width, asset.height),
     });
   },
@@ -224,7 +256,7 @@ export const generateClip = defineTool({
       projectId: content.projectId,
       capability: "image_to_video",
       recipeId: input.recipeId,
-      prompt: clipPrompt(beat),
+      prompt: clipPrompt(beat, { wardrobe: beat.type === "talking" ? projectCast(store, content.projectId).character?.link.wardrobe : undefined }),
       references: [{ role: "image1", assetId: shot.still.assetId }],
       count: input.count,
       target: { kind: "shot", contentId: content.id, beatIndex: beat.index, slot: "clip" },

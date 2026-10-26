@@ -4,6 +4,7 @@
  */
 import { type Asset, archiveAsset } from "@/lib/domain/asset";
 import { fail } from "@/lib/domain/failure";
+import type { LibraryItem } from "@/lib/domain/library";
 import { blockingArchiveUsage, findAssetUsage } from "@/lib/domain/usage";
 import { loadAssetGraph } from "@/server/media/lifecycle";
 import type { Store } from "@/server/store";
@@ -57,4 +58,36 @@ export function requireActiveAsset(store: Store, assetId: string, kinds: Asset["
   if (asset.state.state !== "active") fail("invalid", "Restore this asset before using it.");
   if (!kinds.includes(asset.kind)) fail("invalid", `Choose a ${kinds.join(" or ")} asset.`);
   return asset;
+}
+
+/** Asset ids a Library item holds: face, body, and wardrobe references, or product and set images. */
+export function libraryItemAssetIds(item: LibraryItem): string[] {
+  if (item.kind === "character") {
+    const { faceAssetId, bodyAssetId, wardrobeAssetIds } = item.bible.references;
+    return [faceAssetId, bodyAssetId, ...wardrobeAssetIds].filter((id): id is string => id !== null);
+  }
+  return item.imageAssetIds;
+}
+
+/**
+ * Assets from outside the project that may still be used as references in it: those held by a
+ * Library item linked to the project, and the approved reference sheets on its character links.
+ */
+export function linkedReferenceIds(store: Store, projectId: string): Set<string> {
+  const ids = new Set<string>();
+  for (const link of store.library.listLinks(projectId)) {
+    const item = store.library.get(link.itemId);
+    if (item) for (const id of libraryItemAssetIds(item)) ids.add(id);
+    if (link.kind === "character" && link.sheetAssetId) ids.add(link.sheetAssetId);
+  }
+  return ids;
+}
+
+/**
+ * Whether an asset may be a reference in a project: it was made or uploaded in the project, it is a
+ * Library upload outside any project, it belongs to a Library item linked to the project, or it is
+ * the project's approved reference sheet.
+ */
+export function referenceableIn(store: Store, projectId: string, asset: Asset, linked = linkedReferenceIds(store, projectId)): boolean {
+  return asset.projectId === null || asset.projectId === projectId || linked.has(asset.id);
 }
