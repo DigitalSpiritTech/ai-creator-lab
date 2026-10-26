@@ -60,7 +60,7 @@ Cut order if behind schedule: E7 MCP server, A8 Set library item, B7 first/last 
 - [x] E2 `workflows/README.md`: each starter workflow, what it needs on Cloud, how to open it in ComfyUI, how to customize and re-import, slot sidecar format. Done in `d81447a`.
 - [ ] E3 Demo (recording still open): two-minute recording following docs/PRODUCT.md outline, real outputs, SFW.
 - [x] E4 Social post draft with the required hashtag and the demo link; build-in-public thread draft. Done in `d81447a`.
-- [ ] E5 Fresh-install verification on a clean directory with Node 22, recorded in docs/VERIFICATION.md.
+- [x] E5 Fresh-install verification: passed on a clean clone of c4b587b (Linux VM, Node 22.23); the maintainer's native macOS run is still to be confirmed since sharp ships platform binaries.
 - [x] E6 Privacy and secret scan (verify-release skill) passes. Passing at `28ebe66`.
 - [ ] E7 MCP server (stretch): stdio server exposing the A4 registry; Claude Code config example in README.
 - [ ] E8 Submission packet: repo public, license, demo link, social post link, form answers drafted for the maintainer to submit.
