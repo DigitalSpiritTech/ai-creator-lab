@@ -64,7 +64,8 @@ export const VideoMetadataSchema = z
     frameRate: z.number().positive(),
     frameCount: z.number().int().positive(),
     hasAudio: z.boolean(),
-    posterPath: MediaPathSchema,
+    /** First-frame PNG, when ffmpeg was available to extract one. */
+    posterPath: MediaPathSchema.optional(),
   })
   .strict();
 export type VideoMetadata = z.infer<typeof VideoMetadataSchema>;

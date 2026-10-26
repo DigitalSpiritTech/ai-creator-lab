@@ -38,34 +38,35 @@ import {
 } from "@/lib/catalog";
 import { fitImage } from "@/server/executors/image-prep";
 import {
-  backoffMs,
-  claimRequest,
   ExecutorFailure,
+  absoluteInput,
+  backoffMs,
+  claimForSubmit,
   failJob,
   jobError,
   loadJob,
+  patchJob,
+  save,
   toJobError,
-  transition,
-  type JobPatch,
 } from "@/server/executors/jobs";
 import { commitOutput, outputLocation, tempBeside, type OutputExpectation } from "@/server/executors/media";
-import {
-  GenerationRequestSchema,
-  type CancelOutcome,
-  type EstimateOutcome,
-  type Executor,
-  type GenerationInput,
-  type GenerationRequest,
-  type JobError,
-  type JobMetrics,
-  type JobOutput,
-  type JobRecord,
-  type JobRepository,
-  type PollOutcome,
-  type RetrieveDestination,
-  type RetrieveOutcome,
-  type SubmitOutcome,
+import type {
+  CancelOutcome,
+  EstimateOutcome,
+  Executor,
+  GenerationInput,
+  GenerationRequest,
+  Job,
+  JobError,
+  JobMetrics,
+  JobStorePort,
+  PollOutcome,
+  RetrieveDestination,
+  RetrieveOutcome,
+  RetrievedFile,
+  SubmitOutcome,
 } from "@/server/executors/types";
+import type { JobUpdate } from "@/lib/domain/job";
 import { usdToCredits } from "@/server/executors/allowance";
 
 /** The slice of the SDK this executor uses; tests substitute a fake with recorded responses. */
@@ -245,7 +246,9 @@ export function classifySubmitError(cause: unknown): Classified {
 }
 
 export interface WorkflowExecutorOptions {
-  repository: JobRepository;
+  jobs: JobStorePort;
+  /** Relative reference image paths resolve against this folder (the data directory). */
+  mediaRoot?: string;
   client: WorkflowClient;
   /** Folder holding `*.api.json` files; defaults to `<cwd>/workflows`. */
   workflowsDir?: string;
@@ -256,7 +259,8 @@ export interface WorkflowExecutorOptions {
 
 export class WorkflowExecutor implements Executor {
   readonly kind = "workflow" as const;
-  private readonly repository: JobRepository;
+  private readonly jobs: JobStorePort;
+  private readonly mediaRoot: string;
   private readonly client: WorkflowClient;
   private readonly workflowsDir: string;
   private readonly now: () => number;
@@ -264,7 +268,8 @@ export class WorkflowExecutor implements Executor {
   private readonly pollCounts = new Map<string, number>();
 
   constructor(options: WorkflowExecutorOptions) {
-    this.repository = options.repository;
+    this.jobs = options.jobs;
+    this.mediaRoot = options.mediaRoot ?? process.cwd();
     this.client = options.client;
     this.workflowsDir = options.workflowsDir ?? resolve(process.cwd(), "workflows");
     this.now = options.now ?? Date.now;
@@ -273,9 +278,8 @@ export class WorkflowExecutor implements Executor {
 
   async estimate(request: GenerationRequest): Promise<EstimateOutcome> {
     try {
-      const parsed = GenerationRequestSchema.parse(request);
-      const recipe = this.recipeOf(parsed);
-      planWorkflow(recipe, parsed.input, await this.loadGraph(recipe), 0);
+      const recipe = this.recipeOf(request);
+      planWorkflow(recipe, absoluteInput(request.input, this.mediaRoot), await this.loadGraph(recipe), 0);
       if (recipe.ceilingUsd === undefined) return { kind: "unquoted", ceilingUsd: null, note: recipe.costHint };
       return { kind: "quoted", usd: recipe.ceilingUsd, credits: usdToCredits(recipe.ceilingUsd), source: "hint", note: recipe.costHint };
     } catch (cause) {
@@ -283,36 +287,35 @@ export class WorkflowExecutor implements Executor {
     }
   }
 
-  async submit(request: GenerationRequest): Promise<SubmitOutcome> {
-    let job: JobRecord | null = null;
+  async submit(job: Job): Promise<SubmitOutcome> {
+    let claimed: Job | undefined;
     try {
-      const parsed = GenerationRequestSchema.parse(request);
-      const recipe = this.recipeOf(parsed);
+      const recipe = this.recipeOf(job.request);
       const graph = await this.loadGraph(recipe);
-      planWorkflow(recipe, parsed.input, graph, 0);
-      for (const path of parsed.input.images) {
+      const input = absoluteInput(job.request.input, this.mediaRoot);
+      planWorkflow(recipe, input, graph, 0);
+      for (const path of input.images) {
         await access(path).catch(() => {
           throw invalid("A reference image file is missing.");
         });
       }
-      const claim = await claimRequest(this.repository, parsed, "submitting", this.now());
-      if (!claim.created) return { kind: "existing", job: claim.job };
-      job = claim.job;
-      return await this.dispatch(job, graph);
+      claimed = claimForSubmit(this.jobs, job, this.now());
+      if (!claimed) return { kind: "existing", job: loadJob(this.jobs, job.id) };
+      return await this.dispatch(claimed, graph);
     } catch (cause) {
       const error = toJobError(cause);
-      if (job && error.code !== "conflict") {
-        const current = await this.repository.get(job.id);
-        if (current && current.status === "submitting") return { kind: "failed", job: await failJob(this.repository, current, error, this.now()), error };
+      const current = this.jobs.get(job.id);
+      if (current && error.code !== "conflict" && (current.status === "submitting" || (!claimed && current.status === "queued"))) {
+        return { kind: "failed", job: failJob(this.jobs, current, error, this.now()), error };
       }
-      return { kind: "failed", job, error };
+      return { kind: "failed", job: current ?? null, error };
     }
   }
 
   async poll(jobId: string): Promise<PollOutcome> {
-    const job = await loadJob(this.repository, jobId);
+    const job = loadJob(this.jobs, jobId);
     if (job.status === "completed") return { kind: "completed", job };
-    if (job.status === "failed") return { kind: "failed", job, error: job.error ?? jobError("provider", "This job failed.") };
+    if (job.status === "failed") return { kind: "failed", job, error: job.error };
     if (job.status === "retrieving") return { kind: "ready", job };
     if (job.status === "submitting" && this.now() - job.updatedAt < this.staleSubmitMs) {
       return { kind: "pending", job, retryAfterMs: 5000, queuePosition: null };
@@ -322,9 +325,9 @@ export class WorkflowExecutor implements Executor {
   }
 
   async retrieve(jobId: string, destination: RetrieveDestination): Promise<RetrieveOutcome> {
-    const job = await loadJob(this.repository, jobId);
-    if (job.status === "completed") return { kind: "completed", job, metrics: null };
-    if (job.status === "failed") return { kind: "failed", job, error: job.error ?? jobError("provider", "This job failed.") };
+    const job = loadJob(this.jobs, jobId);
+    if (job.status === "failed") return { kind: "failed", job, error: job.error };
+    if (job.status === "completed" || (job.status === "retrieving" && job.retrieved.length > 0)) return { kind: "completed", job, metrics: null };
     if (job.status !== "retrieving" || !job.providerRef) return { kind: "not_ready", job };
     const recipe = this.recipeOf(job.request);
     let handle: CloudJobHandle;
@@ -339,9 +342,9 @@ export class WorkflowExecutor implements Executor {
       return this.retrieveFailed(job, jobError("provider", `The workflow finished without an output on node ${recipe.sidecar.outputNode}.`));
     }
     try {
-      const plan = planWorkflow(recipe, job.request.input, await this.loadGraph(recipe), seedFromId(job.id));
+      const plan = planWorkflow(recipe, absoluteInput(job.request.input, this.mediaRoot), await this.loadGraph(recipe), seedFromId(job.id));
       const extension = plan.expectation.media === "video" ? "mp4" : "png";
-      const saved: JobOutput[] = [];
+      const saved: RetrievedFile[] = [];
       for (const [index, output] of outputs.entries()) {
         const { absolute, relative } = outputLocation(destination, `${job.id}-${index}.${extension}`);
         const temporary = await tempBeside(absolute);
@@ -353,9 +356,9 @@ export class WorkflowExecutor implements Executor {
         }
         saved.push(await commitOutput(temporary, absolute, relative, plan.expectation));
       }
-      const completed = await transition(this.repository, job, { status: "completed", outputs: saved, notice: null, error: null }, this.now());
+      const recorded = patchJob(this.jobs, loadJob(this.jobs, job.id), { retrieved: saved, notice: null }, this.now());
       this.pollCounts.delete(job.id);
-      return { kind: "completed", job: completed, metrics: readMetrics(handle.metrics) };
+      return { kind: "completed", job: recorded, metrics: readMetrics(handle.metrics) };
     } catch (cause) {
       return this.retrieveFailed(job, toJobError(cause));
     }
@@ -363,13 +366,13 @@ export class WorkflowExecutor implements Executor {
 
   async cancel(jobId: string): Promise<CancelOutcome> {
     try {
-      const job = await loadJob(this.repository, jobId);
+      const job = loadJob(this.jobs, jobId);
       if (job.status === "completed" || job.status === "failed" || job.status === "retrieving") return { kind: "too_late", job };
       if (!job.providerRef) return { kind: "failed", error: jobError("conflict", "This submission is not confirmed yet, so it cannot be canceled. Check again shortly.", true) };
       const handle = await this.client.jobs.get(job.providerRef);
       await handle.cancel();
       const error = jobError("invalid", "Canceled before it finished.", false, "canceled");
-      return { kind: "canceled", job: await failJob(this.repository, job, error, this.now()) };
+      return { kind: "canceled", job: failJob(this.jobs, job, error, this.now()) };
     } catch (cause) {
       return { kind: "failed", error: toJobError(cause, "The cancel request did not reach Comfy.") };
     }
@@ -394,10 +397,10 @@ export class WorkflowExecutor implements Executor {
   }
 
   /** Builds the graph, uploads images lazily through the SDK, and submits with the job id as key. */
-  private async dispatch(job: JobRecord, graph?: WorkflowGraph): Promise<SubmitOutcome> {
+  private async dispatch(job: Job, graph?: WorkflowGraph): Promise<SubmitOutcome> {
     const recipe = this.recipeOf(job.request);
     const workflowGraph = graph ?? (await this.loadGraph(recipe));
-    const plan = planWorkflow(recipe, job.request.input, workflowGraph, seedFromId(job.id));
+    const plan = planWorkflow(recipe, absoluteInput(job.request.input, this.mediaRoot), workflowGraph, seedFromId(job.id));
     const scratch = recipe.fitImages && plan.images.length ? await mkdtemp(join(tmpdir(), "acl-fit-")) : undefined;
     try {
       const workflow = this.client.workflows.fromJson(structuredClone(workflowGraph));
@@ -419,72 +422,72 @@ export class WorkflowExecutor implements Executor {
       } catch (cause) {
         return await this.submitFailed(job, cause);
       }
-      let saved: JobRecord;
+      let saved: Job;
       try {
-        saved = await this.saveObservation(job, handle);
+        saved = this.saveObservation(loadJob(this.jobs, job.id), handle);
       } catch {
         // Comfy accepted the job but it could not be recorded; leave it for poll to resolve with the same key.
-        return { kind: "uncertain", job: (await this.repository.get(job.id).catch(() => undefined)) ?? job };
+        return { kind: "uncertain", job: this.jobs.get(job.id) ?? job };
       }
-      return saved.status === "failed" ? { kind: "failed", job: saved, error: saved.error! } : { kind: "accepted", job: saved };
+      return saved.status === "failed" ? { kind: "failed", job: saved, error: saved.error } : { kind: "accepted", job: saved };
     } finally {
       if (scratch) await rm(scratch, { recursive: true, force: true });
     }
   }
 
-  private async submitFailed(job: JobRecord, cause: unknown): Promise<SubmitOutcome> {
+  private async submitFailed(job: Job, cause: unknown): Promise<SubmitOutcome> {
     if (cause instanceof IdempotencyKeyReuse) {
-      const fresh = await loadJob(this.repository, job.id);
+      const fresh = loadJob(this.jobs, job.id);
       if (fresh.providerRef) {
         const handle = await this.client.jobs.get(fresh.providerRef);
-        const saved = await this.saveObservation(fresh, handle);
-        return saved.status === "failed" ? { kind: "failed", job: saved, error: saved.error! } : { kind: "accepted", job: saved };
+        const saved = this.saveObservation(fresh, handle);
+        return saved.status === "failed" ? { kind: "failed", job: saved, error: saved.error } : { kind: "accepted", job: saved };
       }
       const notice = "Comfy already received this submission, but its job id was not saved. It will not be sent again; check your Comfy job history.";
-      return { kind: "uncertain", job: await this.save(fresh, { status: "uncertain", notice }) };
+      return { kind: "uncertain", job: this.save(fresh, { status: "uncertain", notice }) };
     }
     const classified = classifySubmitError(cause);
-    const current = await loadJob(this.repository, job.id);
-    if (classified.outcome === "failed") return { kind: "failed", job: await failJob(this.repository, current, classified.error, this.now()), error: classified.error };
-    return { kind: "uncertain", job: await this.save(current, { status: "uncertain", notice: classified.notice }) };
+    const current = loadJob(this.jobs, job.id);
+    if (classified.outcome === "failed") return { kind: "failed", job: failJob(this.jobs, current, classified.error, this.now()), error: classified.error };
+    return { kind: "uncertain", job: this.save(current, { status: "uncertain", notice: classified.notice }) };
   }
 
   /** Resolves a submission with no saved provider id: resend under the same key, which Comfy never runs twice. */
-  private async recover(job: JobRecord): Promise<PollOutcome> {
+  private async recover(job: Job): Promise<PollOutcome> {
     if (this.now() - job.createdAt > RECOVERY_WINDOW_MS) {
       const notice = "This submission could not be confirmed within a day and its idempotency key has expired. Check your Comfy job history before generating again.";
-      const saved = job.notice === notice && job.status === "uncertain" ? job : await this.save(job, { status: "uncertain", notice });
+      const saved = job.notice === notice && job.status === "uncertain" ? job : this.save(job, { status: "uncertain", notice });
       return { kind: "uncertain", job: saved, retryAfterMs: 60 * 60_000 };
     }
-    const claimed = await this.save(job, { status: "submitting", notice: null });
+    const claimed = this.save(job, { status: "submitting", notice: null });
     const outcome = await this.dispatch(claimed).catch(async (cause: unknown): Promise<SubmitOutcome> => {
       const error = toJobError(cause);
-      const current = await loadJob(this.repository, job.id);
-      return { kind: "failed", job: await failJob(this.repository, current, error, this.now()), error };
+      const current = loadJob(this.jobs, job.id);
+      return { kind: "failed", job: failJob(this.jobs, current, error, this.now()), error };
     });
-    if (outcome.kind === "failed") return { kind: "failed", job: outcome.job ?? (await loadJob(this.repository, job.id)), error: outcome.error };
+    if (outcome.kind === "failed") return { kind: "failed", job: outcome.job ?? (loadJob(this.jobs, job.id)), error: outcome.error };
     if (outcome.kind === "uncertain") return { kind: "uncertain", job: outcome.job, retryAfterMs: this.nextDelay(job.id) };
     return this.toPoll(outcome.job);
   }
 
-  private async observe(job: JobRecord): Promise<PollOutcome> {
+  private async observe(job: Job): Promise<PollOutcome> {
     let handle: CloudJobHandle;
     try {
       handle = await this.client.jobs.get(job.providerRef!);
     } catch (cause) {
       if (cause instanceof NotFound) {
         const error = jobError("provider", "Comfy no longer knows this job; it may have expired.", false, "not_found");
-        return { kind: "failed", job: await failJob(this.repository, job, error, this.now()), error };
+        return { kind: "failed", job: failJob(this.jobs, job, error, this.now()), error };
       }
       return { kind: "pending", job, retryAfterMs: this.nextDelay(job.id), queuePosition: null };
     }
-    const saved = await this.saveObservation(job, handle);
+    const saved = this.saveObservation(job, handle);
     return this.toPoll(saved, handle.queuePosition);
   }
 
-  private toPoll(job: JobRecord, queuePosition: number | null = null): PollOutcome {
+  private toPoll(job: Job, queuePosition: number | null = null): PollOutcome {
     if (job.status === "retrieving") return { kind: "ready", job };
-    if (job.status === "failed") return { kind: "failed", job, error: job.error ?? jobError("provider", "This job failed.") };
+    if (job.status === "failed") return { kind: "failed", job, error: job.error };
     if (job.status === "completed") return { kind: "completed", job };
     if (job.status === "uncertain") return { kind: "uncertain", job, retryAfterMs: this.nextDelay(job.id) };
     return { kind: "pending", job, retryAfterMs: this.nextDelay(job.id), queuePosition };
@@ -497,34 +500,27 @@ export class WorkflowExecutor implements Executor {
   }
 
   /** Saves the provider id and the observed state together, the moment they are known. */
-  private async saveObservation(job: JobRecord, handle: CloudJobHandle): Promise<JobRecord> {
+  private saveObservation(job: Job, handle: CloudJobHandle): Job {
     const status = cloudStatus(handle.status);
     if (status === job.status && handle.id === job.providerRef) return job;
-    const patch: JobPatch = { status, providerRef: handle.id, notice: null };
-    if (status === "failed") patch.error = cloudJobError(handle.status, handle.error);
-    return this.save(job, patch);
+    if (status === "failed") {
+      return this.save(job, { status: "failed", error: cloudJobError(handle.status, handle.error), providerRef: handle.id, notice: null });
+    }
+    return this.save(job, { status, providerRef: handle.id, notice: null });
   }
 
   /** Transition with a re-read on a lost race, so a provider id is never dropped. */
-  private async save(job: JobRecord, patch: JobPatch): Promise<JobRecord> {
-    let current = job;
-    for (let attempt = 0; ; attempt++) {
-      try {
-        return await transition(this.repository, current, patch, this.now());
-      } catch (cause) {
-        if (!(cause instanceof ExecutorFailure) || cause.failure.code !== "conflict" || attempt >= 2) throw cause;
-        current = await loadJob(this.repository, job.id);
-        if (current.status === "completed" || current.status === "failed") return current;
-      }
-    }
+  private save(job: Job, update: JobUpdate): Job {
+    return save(this.jobs, job, update, this.now());
   }
 
-  private async retrieveFailed(job: JobRecord, error: JobError): Promise<RetrieveOutcome> {
+  private retrieveFailed(job: Job, error: JobError): RetrieveOutcome {
+    const current = loadJob(this.jobs, job.id);
     if (error.retryable) {
-      const saved = await this.save(job, { status: "retrieving", notice: error.message });
+      const saved = this.save(current, { status: "retrieving", notice: error.message });
       return { kind: "retry", job: saved, retryAfterMs: this.nextDelay(job.id), error };
     }
-    return { kind: "failed", job: await failJob(this.repository, job, error, this.now()), error };
+    return { kind: "failed", job: failJob(this.jobs, current, error, this.now()), error };
   }
 }
 

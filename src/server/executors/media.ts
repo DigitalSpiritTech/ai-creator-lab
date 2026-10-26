@@ -11,7 +11,7 @@ import { promisify } from "node:util";
 import sharp from "sharp";
 import { z } from "zod";
 import { jobError, ExecutorFailure } from "@/server/executors/jobs";
-import type { JobOutput, RetrieveDestination } from "@/server/executors/types";
+import type { RetrieveDestination, RetrievedFile } from "@/server/executors/types";
 
 const execute = promisify(execFile);
 
@@ -118,9 +118,9 @@ export interface OutputExpectation {
  * Verifies a temp file against the expectation, then renames it into place.
  * The temp file is always removed; a failed check never leaves a partial output behind.
  */
-export async function commitOutput(temporary: string, absolute: string, relative: string, expected: OutputExpectation): Promise<JobOutput> {
+export async function commitOutput(temporary: string, absolute: string, relative: string, expected: OutputExpectation): Promise<RetrievedFile> {
   try {
-    let output: JobOutput;
+    let output: RetrievedFile;
     const bytes = await readFile(temporary);
     if (expected.media === "image") {
       const info = await probeImage(temporary).catch(() => {

@@ -3,7 +3,6 @@
  * recorded from api.comfy.org on October 26. No network, no credits.
  */
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -13,12 +12,12 @@ import { ComfyError, type RunResult } from "@comfyorg/sdk";
 import sharp from "sharp";
 import { checkAgainstSchema, requestBodySchema, type Recipe, type RouterRecipe } from "@/lib/catalog";
 import { ROUTER_RECIPES } from "@/server/catalog/defaults";
-import { MemoryJobRepository } from "@/server/executors/memory-repository";
+import { MemoryJobStore, admitJob } from "./support/memory-job-store";
 import { buildRouterBody, prepareImages } from "@/server/executors/router-body";
 import { downloadMedia, mediaRequestOptions, mediaUrl, publicMediaAddress, type MediaPorts } from "@/server/executors/router-download";
 import { extractRouterMedia } from "@/server/executors/router-output";
 import { classifyRouterError, parseCredits, RouterExecutor, type RouterModelsPort } from "@/server/executors/router";
-import type { GenerationRequest } from "@/server/executors/types";
+import type { GenerationInput, Job } from "@/server/executors/types";
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`./fixtures/router/${name}`, import.meta.url), "utf8"));
 const results = fixture("results.json");
@@ -31,8 +30,8 @@ function routerRecipe(id: string): RouterRecipe {
   return recipe;
 }
 
-function request(recipe: Recipe, input: GenerationRequest["input"]): GenerationRequest {
-  return { requestId: randomUUID(), projectId: "project-1", recipe, input };
+function request(jobs: MemoryJobStore, recipe: Recipe, input: Partial<GenerationInput> & { prompt: string }): Job {
+  return admitJob(jobs, { recipe, input });
 }
 
 function json(data: unknown, extra: Partial<RunResult> = {}): RunResult {
@@ -119,14 +118,14 @@ test("the LTX Fast body fits its recorded schema, and the checker catches values
 
 test("submit records the request id and credits, then retrieve downloads and verifies the still", () =>
   withTemp(async (directory) => {
-    const repository = new MemoryJobRepository();
+    const repository = new MemoryJobStore();
     const recipe = routerRecipe("router-nano-banana-2.1-edit");
     const face = await png(join(directory, "face.png"), 64, 64);
     const output = await sharp({ create: { width: 768, height: 1376, channels: 3, background: "#ddeeff" } }).png().toBuffer();
     const gets: string[] = [];
     const models = fakeModels(() => json(results.gemini_file, { requestId: "d52907a3-4341-4c26-9bc6-c77bd36eac54", creditsUsed: "12.5" }));
-    const executor = new RouterExecutor({ repository, models, mediaPorts: cdn(output, gets), schemaFor: async () => nanoSchema });
-    const submitted = await executor.submit(request(recipe, { prompt: "Compose the two references.", images: [face], aspectRatio: "9:16" }));
+    const executor = new RouterExecutor({ jobs: repository, models, mediaPorts: cdn(output, gets), schemaFor: async () => nanoSchema });
+    const submitted = await executor.submit(request(repository, recipe, { prompt: "Compose the two references.", images: [face], aspectRatio: "9:16" }));
     assert.equal(submitted.kind, "accepted");
     const job = submitted.job!;
     assert.equal(job.status, "retrieving");
@@ -138,7 +137,7 @@ test("submit records the request id and credits, then retrieve downloads and ver
     const retrieved = await executor.retrieve(job.id, { root: directory, folder: "media" });
     assert.equal(retrieved.kind, "completed");
     assert.deepEqual(gets, ["storage.googleapis.com"]);
-    const [saved] = (await repository.get(job.id))!.outputs;
+    const [saved] = repository.get(job.id)!.retrieved;
     assert.deepEqual([saved.mime, saved.width, saved.height], ["image/png", 768, 1376]);
     assert.deepEqual(await readFile(join(directory, saved.relativePath)), output);
     assert.equal(models.calls.length, 1);
@@ -147,9 +146,10 @@ test("submit records the request id and credits, then retrieve downloads and ver
 test("a schema violation is rejected before anything is sent", () =>
   withTemp(async () => {
     const models = fakeModels(() => json(results.ltx));
-    const executor = new RouterExecutor({ repository: new MemoryJobRepository(), models, schemaFor: async () => ltxSchema });
+    const repository = new MemoryJobStore();
+    const executor = new RouterExecutor({ jobs: repository, models, schemaFor: async () => ltxSchema });
     const recipe = { ...routerRecipe("router-ltx-2.5-fast"), limits: {}, fieldMap: { ...routerRecipe("router-ltx-2.5-fast").fieldMap, template: { fps: 30 } } };
-    const outcome = await executor.submit(request(recipe, { prompt: "x", images: [], durationSeconds: 5 }));
+    const outcome = await executor.submit(request(repository, recipe, { prompt: "x", images: [], durationSeconds: 5 }));
     assert.equal(outcome.kind, "failed");
     assert.match(outcome.kind === "failed" ? outcome.error.message : "", /fps must be one of 24, 25, 48, 50/);
     assert.equal(models.calls.length, 0);
@@ -160,8 +160,8 @@ test("content policy refusals become per-candidate provider failures with the re
     const face = await png(join(directory, "face.png"), 64, 64);
     const recipe = routerRecipe("router-nano-banana-2.1-edit");
     const refused = new ComfyError("Request blocked by the provider's safety filter.", { code: "content_policy_violation", httpStatus: 400, requestId: "req-9" });
-    const repository = new MemoryJobRepository();
-    const viaError = await new RouterExecutor({ repository, models: fakeModels(() => refused) }).submit(request(recipe, { prompt: "x", images: [face] }));
+    const repository = new MemoryJobStore();
+    const viaError = await new RouterExecutor({ jobs: repository, models: fakeModels(() => refused) }).submit(request(repository, recipe, { prompt: "x", images: [face] }));
     assert.equal(viaError.kind, "failed");
     if (viaError.kind !== "failed") return;
     assert.equal(viaError.error.code, "provider");
@@ -169,7 +169,7 @@ test("content policy refusals become per-candidate provider failures with the re
     assert.match(viaError.error.message, /safety filter/);
     assert.equal(viaError.job?.status, "failed");
 
-    const viaBody = await new RouterExecutor({ repository, models: fakeModels(() => json(results.gemini_blocked)) }).submit(request(recipe, { prompt: "y", images: [face] }));
+    const viaBody = await new RouterExecutor({ jobs: repository, models: fakeModels(() => json(results.gemini_blocked)) }).submit(request(repository, recipe, { prompt: "y", images: [face] }));
     assert.equal(viaBody.kind, "failed");
     if (viaBody.kind !== "failed") return;
     assert.equal(viaBody.error.providerCode, "content_policy_violation");
@@ -179,20 +179,20 @@ test("content policy refusals become per-candidate provider failures with the re
 
 test("a lost response is uncertain, collected under the same key, and replayed after a restart", () =>
   withTemp(async (directory) => {
-    const repository = new MemoryJobRepository();
+    const repository = new MemoryJobStore();
     const recipe = routerRecipe("router-ltx-2.5-fast");
     const clip = Buffer.from("not a real mp4");
     let clock = 10_000_000;
     const models = fakeModels((call) => (call === 1 ? new TypeError("fetch failed") : json(results.ltx, { replayed: call > 2 })));
-    const first = new RouterExecutor({ repository, models, mediaPorts: cdn(clip), now: () => clock });
-    const submitted = await first.submit(request(recipe, { prompt: "A bottle on a counter.", images: [] }));
+    const first = new RouterExecutor({ jobs: repository, models, mediaPorts: cdn(clip), now: () => clock });
+    const submitted = await first.submit(admitJob(repository, { recipe, input: { prompt: "A bottle on a counter." } }, clock));
     assert.equal(submitted.kind, "uncertain");
     const job = submitted.job!;
     assert.match(job.notice!, /never charged twice/);
     assert.equal((await first.poll(job.id)).kind, "ready");
     assert.equal(models.calls.length, 2);
 
-    const restarted = new RouterExecutor({ repository, models, mediaPorts: cdn(clip), now: () => clock });
+    const restarted = new RouterExecutor({ jobs: repository, models, mediaPorts: cdn(clip), now: () => clock });
     const retrieved = await restarted.retrieve(job.id, { root: directory, folder: "clips" });
     assert.equal(models.calls.length, 3);
     assert.deepEqual(new Set(models.calls.map((call) => call.key)), new Set([job.id]));

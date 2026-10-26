@@ -7,6 +7,7 @@ import sharp from "sharp";
 import { addCandidates, approveCandidate, planShots } from "@/lib/domain/content";
 import { toFailure } from "@/lib/domain/failure";
 import { advanceJob, createJob } from "@/lib/domain/job";
+import { MOCK_RECIPES } from "@/server/catalog/defaults";
 import { createScript } from "@/lib/domain/script";
 import { assetResponse, parseByteRange } from "@/server/media/asset-response";
 import { commitJobOutputs } from "@/server/media/commit";
@@ -76,7 +77,7 @@ describe("atomic output commit", () => {
     const { store, dir, now, project } = setup();
     let job = store.jobs.add(
       createJob(
-        { id: randomUUID(), requestId: randomUUID(), projectId: project.id, recipeId: "mock-still", capability: "text_to_image", executor: "mock", request: { prompt: "p", inputs: [], target: { kind: "loose" } } },
+        { id: randomUUID(), requestId: randomUUID(), projectId: project.id, request: { recipe: MOCK_RECIPES[0], input: { prompt: "p" } } },
         now(),
       ),
     ).job;
@@ -99,7 +100,7 @@ describe("atomic output commit", () => {
     const { store, dir, now, project } = setup();
     let job = store.jobs.add(
       createJob(
-        { id: randomUUID(), requestId: randomUUID(), projectId: project.id, recipeId: "mock-still", capability: "text_to_image", executor: "mock", request: { prompt: "p", inputs: [], target: { kind: "loose" } } },
+        { id: randomUUID(), requestId: randomUUID(), projectId: project.id, request: { recipe: MOCK_RECIPES[0], input: { prompt: "p" } } },
         now(),
       ),
     ).job;
@@ -189,7 +190,7 @@ describe("archive and delete everywhere", () => {
     const result = await deleteAssetEverywhere(store, clipAsset.id, { force: true, now: now() });
     assert.equal(result.asset.state.state, "deleted");
     assert.equal(existsSync(resolveMediaPath(dir, clipAsset.relativePath)), false);
-    assert.equal(existsSync(resolveMediaPath(dir, clipAsset.video!.posterPath)), false);
+    assert.equal(existsSync(resolveMediaPath(dir, clipAsset.video!.posterPath!)), false);
     assert.deepEqual(store.content.getRequired(content.id).shots[0].brokenAssetIds, [clipAsset.id]);
     assert.deepEqual(store.content.listExports(content.id)[0].brokenAssetIds, [clipAsset.id]);
     assert.equal(store.assets.getRequired(clipAsset.id).state.state, "deleted");

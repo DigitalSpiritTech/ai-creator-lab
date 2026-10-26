@@ -14,6 +14,7 @@ import {
 } from "@/lib/domain/content";
 import { ServiceError, toFailure } from "@/lib/domain/failure";
 import { advanceJob, createJob } from "@/lib/domain/job";
+import { MOCK_RECIPES } from "@/server/catalog/defaults";
 import {
   type CharacterLink,
   approveReferenceSheet,
@@ -251,28 +252,30 @@ describe("delete everywhere", () => {
 });
 
 describe("jobs", () => {
-  const request = { prompt: "p", inputs: [], target: { kind: "loose" as const } };
+  const request = { recipe: MOCK_RECIPES[0], input: { prompt: "p" } };
 
   test("allowed path from queued to completed bumps the revision each step", () => {
     let job = createJob(
-      { id: randomUUID(), requestId: randomUUID(), projectId: randomUUID(), recipeId: "mock-still", capability: "text_to_image", executor: "mock", request },
+      { id: randomUUID(), requestId: randomUUID(), projectId: randomUUID(), request },
       NOW,
     );
     assert.equal(job.status, "queued");
     job = advanceJob(job, { status: "submitting" }, NOW + 1);
     job = advanceJob(job, { status: "uncertain" }, NOW + 2);
     job = advanceJob(job, { status: "running", providerRef: "prompt-1", progress: 0.5 }, NOW + 3);
-    job = advanceJob(job, { status: "retrieving", credits: 12 }, NOW + 4);
+    job = advanceJob(job, { status: "retrieving", creditsUsed: 12 }, NOW + 4);
     job = advanceJob(job, { status: "completed", outputs: [randomUUID()] }, NOW + 5);
     assert.equal(job.revision, 5);
+    assert.equal(job.progress, 1);
     assert.equal(job.providerRef, "prompt-1");
-    assert.equal(job.cost.credits, 12);
+    assert.equal(job.creditsUsed, 12);
+    assert.equal(job.recipeId, MOCK_RECIPES[0].id);
     assert.throws(() => advanceJob(job, { status: "running" }, NOW), (e) => code(e) === "conflict");
   });
 
   test("a queued job cannot jump to completed", () => {
     const job = createJob(
-      { id: randomUUID(), requestId: randomUUID(), projectId: randomUUID(), recipeId: "mock-still", capability: "text_to_image", executor: "mock", request },
+      { id: randomUUID(), requestId: randomUUID(), projectId: randomUUID(), request },
       NOW,
     );
     assert.throws(() => advanceJob(job, { status: "completed", outputs: [randomUUID()] }, NOW), (e) => code(e) === "conflict");

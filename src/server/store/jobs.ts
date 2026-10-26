@@ -6,17 +6,11 @@
 import type { DatabaseSync } from "node:sqlite";
 import { type Asset, AssetSchema } from "@/lib/domain/asset";
 import { fail } from "@/lib/domain/failure";
-import { type Job, JobSchema } from "@/lib/domain/job";
+import { type Job, JobSchema, sameRequest } from "@/lib/domain/job";
 import { decode, decodeAll, encode, transaction } from "@/server/store/connection";
 
-function sameRequest(a: Job, b: Job): boolean {
-  return (
-    a.projectId === b.projectId &&
-    a.recipeId === b.recipeId &&
-    a.capability === b.capability &&
-    a.executor === b.executor &&
-    JSON.stringify(a.request) === JSON.stringify(b.request)
-  );
+function sameJobRequest(a: Job, b: Job): boolean {
+  return a.projectId === b.projectId && sameRequest(a.request, b.request);
 }
 
 export function jobRepository(database: DatabaseSync) {
@@ -43,7 +37,7 @@ export function jobRepository(database: DatabaseSync) {
     return transaction(database, () => {
       const existing = getByRequest(record.requestId);
       if (existing) {
-        if (!sameRequest(existing, record)) fail("conflict", "This request id was already used for a different generation.");
+        if (!sameJobRequest(existing, record)) fail("conflict", "This request id was already used for a different generation.");
         return { job: existing, created: false };
       }
       database
@@ -58,6 +52,11 @@ export function jobRepository(database: DatabaseSync) {
       .prepare("SELECT data FROM jobs WHERE project_id = ? ORDER BY json_extract(data, '$.createdAt') DESC, rowid DESC")
       .all(projectId);
     return decodeAll(rows, JobSchema);
+  }
+
+  /** Every job, oldest first; used for the allowance ledger. */
+  function listAll(): Job[] {
+    return decodeAll(database.prepare("SELECT data FROM jobs ORDER BY json_extract(data, '$.createdAt'), rowid").all(), JobSchema);
   }
 
   /** Jobs to resume after a restart: everything not completed or failed, oldest first. */
@@ -120,6 +119,6 @@ export function jobRepository(database: DatabaseSync) {
     });
   }
 
-  return { get, getRequired, getByRequest, add, listByProject, listUnfinished, transition, commitOutputs };
+  return { get, getRequired, getByRequest, add, listAll, listByProject, listUnfinished, transition, commitOutputs };
 }
-export type JobRepository = ReturnType<typeof jobRepository>;
+export type JobStoreRepository = ReturnType<typeof jobRepository>;

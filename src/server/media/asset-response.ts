@@ -36,8 +36,8 @@ export function parseByteRange(range: string | null, size: number): ByteRange {
 export async function assetResponse(request: Request, asset: Asset, dataDir: string): Promise<Response> {
   const url = new URL(request.url);
   const poster = url.searchParams.has("poster");
-  if (asset.state.state === "deleted" || (poster && !asset.video)) return new Response(null, { status: 404 });
-  const path = resolveMediaPath(dataDir, poster ? asset.video!.posterPath : asset.relativePath);
+  if (asset.state.state === "deleted" || (poster && !asset.video?.posterPath)) return new Response(null, { status: 404 });
+  const path = resolveMediaPath(dataDir, poster ? asset.video!.posterPath! : asset.relativePath);
   const { size } = await stat(path);
   const range = parseByteRange(request.method === "HEAD" ? null : request.headers.get("range"), size);
   const extension = poster ? "png" : extensionFor(asset.mime);

@@ -9,6 +9,7 @@ import { join } from "node:path";
 import type { AssetKind, AssetMime } from "@/lib/domain/asset";
 import type { CharacterBibleFields } from "@/lib/domain/library";
 import { createJob, advanceJob, type GenerationTarget, type Job, type JobInput } from "@/lib/domain/job";
+import { MOCK_RECIPES } from "@/server/catalog/defaults";
 import { createProject, type Project } from "@/lib/domain/project";
 import type { BeatInput } from "@/lib/domain/script";
 import { commitJobOutputs } from "@/server/media/commit";
@@ -137,18 +138,16 @@ export async function generateAssets(
 ): Promise<{ job: Job; assetIds: string[] }> {
   const kind = options.kind ?? "image";
   const count = options.count ?? 1;
+  const capability = kind === "video" || kind === "storyboard" ? "image_to_video" : options.inputs?.length ? "image_edit" : "text_to_image";
   const created = createJob(
     {
       id: randomUUID(),
       requestId: randomUUID(),
       projectId: options.projectId,
-      recipeId: "mock-still",
-      capability: kind === "video" || kind === "storyboard" ? "image_to_video" : "text_to_image",
-      executor: "mock",
       request: {
-        prompt: "Avery Lane portrait",
+        recipe: MOCK_RECIPES.find((recipe) => recipe.capability === capability)!,
+        input: { prompt: "Avery Lane portrait", images: [] },
         inputs: options.inputs ?? [],
-        count,
         target: options.target ?? { kind: "loose" },
       },
     },

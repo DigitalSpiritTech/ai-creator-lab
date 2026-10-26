@@ -6,17 +6,35 @@
 import { randomUUID } from "node:crypto";
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
 import { z } from "zod";
+import type { Recipe } from "@/lib/catalog";
 import { fail } from "@/lib/domain/failure";
+import type { ExecutorSet } from "@/server/executors";
 import type { Store } from "@/server/store";
+
+/** What the generation tools need beyond the store: executors and the recipe catalog. */
+export interface GenerationContext {
+  executors: ExecutorSet;
+  recipes(): Promise<Recipe[]>;
+  /** Paid cap override in USD; defaults to the lower of the workspace setting and GENERATION_ALLOWANCE_USD. */
+  allowanceUsd?: () => number;
+  sleep?: (ms: number) => Promise<unknown>;
+  poster?: (videoPath: string, posterPath: string) => Promise<void>;
+}
 
 export interface ToolContext {
   store: Store;
   now(): number;
   newId(): string;
+  /** Absent in contexts that only read and edit; generation tools then fail with "invalid". */
+  generation?: GenerationContext;
 }
 
-export function createToolContext(store: Store): ToolContext {
-  return { store, now: () => Date.now(), newId: () => randomUUID() };
+export function createToolContext(store: Store, generation?: GenerationContext): ToolContext {
+  return { store, now: () => Date.now(), newId: () => randomUUID(), generation };
+}
+
+export function requireGeneration(context: ToolContext): GenerationContext {
+  return context.generation ?? fail("invalid", "Generation is not configured for this session.");
 }
 
 export interface Tool {
@@ -41,14 +59,6 @@ export function defineTool<I extends z.ZodType, O extends z.ZodType>(definition:
     input: definition.input,
     output: definition.output,
     run: async (context, input) => definition.run(context, input as z.output<I>),
-  };
-}
-
-/** Registers a roster tool that is not built yet; it validates input and returns an "invalid" failure. */
-export function stubTool(definition: { name: string; description: string; input: z.ZodType; output: z.ZodType }): Tool {
-  return {
-    ...definition,
-    run: async () => fail("invalid", "not implemented yet"),
   };
 }
 

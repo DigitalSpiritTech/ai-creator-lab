@@ -7,34 +7,33 @@ import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { capabilityMedia, ratioValue, type AspectRatio } from "@/lib/catalog";
 import {
-  claimRequest,
   ExecutorFailure,
+  claimForSubmit,
   failJob,
   jobError,
   loadJob,
+  patchJob,
   toJobError,
   transition,
 } from "@/server/executors/jobs";
 import { outputLocation, sha256 } from "@/server/executors/media";
-import {
-  GenerationRequestSchema,
-  type CancelOutcome,
-  type EstimateOutcome,
-  type Executor,
-  type GenerationInput,
-  type GenerationRequest,
-  type JobRecord,
-  type JobRepository,
-  type PollOutcome,
-  type RetrieveDestination,
-  type RetrieveOutcome,
-  type SubmitOutcome,
+import type {
+  CancelOutcome,
+  EstimateOutcome,
+  Executor,
+  GenerationInput,
+  Job,
+  JobStorePort,
+  PollOutcome,
+  RetrieveDestination,
+  RetrieveOutcome,
+  SubmitOutcome,
 } from "@/server/executors/types";
 
 export type MockStage = "submit" | "poll" | "retrieve";
 
 export interface MockExecutorOptions {
-  repository: JobRepository;
+  jobs: JobStorePort;
   /** Decides whether a request should fail, and where, to exercise error paths without an account. */
   failure?: (request: GenerationInput) => { stage: MockStage; reason: string } | undefined;
   now?: () => number;
@@ -65,7 +64,7 @@ export function mockDimensions(input: GenerationInput): Dimensions {
 }
 
 /** Renders a labeled placeholder: a still frame, or a three-panel storyboard for video capabilities. */
-export function renderMockSvg(job: Pick<JobRecord, "id" | "capability" | "request">): string {
+export function renderMockSvg(job: Pick<Job, "id" | "capability" | "request">): string {
   const { width, height } = mockDimensions(job.request.input);
   const video = capabilityMedia(job.capability) === "video";
   const prompt = job.request.input.prompt;
@@ -105,12 +104,12 @@ export function renderMockSvg(job: Pick<JobRecord, "id" | "capability" | "reques
 
 export class MockExecutor implements Executor {
   readonly kind = "mock" as const;
-  private readonly repository: JobRepository;
+  private readonly jobs: JobStorePort;
   private readonly failure: MockExecutorOptions["failure"];
   private readonly now: () => number;
 
   constructor(options: MockExecutorOptions) {
-    this.repository = options.repository;
+    this.jobs = options.jobs;
     this.failure = options.failure;
     this.now = options.now ?? Date.now;
   }
@@ -119,45 +118,44 @@ export class MockExecutor implements Executor {
     return { kind: "free", note: "Mock samples are free and labeled; nothing is generated." };
   }
 
-  async submit(request: GenerationRequest): Promise<SubmitOutcome> {
+  async submit(job: Job): Promise<SubmitOutcome> {
     try {
-      const parsed = GenerationRequestSchema.parse(request);
-      if (parsed.recipe.kind !== "mock") throw new ExecutorFailure(jobError("invalid", "The mock executor runs mock recipes only."));
-      const claim = await claimRequest(this.repository, parsed, "queued", this.now());
-      if (!claim.created) return { kind: "existing", job: claim.job };
-      const failure = this.failure?.(parsed.input);
+      if (job.request.recipe.kind !== "mock") throw new ExecutorFailure(jobError("invalid", "The mock executor runs mock recipes only."));
+      const claimed = claimForSubmit(this.jobs, job, this.now());
+      if (!claimed) return { kind: "existing", job: loadJob(this.jobs, job.id) };
+      const failure = this.failure?.(claimed.request.input);
       if (failure?.stage === "submit") {
         const error = jobError("provider", failure.reason);
-        return { kind: "failed", job: await failJob(this.repository, claim.job, error, this.now()), error };
+        return { kind: "failed", job: failJob(this.jobs, claimed, error, this.now()), error };
       }
-      return { kind: "accepted", job: claim.job };
+      return { kind: "accepted", job: claimed };
     } catch (cause) {
-      return { kind: "failed", job: null, error: toJobError(cause) };
+      return { kind: "failed", job: this.jobs.get(job.id) ?? null, error: toJobError(cause) };
     }
   }
 
   async poll(jobId: string): Promise<PollOutcome> {
-    const job = await loadJob(this.repository, jobId);
+    const job = loadJob(this.jobs, jobId);
     if (job.status === "completed") return { kind: "completed", job };
-    if (job.status === "failed") return { kind: "failed", job, error: job.error ?? jobError("provider", "The mock job failed.") };
+    if (job.status === "failed") return { kind: "failed", job, error: job.error };
     if (job.status === "retrieving") return { kind: "ready", job };
     const failure = this.failure?.(job.request.input);
     if (failure?.stage === "poll") {
       const error = jobError("provider", failure.reason);
-      return { kind: "failed", job: await failJob(this.repository, job, error, this.now()), error };
+      return { kind: "failed", job: failJob(this.jobs, job, error, this.now()), error };
     }
-    return { kind: "ready", job: await transition(this.repository, job, { status: "retrieving", providerRef: `mock-${job.id}` }, this.now()) };
+    return { kind: "ready", job: transition(this.jobs, job, { status: "retrieving", providerRef: `mock-${job.id}` }, this.now()) };
   }
 
   async retrieve(jobId: string, destination: RetrieveDestination): Promise<RetrieveOutcome> {
-    const job = await loadJob(this.repository, jobId);
-    if (job.status === "completed") return { kind: "completed", job, metrics: null };
-    if (job.status === "failed") return { kind: "failed", job, error: job.error ?? jobError("provider", "The mock job failed.") };
+    const job = loadJob(this.jobs, jobId);
+    if (job.status === "failed") return { kind: "failed", job, error: job.error };
+    if (job.status === "completed" || (job.status === "retrieving" && job.retrieved.length > 0)) return { kind: "completed", job, metrics: null };
     if (job.status !== "retrieving") return { kind: "not_ready", job };
     const failure = this.failure?.(job.request.input);
     if (failure?.stage === "retrieve") {
       const error = jobError("provider", failure.reason);
-      return { kind: "failed", job: await failJob(this.repository, job, error, this.now()), error };
+      return { kind: "failed", job: failJob(this.jobs, job, error, this.now()), error };
     }
     const svg = Buffer.from(renderMockSvg(job), "utf8");
     const { width, height } = mockDimensions(job.request.input);
@@ -171,14 +169,14 @@ export class MockExecutor implements Executor {
       await rm(temporary, { force: true });
     }
     const output = { relativePath: relative, mime: "image/svg+xml" as const, width, height, sha256: sha256(svg) };
-    const completed = await transition(this.repository, job, { status: "completed", outputs: [output], creditsUsed: 0, notice: null }, this.now());
-    return { kind: "completed", job: completed, metrics: null };
+    const saved = patchJob(this.jobs, job, { retrieved: [output], creditsUsed: 0, notice: null }, this.now());
+    return { kind: "completed", job: saved, metrics: null };
   }
 
   async cancel(jobId: string): Promise<CancelOutcome> {
-    const job = await loadJob(this.repository, jobId);
-    if (job.status === "completed" || job.status === "failed") return { kind: "too_late", job };
+    const job = loadJob(this.jobs, jobId);
+    if (job.status === "completed" || job.status === "failed" || job.status === "retrieving") return { kind: "too_late", job };
     const error = jobError("invalid", "Canceled before it finished.", false, "canceled");
-    return { kind: "canceled", job: await failJob(this.repository, job, error, this.now()) };
+    return { kind: "canceled", job: failJob(this.jobs, job, error, this.now()) };
   }
 }

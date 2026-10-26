@@ -3,7 +3,7 @@
  * guarded transitions, labeled outputs, simulated failures, cancel, and the allowance gate.
  */
 import assert from "node:assert/strict";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,11 +11,11 @@ import { test } from "node:test";
 import type { Recipe } from "@/lib/catalog";
 import { MOCK_RECIPES } from "@/server/catalog/defaults";
 import { checkAllowance, creditsToUsd, readAllowanceUsd, readCreditBalance, quoteRouter } from "@/server/executors/allowance";
-import { createJob, transition } from "@/server/executors/jobs";
-import { MemoryJobRepository } from "@/server/executors/memory-repository";
+import { jobError, transition } from "@/server/executors/jobs";
 import { MockExecutor, mockDimensions } from "@/server/executors/mock";
-import { runToCompletion } from "@/server/executors/run";
-import { JobRecordSchema, type GenerationRequest } from "@/server/executors/types";
+import { pollAndRetrieve } from "@/server/executors/run";
+import { JobSchema, type Job } from "@/server/executors/types";
+import { MemoryJobStore, admitJob } from "./support/memory-job-store";
 
 function mockRecipe(capability: Recipe["capability"]): Recipe {
   const recipe = MOCK_RECIPES.find((entry) => entry.capability === capability);
@@ -23,8 +23,8 @@ function mockRecipe(capability: Recipe["capability"]): Recipe {
   return recipe;
 }
 
-function request(capability: Recipe["capability"], prompt = "Avery holds the Ridgeline bottle <by the window>"): GenerationRequest {
-  return { requestId: randomUUID(), projectId: "project-1", recipe: mockRecipe(capability), input: { prompt, images: [], aspectRatio: "9:16" } };
+function admit(jobs: MemoryJobStore, capability: Recipe["capability"], prompt = "Avery holds the Ridgeline bottle <by the window>"): Job {
+  return admitJob(jobs, { recipe: mockRecipe(capability), input: { prompt, aspectRatio: "9:16" } });
 }
 
 async function withTemp<T>(body: (directory: string) => Promise<T>): Promise<T> {
@@ -38,22 +38,22 @@ async function withTemp<T>(body: (directory: string) => Promise<T>): Promise<T> 
 
 test("submit, poll, retrieve produce a labeled still with a verified hash", () =>
   withTemp(async (root) => {
-    const repository = new MemoryJobRepository();
-    const executor = new MockExecutor({ repository });
+    const jobs = new MemoryJobStore();
+    const executor = new MockExecutor({ jobs });
     assert.equal((await executor.estimate()).kind, "free");
-    const submitted = await executor.submit(request("text_to_image", "Avery & the <bottle>"));
+    const submitted = await executor.submit(admit(jobs, "text_to_image", "Avery & the <bottle>"));
     assert.equal(submitted.kind, "accepted");
     const job = submitted.job!;
-    assert.equal(job.status, "queued");
+    assert.equal(job.status, "submitting");
     assert.equal((await executor.retrieve(job.id, { root, folder: "media" })).kind, "not_ready");
     assert.equal((await executor.poll(job.id)).kind, "ready");
     const retrieved = await executor.retrieve(job.id, { root, folder: "media" });
     assert.equal(retrieved.kind, "completed");
-    const saved = (await repository.get(job.id))!;
-    JobRecordSchema.parse(saved);
-    assert.equal(saved.status, "completed");
+    const saved = jobs.get(job.id)!;
+    JobSchema.parse(saved);
+    assert.equal(saved.status, "retrieving", "retrieve records files; only the commit completes a job");
     assert.equal(saved.creditsUsed, 0);
-    const [output] = saved.outputs;
+    const [output] = saved.retrieved;
     assert.equal(output.mime, "image/svg+xml");
     assert.deepEqual([output.width, output.height], [720, 1280]);
     const svg = await readFile(join(root, output.relativePath));
@@ -63,42 +63,43 @@ test("submit, poll, retrieve produce a labeled still with a verified hash", () =
     assert.match(text, /STILL FRAME/);
     assert.match(text, /Avery &amp; the &lt;bottle&gt;/);
     assert.doesNotMatch(text, /<bottle>/);
-    assert.equal((await executor.poll(job.id)).kind, "completed");
+    assert.equal((await executor.poll(job.id)).kind, "ready");
+    const again = await executor.retrieve(job.id, { root, folder: "media" });
+    assert.equal(again.kind === "completed" && again.job.retrieved[0].sha256, output.sha256);
   }));
 
 test("video capabilities produce a static storyboard plate, and the runner completes it", () =>
   withTemp(async (root) => {
-    const repository = new MemoryJobRepository();
-    const executor = new MockExecutor({ repository });
-    const submitted = await executor.submit(request("image_to_video"));
-    const outcome = await runToCompletion(executor, submitted.job!.id, { root, folder: "clips" }, { sleep: async () => undefined });
+    const jobs = new MemoryJobStore();
+    const executor = new MockExecutor({ jobs });
+    const submitted = await executor.submit(admit(jobs, "image_to_video"));
+    const outcome = await pollAndRetrieve(executor, submitted.job!.id, { root, folder: "clips" }, { sleep: async () => undefined });
     assert.equal(outcome.kind, "completed");
-    const [output] = (await repository.get(submitted.job!.id))!.outputs;
+    const [output] = jobs.get(submitted.job!.id)!.retrieved;
     const text = await readFile(join(root, output.relativePath), "utf8");
     assert.match(text, /VIDEO STORYBOARD/);
     assert.match(text, /02 \/ HOLD/);
   }));
 
-test("a repeated requestId returns the same job, and a changed payload under it is a conflict", async () => {
-  const repository = new MemoryJobRepository();
-  const executor = new MockExecutor({ repository });
-  const first = request("text_to_image");
-  const accepted = await executor.submit(first);
-  const repeated = await executor.submit(structuredClone(first));
+test("a repeated requestId admits one job, and a second submit of it sends nothing", async () => {
+  const jobs = new MemoryJobStore();
+  const executor = new MockExecutor({ jobs });
+  const first = admit(jobs, "text_to_image");
+  const again = admitJob(jobs, { recipe: mockRecipe("text_to_image"), input: { prompt: "Something else" }, requestId: first.requestId });
+  assert.equal(again.id, first.id);
+  assert.equal((await executor.submit(first)).kind, "accepted");
+  const repeated = await executor.submit(first);
   assert.equal(repeated.kind, "existing");
-  assert.equal(repeated.job!.id, accepted.job!.id);
-  const changed = await executor.submit({ ...first, input: { ...first.input, prompt: "Something else" } });
-  assert.equal(changed.kind, "failed");
-  assert.equal(changed.kind === "failed" && changed.error.code, "conflict");
-  assert.equal(repository.all().length, 1);
+  assert.equal(repeated.job!.id, first.id);
+  assert.equal(jobs.all().length, 1);
 });
 
 test("simulated failures surface at the stage they were asked for", () =>
   withTemp(async (root) => {
     for (const stage of ["submit", "poll", "retrieve"] as const) {
-      const repository = new MemoryJobRepository();
-      const executor = new MockExecutor({ repository, failure: (input) => (input.prompt.includes("fail") ? { stage, reason: `Simulated ${stage} failure.` } : undefined) });
-      const submitted = await executor.submit(request("text_to_image", "please fail"));
+      const jobs = new MemoryJobStore();
+      const executor = new MockExecutor({ jobs, failure: (input) => (input.prompt.includes("fail") ? { stage, reason: `Simulated ${stage} failure.` } : undefined) });
+      const submitted = await executor.submit(admit(jobs, "text_to_image", "please fail"));
       const job = submitted.job!;
       if (stage === "submit") {
         assert.equal(submitted.kind, "failed");
@@ -107,34 +108,34 @@ test("simulated failures surface at the stage they were asked for", () =>
         if (stage === "poll") assert.equal(polled.kind, "failed");
         else assert.equal((await executor.retrieve(job.id, { root, folder: "media" })).kind, "failed");
       }
-      const saved = (await repository.get(job.id))!;
+      const saved = jobs.get(job.id)!;
       assert.equal(saved.status, "failed");
-      assert.equal(saved.error?.message, `Simulated ${stage} failure.`);
+      assert.equal(saved.status === "failed" && saved.error.message, `Simulated ${stage} failure.`);
     }
   }));
 
 test("cancel fails an unfinished job and leaves finished ones alone", () =>
   withTemp(async (root) => {
-    const repository = new MemoryJobRepository();
-    const executor = new MockExecutor({ repository });
-    const open = await executor.submit(request("text_to_image"));
+    const jobs = new MemoryJobStore();
+    const executor = new MockExecutor({ jobs });
+    const open = await executor.submit(admit(jobs, "text_to_image"));
     const canceled = await executor.cancel(open.job!.id);
     assert.equal(canceled.kind, "canceled");
-    assert.equal(canceled.kind === "canceled" && canceled.job.error?.providerCode, "canceled");
-    const done = await executor.submit(request("text_to_image"));
-    await runToCompletion(executor, done.job!.id, { root, folder: "media" }, { sleep: async () => undefined });
+    assert.equal(canceled.kind === "canceled" && canceled.job.status === "failed" && canceled.job.error.providerCode, "canceled");
+    const done = await executor.submit(admit(jobs, "text_to_image"));
+    await pollAndRetrieve(executor, done.job!.id, { root, folder: "media" }, { sleep: async () => undefined });
     assert.equal((await executor.cancel(done.job!.id)).kind, "too_late");
   }));
 
-test("transitions are guarded and use optimistic revisions", async () => {
-  const repository = new MemoryJobRepository();
-  const { job } = await repository.insert(createJob(request("text_to_image"), "submitting", 1));
-  const queued = await transition(repository, job, { status: "queued", providerRef: "remote-1" }, 2);
-  assert.equal(queued.revision, 1);
-  await assert.rejects(transition(repository, job, { status: "running" }, 3), /updated this job first/);
-  const failed = await transition(repository, queued, { status: "failed" }, 4);
-  await assert.rejects(transition(repository, failed, { status: "queued" }, 5), /cannot become queued/);
-  assert.equal(repository.all().length, 1);
+test("transitions are guarded and use optimistic revisions", () => {
+  const jobs = new MemoryJobStore();
+  const job = admit(jobs, "text_to_image");
+  const submitting = transition(jobs, job, { status: "submitting", providerRef: "remote-1" }, 2);
+  assert.equal(submitting.revision, 1);
+  assert.throws(() => transition(jobs, job, { status: "running" }, 3), /updated this job first/);
+  const failed = transition(jobs, submitting, { status: "failed", error: jobError("provider", "Rejected") }, 4);
+  assert.throws(() => transition(jobs, failed, { status: "queued" }, 5), /cannot become queued/);
+  assert.equal(jobs.all().length, 1);
 });
 
 test("mock sizes follow explicit size first, then aspect ratio", () => {

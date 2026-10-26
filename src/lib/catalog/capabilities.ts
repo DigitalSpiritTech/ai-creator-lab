@@ -3,17 +3,9 @@
  * @packageDocumentation
  */
 import { z } from "zod";
+import type { Capability } from "@/lib/domain/capability";
 
-export const CapabilitySchema = z.enum([
-  "text_to_image",
-  "image_edit",
-  "image_to_video",
-  "first_last_to_video",
-  "text_to_video",
-  "references_to_video",
-  "text_generation",
-]);
-export type Capability = z.infer<typeof CapabilitySchema>;
+export { CapabilitySchema, type Capability } from "@/lib/domain/capability";
 
 /** Capabilities the MVP flow uses; every one needs at least one verified recipe. */
 export const MVP_CAPABILITIES: readonly Capability[] = ["text_to_image", "image_edit", "image_to_video"];

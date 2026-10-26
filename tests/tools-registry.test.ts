@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, test } from "node:test";
 import sharp from "sharp";
+import { fileURLToPath } from "node:url";
 import { importImage } from "@/server/media/images";
-import { TOOLS, type ToolContext, callTool, toolsToJsonSchema } from "@/server/tools";
+import { TOOLS, type ToolContext, callTool, createGenerationContext, toolsToJsonSchema } from "@/server/tools";
 import { averyBible, clock, generateAssets, ridgelineBeats, seedProject, tempStore } from "./support/domain-fixtures";
 
 const ROSTER = [
@@ -27,15 +28,7 @@ const ROSTER = [
   "list_recipes",
 ];
 
-const STUBS = [
-  "propose_candidates",
-  "generate_reference_sheet",
-  "compose_still",
-  "refine_still",
-  "generate_clip",
-  "assemble_ad",
-  "list_recipes",
-];
+const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {
@@ -46,7 +39,8 @@ function setup() {
   const context = tempStore();
   cleanups.push(context.cleanup);
   const now = clock();
-  const tools: ToolContext = { store: context.store, now, newId: randomUUID };
+  const generation = createGenerationContext(context.store, { workflowsDir });
+  const tools: ToolContext = { store: context.store, now, newId: randomUUID, generation };
   return { ...context, now, tools, project: seedProject(context.store, now) };
 }
 
@@ -80,21 +74,29 @@ describe("registry", () => {
     assert.equal(!missing.ok && missing.failure.code, "not_found");
   });
 
-  test("stubbed tools validate input and report not implemented", async () => {
+  test("generation tools fail cleanly without a generation context", async () => {
     const { tools, project } = setup();
-    const inputs: Record<string, unknown> = {
-      propose_candidates: { projectId: project.id, capability: "text_to_image", prompt: "Avery portrait" },
-      generate_reference_sheet: { projectId: project.id, characterId: randomUUID() },
-      compose_still: { contentId: randomUUID(), beatIndex: 1 },
-      refine_still: { assetId: randomUUID(), instruction: "Warmer light" },
-      generate_clip: { contentId: randomUUID(), beatIndex: 1 },
-      assemble_ad: { contentId: randomUUID() },
-      list_recipes: {},
-    };
-    for (const name of STUBS) {
-      const result = await callTool(tools, name, inputs[name]);
-      assert.deepEqual(result, { ok: false, failure: { code: "invalid", message: "not implemented yet" } }, name);
-    }
+    const result = await callTool({ ...tools, generation: undefined }, "propose_candidates", {
+      projectId: project.id,
+      capability: "text_to_image",
+      prompt: "Avery portrait",
+    });
+    assert.deepEqual(result, { ok: false, failure: { code: "invalid", message: "Generation is not configured for this session." } });
+    assert.equal(toolsToJsonSchema().some((schema) => schema.name === "submit_proposal"), false);
+  });
+
+  test("list_recipes filters by capability and flags verified, open weights, and availability", async () => {
+    const { tools } = setup();
+    const { recipes } = await ok<{ recipes: { id: string; kind: string; verified: boolean; openWeights: boolean; available: boolean }[] }>(
+      tools,
+      "list_recipes",
+      { capability: "image_edit" },
+    );
+    assert.equal(recipes[0].id, "qwen-image-edit-2511-2ref");
+    assert.equal(recipes[0].verified, true);
+    assert.equal(recipes[0].openWeights, true);
+    assert.equal(recipes.at(-1)!.kind, "mock");
+    assert.equal(recipes.at(-1)!.available, true);
   });
 });
 
@@ -248,5 +250,95 @@ describe("store-backed tools", () => {
     assert.equal(finalState.products.length, 1);
     assert.equal(finalState.scripts.length, 1);
     assert.equal(finalState.contents.length, 1);
+  });
+
+  test("proposals, the approval gate, and the mock executor take a beat from still to clip to export plan", async () => {
+    const { store, now, tools, project } = setup();
+    const saved = await ok<{ character: { id: string } }>(tools, "save_character_bible", {
+      projectId: project.id,
+      wardrobe: "Oatmeal knit sweater and jeans",
+      bible: averyBible(),
+    });
+    const characterId = saved.character.id;
+
+    const faceProposal = await ok<{ recipeId: string; count: number; estimate: { kind: string }; target: { kind: string } }>(tools, "propose_candidates", {
+      projectId: project.id,
+      capability: "text_to_image",
+      prompt: "Avery Lane, portrait, head turned about thirty degrees.",
+      target: { kind: "character_reference", characterId, slot: "face" },
+    });
+    assert.equal(faceProposal.recipeId, "mock-text-to-image");
+    assert.equal(faceProposal.count, 4);
+    assert.equal(faceProposal.estimate.kind, "free");
+    const faces = await ok<{ results: { outcome: string; assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: faceProposal, wait: true });
+    assert.deepEqual(faces.results.map((result) => result.outcome), ["completed", "completed", "completed", "completed"]);
+    const again = await ok<{ results: { outcome: string }[] }>(tools, "submit_proposal", { proposal: faceProposal });
+    assert.deepEqual(again.results.map((result) => result.outcome), ["existing", "existing", "existing", "existing"]);
+    await ok(tools, "select_reference", { characterId, slot: "face", assetId: faces.results[0].assetIds[0] });
+
+    const bodyProposal = await ok(tools, "propose_candidates", {
+      projectId: project.id,
+      capability: "image_edit",
+      prompt: "Same person, full body, athleticwear.",
+      referenceAssetIds: [faces.results[0].assetIds[0]],
+      count: 1,
+    });
+    const body = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: bodyProposal, wait: true });
+    await ok(tools, "select_reference", { characterId, slot: "body", assetId: body.results[0].assetIds[0] });
+
+    const sheetProposal = await ok<{ prompt: string; references: unknown[]; aspectRatio: string }>(tools, "generate_reference_sheet", {
+      projectId: project.id,
+      characterId,
+    });
+    assert.match(sheetProposal.prompt, /Wardrobe in every panel: Oatmeal knit sweater and jeans/);
+    assert.equal(sheetProposal.references.length, 2);
+    const sheets = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: sheetProposal, wait: true });
+    const sheetId = sheets.results[0].assetIds[0];
+    assert.equal(store.assets.getRequired(sheetId).kind, "sheet");
+    await ok(tools, "approve", { kind: "sheet", assetId: sheetId, projectId: project.id, characterId });
+
+    const jpeg = await sharp({ create: { width: 32, height: 32, channels: 3, background: "#235" } }).jpeg().toBuffer();
+    const photo = await importImage(store, { projectId: null, name: "ridgeline.jpg", bytes: jpeg }, { now: now(), newId: randomUUID });
+    await ok(tools, "save_product", { projectId: project.id, product: { name: "Ridgeline 32 oz insulated bottle", imageAssetIds: [photo.id] } });
+    const script = await ok<{ script: { id: string } }>(tools, "save_script", { projectId: project.id, title: "Cup holder", beats: ridgelineBeats().slice(0, 1) });
+    const content = await ok<{ id: string }>(tools, "plan_shots", { projectId: project.id, scriptId: script.script.id });
+
+    const stillProposal = await ok<{ prompt: string; references: { assetId: string }[]; capability: string; target: unknown }>(tools, "compose_still", {
+      contentId: content.id,
+      beatIndex: 1,
+      count: 2,
+    });
+    assert.equal(stillProposal.capability, "image_edit");
+    assert.deepEqual(stillProposal.references.map((reference) => reference.assetId), [sheetId, photo.id]);
+    assert.match(stillProposal.prompt, /character reference sheet, reference image 1/);
+    assert.match(stillProposal.prompt, /reference image 2 is the Ridgeline/);
+    assert.deepEqual(stillProposal.target, { kind: "shot", contentId: content.id, beatIndex: 1, slot: "still" });
+    const stills = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: stillProposal, wait: true });
+    const stillIds = stills.results.map((result) => result.assetIds[0]);
+    const shot = store.content.getRequired(content.id).shots[0];
+    assert.equal(shot.still.state, "open");
+    assert.deepEqual(shot.still.state === "open" && shot.still.candidateIds, stillIds);
+
+    const notYet = await callTool(tools, "generate_clip", { contentId: content.id, beatIndex: 1 });
+    assert.equal(!notYet.ok && notYet.failure.code, "invalid");
+    await ok(tools, "approve", { kind: "still", contentId: content.id, beatIndex: 1, assetId: stillIds[0] });
+
+    const refined = await ok<{ target: unknown; references: unknown[] }>(tools, "refine_still", { assetId: stillIds[0], instruction: "Warmer morning light" });
+    assert.deepEqual(refined.target, { kind: "shot", contentId: content.id, beatIndex: 1, slot: "still" });
+
+    const clipProposal = await ok<{ prompt: string; capability: string; durationSeconds: number }>(tools, "generate_clip", { contentId: content.id, beatIndex: 1 });
+    assert.equal(clipProposal.capability, "image_to_video");
+    assert.equal(clipProposal.durationSeconds, 5);
+    assert.match(clipProposal.prompt, /The person says, "I stopped buying bottled water the day this fit my cup holder\."/);
+    const clips = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: clipProposal, wait: true });
+    const clipId = clips.results[0].assetIds[0];
+    assert.equal(store.assets.getRequired(clipId).kind, "storyboard");
+    await ok(tools, "approve", { kind: "clip", contentId: content.id, beatIndex: 1, assetId: clipId });
+
+    const plan = await ok<{ status: string; sources: { assetId: string }[]; options: { mute: boolean } }>(tools, "assemble_ad", { contentId: content.id, mute: true });
+    assert.equal(plan.status, "rendering");
+    assert.deepEqual(plan.sources.map((source) => source.assetId), [clipId]);
+    assert.equal(plan.options.mute, true);
+    assert.equal(store.content.listExports(content.id).length, 0);
   });
 });

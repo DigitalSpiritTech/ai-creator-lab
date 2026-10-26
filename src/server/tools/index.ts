@@ -14,13 +14,15 @@ import {
   listRecipes,
   proposeCandidates,
   refineStill,
+  submitProposal,
 } from "@/server/tools/generation";
 import { saveCharacterBible, saveProduct, selectReference } from "@/server/tools/library";
 import { getProjectState, saveBriefTool } from "@/server/tools/project";
 import { type Tool, type ToolContext, toJsonSchemaTools } from "@/server/tools/registry";
 import { planShots, saveScript } from "@/server/tools/script";
 
-export { createToolContext, type Tool, type ToolContext } from "@/server/tools/registry";
+export { createToolContext, type GenerationContext, type Tool, type ToolContext } from "@/server/tools/registry";
+export { createGenerationContext } from "@/server/tools/generation-context";
 
 /** Every tool in the roster order of CLAUDE.md. */
 export const TOOLS: readonly Tool[] = [
@@ -44,7 +46,10 @@ export const TOOLS: readonly Tool[] = [
   listRecipes,
 ];
 
-const TOOL_INDEX = new Map(TOOLS.map((tool) => [tool.name, tool]));
+/** Tools the UI calls but the assistant is not offered (the spending gate). */
+export const INTERNAL_TOOLS: readonly Tool[] = [submitProposal];
+
+const TOOL_INDEX = new Map([...TOOLS, ...INTERNAL_TOOLS].map((tool) => [tool.name, tool]));
 
 export function getTool(name: string): Tool | undefined {
   return TOOL_INDEX.get(name);
@@ -68,7 +73,7 @@ export async function callTool(context: ToolContext, name: string, input: unknow
   }
 }
 
-/** The `tools` array for the Anthropic Messages API. */
+/** The `tools` array for the Anthropic Messages API: the roster, without internal tools. */
 export function toolsToJsonSchema(tools: readonly Tool[] = TOOLS): AnthropicTool[] {
   return toJsonSchemaTools(tools);
 }

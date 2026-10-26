@@ -66,7 +66,7 @@ export async function deleteAssetEverywhere(
     return { planned, original: asset };
   });
   const files = [plan.original.relativePath];
-  if (plan.original.video) files.push(plan.original.video.posterPath);
+  if (plan.original.video?.posterPath) files.push(plan.original.video.posterPath);
   await removeMedia(store.dataDir, files);
   return { asset: plan.planned.asset, usage: plan.planned.usage };
 }

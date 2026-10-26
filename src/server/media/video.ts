@@ -127,3 +127,12 @@ export async function verifyVideo(path: string, posterPath: string, expect: Vide
   );
   return metadata;
 }
+
+/** Writes the first frame of a clip as a PNG poster. */
+export async function extractPoster(path: string, posterPath: string): Promise<void> {
+  await execute(
+    executable("ffmpeg"),
+    ["-nostdin", "-v", "error", "-y", "-i", path, "-map", "0:v:0", "-frames:v", "1", "-update", "1", "-f", "image2", "-c:v", "png", posterPath],
+    { timeout: 15_000, maxBuffer: 256_000 },
+  );
+}

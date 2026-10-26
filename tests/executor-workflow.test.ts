@@ -15,9 +15,9 @@ import { IdempotencyKeyReuse } from "@comfyorg/sdk";
 import sharp from "sharp";
 import type { Recipe } from "@/lib/catalog";
 import { defaultRecipes } from "@/server/catalog/defaults";
-import { MemoryJobRepository } from "@/server/executors/memory-repository";
-import { runToCompletion } from "@/server/executors/run";
-import type { GenerationRequest, JobRecord } from "@/server/executors/types";
+import { MemoryJobStore, admitJob } from "./support/memory-job-store";
+import { pollAndRetrieve } from "@/server/executors/run";
+import type { GenerationInput, Job } from "@/server/executors/types";
 import {
   planWorkflow,
   seedFromId,
@@ -123,8 +123,8 @@ async function recipe(id: string): Promise<Recipe> {
   return found;
 }
 
-function request(recipeValue: Recipe, input: GenerationRequest["input"]): GenerationRequest {
-  return { requestId: randomUUID(), projectId: "project-1", recipe: recipeValue, input };
+function request(jobs: MemoryJobStore, recipeValue: Recipe, input: Partial<GenerationInput> & { prompt: string }): Job {
+  return admitJob(jobs, { recipe: recipeValue, input });
 }
 
 async function png(path: string, width: number, height: number): Promise<string> {
@@ -145,10 +145,10 @@ test("text to image runs queued to succeeded, binds slots, and stores a verified
   withTemp(async (directory) => {
     const output = await png(join(directory, "out.png"), 1024, 1024);
     const fake = new FakeCloud(jobs.succeeded.id, jobs.succeeded.states, "9", [{ source: output, type: "image", contentType: "image/png" }]);
-    const repository = new MemoryJobRepository();
-    const executor = new WorkflowExecutor({ repository, client: fake, workflowsDir });
+    const repository = new MemoryJobStore();
+    const executor = new WorkflowExecutor({ jobs: repository, client: fake, workflowsDir });
     const zImage = await recipe("z-image-turbo-t2i");
-    const submitted = await executor.submit(request(zImage, { prompt: "Product photograph of a green bottle", images: [], aspectRatio: "1:1", seed: 11 }));
+    const submitted = await executor.submit(request(repository, zImage, { prompt: "Product photograph of a green bottle", images: [], aspectRatio: "1:1", seed: 11 }));
     assert.equal(submitted.kind, "accepted");
     const job = submitted.job!;
     assert.equal(job.status, "queued");
@@ -169,7 +169,7 @@ test("text to image runs queued to succeeded, binds slots, and stores a verified
     assert.equal(retrieved.kind, "completed");
     if (retrieved.kind !== "completed") return;
     assert.deepEqual(retrieved.metrics, { queue_ms: 8400, execution_ms: 7700 });
-    const [saved] = retrieved.job.outputs;
+    const [saved] = retrieved.job.retrieved;
     assert.equal(saved.relativePath, `media/${job.id}-0.png`);
     assert.equal(saved.width, 1024);
     assert.equal(saved.mime, "image/png");
@@ -177,7 +177,7 @@ test("text to image runs queued to succeeded, binds slots, and stores a verified
     assert.deepEqual(bytes, await readFile(output));
     assert.deepEqual((await readdir(join(directory, "media"))).filter((name) => name.endsWith(".tmp")), []);
 
-    const again = await executor.submit({ ...request(zImage, { prompt: "Product photograph of a green bottle", images: [], aspectRatio: "1:1", seed: 11 }), requestId: job.requestId });
+    const again = await executor.submit(admitJob(repository, { recipe: zImage, input: { prompt: "Product photograph of a green bottle", aspectRatio: "1:1", seed: 11 }, requestId: job.requestId }));
     assert.equal(again.kind, "existing");
     assert.equal(fake.submitted.length, 1);
   }));
@@ -185,10 +185,10 @@ test("text to image runs queued to succeeded, binds slots, and stores a verified
 test("a failed Cloud job is recorded with the node and reason", () =>
   withTemp(async () => {
     const fake = new FakeCloud(jobs.failed.id, jobs.failed.states, "9", []);
-    const repository = new MemoryJobRepository();
-    const executor = new WorkflowExecutor({ repository, client: fake, workflowsDir });
+    const repository = new MemoryJobStore();
+    const executor = new WorkflowExecutor({ jobs: repository, client: fake, workflowsDir });
     const zImage = await recipe("z-image-turbo-t2i");
-    const submitted = await executor.submit(request(zImage, { prompt: "A still", images: [] }));
+    const submitted = await executor.submit(request(repository, zImage, { prompt: "A still", images: [] }));
     assert.equal(submitted.kind, "accepted");
     const polled = await executor.poll(submitted.job!.id);
     assert.equal(polled.kind, "failed");
@@ -203,10 +203,10 @@ test("an ambiguous submit becomes uncertain and is resolved with the same key", 
     const output = await png(join(directory, "out.png"), 1024, 1024);
     const fake = new FakeCloud(jobs.succeeded.id, jobs.succeeded.states, "9", [{ source: output, type: "image", contentType: "image/png" }]);
     let clock = 1_000_000;
-    const repository = new MemoryJobRepository();
-    const executor = new WorkflowExecutor({ repository, client: fake, workflowsDir, now: () => clock });
+    const repository = new MemoryJobStore();
+    const executor = new WorkflowExecutor({ jobs: repository, client: fake, workflowsDir, now: () => clock });
     fake.submitError = () => (fake.submitted.length === 1 ? new TypeError("fetch failed") : undefined);
-    const submitted = await executor.submit(request(await recipe("z-image-turbo-t2i"), { prompt: "A still", images: [] }));
+    const submitted = await executor.submit(request(repository, await recipe("z-image-turbo-t2i"), { prompt: "A still", images: [] }));
     assert.equal(submitted.kind, "uncertain");
     const job = submitted.job!;
     assert.equal(job.providerRef, null);
@@ -217,26 +217,26 @@ test("an ambiguous submit becomes uncertain and is resolved with the same key", 
     assert.equal(fake.submitted.length, 2);
     assert.deepEqual(fake.submitted.map((entry) => entry.key), [job.id, job.id]);
     assert.deepEqual(fake.submitted[0].graph, fake.submitted[1].graph);
-    assert.equal((await repository.get(job.id))?.providerRef, jobs.succeeded.id);
+    assert.equal(repository.get(job.id)?.providerRef, jobs.succeeded.id);
   }));
 
 test("IdempotencyKeyReuse recovers by the saved job id, and never resubmits without one", () =>
   withTemp(async () => {
-    const repository = new MemoryJobRepository();
+    const repository = new MemoryJobStore();
     let clock = 5_000_000;
     const fake = new FakeCloud(jobs.succeeded.id, jobs.succeeded.states, "9", []);
-    const executor = new WorkflowExecutor({ repository, client: fake, workflowsDir, now: () => clock });
+    const executor = new WorkflowExecutor({ jobs: repository, client: fake, workflowsDir, now: () => clock });
     const zImage = await recipe("z-image-turbo-t2i");
 
     fake.submitError = () => new TypeError("socket hang up");
-    const first = await executor.submit(request(zImage, { prompt: "A still", images: [] }));
+    const first = await executor.submit(request(repository, zImage, { prompt: "A still", images: [] }));
     assert.equal(first.kind, "uncertain");
     const job = first.job!;
     // Another worker saved the provider id; this worker's resend meets the reused key.
     fake.submitError = async () => {
-      const current = await repository.get(job.id);
+      const current = repository.get(job.id);
       assert.ok(current);
-      await repository.update({ ...current, providerRef: jobs.succeeded.id, revision: current.revision + 1 }, current.revision);
+      repository.put({ ...current, providerRef: jobs.succeeded.id, revision: current.revision + 1 });
       return new IdempotencyKeyReuse("Idempotency key reused", { code: "idempotency_key_reuse", httpStatus: 422 });
     };
     clock += 300_000;
@@ -246,10 +246,10 @@ test("IdempotencyKeyReuse recovers by the saved job id, and never resubmits with
     assert.equal(recovered.job.status, "queued");
 
     fake.submitError = undefined;
-    const lost = await executor.submit(request(zImage, { prompt: "Another still", images: [] }));
+    const lost = await executor.submit(request(repository, zImage, { prompt: "Another still", images: [] }));
     fake.submitError = () => new IdempotencyKeyReuse("Idempotency key reused", { code: "idempotency_key_reuse", httpStatus: 422 });
     assert.equal(lost.kind, "accepted");
-    const orphan = await repository.insert({ ...lost.job!, id: randomUUID(), requestId: randomUUID(), status: "uncertain", providerRef: null, revision: 0 });
+    const orphan = repository.add({ ...lost.job!, id: randomUUID(), requestId: randomUUID(), status: "uncertain", providerRef: null, revision: 0 } as Job);
     clock += 300_000;
     const before = fake.submitted.length;
     const stuck = await executor.poll(orphan.job.id);
@@ -263,9 +263,9 @@ test("output verification failure fails the job and leaves no file behind", () =
   withTemp(async (directory) => {
     const wrong = await png(join(directory, "wrong.png"), 512, 512);
     const fake = new FakeCloud(jobs.succeeded.id, [{ status: "succeeded" }], "9", [{ source: wrong, type: "image", contentType: "image/png" }]);
-    const repository = new MemoryJobRepository();
-    const executor = new WorkflowExecutor({ repository, client: fake, workflowsDir });
-    const submitted = await executor.submit(request(await recipe("z-image-turbo-t2i"), { prompt: "A still", images: [], width: 1024, height: 1024 }));
+    const repository = new MemoryJobStore();
+    const executor = new WorkflowExecutor({ jobs: repository, client: fake, workflowsDir });
+    const submitted = await executor.submit(request(repository, await recipe("z-image-turbo-t2i"), { prompt: "A still", images: [], width: 1024, height: 1024 }));
     assert.equal((await executor.poll(submitted.job!.id)).kind, "ready");
     const retrieved = await executor.retrieve(submitted.job!.id, { root: directory, folder: "media" });
     assert.equal(retrieved.kind, "failed");
@@ -283,9 +283,9 @@ test("LTX fits the start frame to 576x1024, binds length on both nodes, and veri
       "-frames:v", "121", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", clip,
     ]);
     const fake = new FakeCloud(jobs.ltx.id, jobs.ltx.states, "9", [{ source: clip, type: "video", contentType: "video/mp4" }]);
-    const repository = new MemoryJobRepository();
-    const executor = new WorkflowExecutor({ repository, client: fake, workflowsDir });
-    const submitted = await executor.submit(request(await recipe("ltx-2.5-i2v"), { prompt: "She says hello", images: [start], durationSeconds: 5 }));
+    const repository = new MemoryJobStore();
+    const executor = new WorkflowExecutor({ jobs: repository, client: fake, workflowsDir });
+    const submitted = await executor.submit(request(repository, await recipe("ltx-2.5-i2v"), { prompt: "She says hello", images: [start], durationSeconds: 5 }));
     assert.equal(submitted.kind, "accepted");
     assert.deepEqual(fake.uploads.map(({ width, height }) => [width, height]), [[576, 1024]]);
     const graph = fake.submitted[0].graph as Record<string, { inputs: Record<string, unknown> }>;
@@ -293,9 +293,9 @@ test("LTX fits the start frame to 576x1024, binds length on both nodes, and veri
     assert.equal(graph["10"].inputs.frames_number, 121);
     assert.equal(graph["12"].inputs.noise_seed, seedFromId(submitted.job!.id));
     assert.ok(graph["22"].inputs.image && typeof graph["22"].inputs.image === "object");
-    const outcome = await runToCompletion(executor, submitted.job!.id, { root: directory, folder: "clips" }, { sleep: async () => undefined });
+    const outcome = await pollAndRetrieve(executor, submitted.job!.id, { root: directory, folder: "clips" }, { sleep: async () => undefined });
     assert.equal(outcome.kind, "completed");
-    const [saved] = (outcome as { job: JobRecord }).job.outputs;
+    const [saved] = (outcome as { job: Job }).job.retrieved;
     assert.equal(saved.mime, "video/mp4");
     assert.equal(saved.video?.frames, 121);
     assert.equal(saved.video?.fps, 24);

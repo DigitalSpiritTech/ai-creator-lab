@@ -1,31 +1,20 @@
 /**
- * Job record helpers shared by every executor: creation, guarded state transitions, request
- * deduplication, and safe failure values.
+ * Job helpers shared by every executor: guarded transitions through the store port, safe failure
+ * values, path resolution against the media root, and poll pacing.
  * @packageDocumentation
  */
-import { randomUUID } from "node:crypto";
-import { isDeepStrictEqual } from "node:util";
+import { isAbsolute, resolve } from "node:path";
+import { toFailure } from "@/lib/domain/failure";
 import {
   JobErrorSchema,
-  type GenerationRequest,
+  advanceJob,
+  type GenerationInput,
+  type Job,
   type JobError,
-  type JobRecord,
-  type JobRepository,
-  type JobStatus,
-} from "@/server/executors/types";
-
-/** Allowed next states. Self-transitions let an executor refresh a notice or provider reference. */
-export const TRANSITIONS: Record<JobStatus, readonly JobStatus[]> = {
-  submitting: ["submitting", "queued", "running", "retrieving", "uncertain", "failed"],
-  uncertain: ["uncertain", "submitting", "queued", "running", "retrieving", "failed"],
-  queued: ["queued", "running", "retrieving", "uncertain", "failed"],
-  running: ["running", "retrieving", "uncertain", "failed"],
-  retrieving: ["retrieving", "completed", "failed"],
-  completed: [],
-  failed: [],
-};
-
-export const TERMINAL: readonly JobStatus[] = ["completed", "failed"];
+  type JobPatch,
+  type JobStorePort,
+  type JobUpdate,
+} from "@/lib/domain/job";
 
 /** Builds a safe, typed failure. */
 export function jobError(code: JobError["code"], message: string, retryable = false, providerCode?: string): JobError {
@@ -47,85 +36,75 @@ export function toJobError(error: unknown, fallback = "The provider step could n
   if (error instanceof ExecutorFailure) return error.failure;
   const known = JobErrorSchema.safeParse(error);
   if (known.success) return known.data;
+  if (error && typeof error === "object" && "code" in error && "message" in error) {
+    const failure = toFailure(error);
+    if (failure.code !== "storage") return jobError(failure.code, failure.message);
+  }
   return jobError("provider", fallback, true);
 }
 
-/** A new record in its first state. The id doubles as the provider idempotency key. */
-export function createJob(request: GenerationRequest, status: JobStatus, now: number, id: string = randomUUID()): JobRecord {
-  return {
-    id,
-    requestId: request.requestId,
-    projectId: request.projectId,
-    recipeId: request.recipe.id,
-    capability: request.recipe.capability,
-    status,
-    providerRef: null,
-    request: { recipe: request.recipe, input: request.input },
-    outputs: [],
-    error: null,
-    notice: null,
-    creditsUsed: null,
-    revision: 0,
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
-/** Whether an existing job was created from exactly this request. */
-export function sameRequest(job: JobRecord, request: GenerationRequest): boolean {
-  return (
-    job.projectId === request.projectId &&
-    isDeepStrictEqual(job.request.recipe, request.recipe) &&
-    isDeepStrictEqual(job.request.input, request.input)
-  );
-}
-
-/**
- * Inserts a job for a request, or returns the existing one for a repeated requestId.
- * A repeated requestId with different contents is a conflict, never a second job.
- */
-export async function claimRequest(
-  repository: JobRepository,
-  request: GenerationRequest,
-  status: JobStatus,
-  now: number,
-): Promise<{ created: boolean; job: JobRecord }> {
-  const existing = await repository.getByRequestId(request.requestId);
-  if (existing) {
-    if (!sameRequest(existing, request)) throw new ExecutorFailure(jobError("conflict", "This request id was already used for a different generation."));
-    return { created: false, job: existing };
-  }
-  const result = await repository.insert(createJob(request, status, now));
-  if (!result.inserted && !sameRequest(result.job, request)) {
-    throw new ExecutorFailure(jobError("conflict", "This request id was already used for a different generation."));
-  }
-  return { created: result.inserted, job: result.job };
-}
-
 /** Loads a job or fails with not_found. */
-export async function loadJob(repository: JobRepository, id: string): Promise<JobRecord> {
-  const job = await repository.get(id);
+export function loadJob(port: JobStorePort, id: string): Job {
+  const job = port.get(id);
   if (!job) throw new ExecutorFailure(jobError("not_found", "This generation job does not exist."));
   return job;
 }
 
-export type JobPatch = Partial<Pick<JobRecord, "status" | "providerRef" | "outputs" | "error" | "notice" | "creditsUsed" | "request">>;
-
-/** Applies a guarded transition with optimistic concurrency; a lost race is a conflict. */
-export async function transition(repository: JobRepository, job: JobRecord, patch: JobPatch, now: number): Promise<JobRecord> {
-  const status = patch.status ?? job.status;
-  if (!TRANSITIONS[job.status].includes(status)) {
-    throw new ExecutorFailure(jobError("conflict", `A ${job.status} job cannot become ${status}.`));
+/** Applies a guarded transition with optimistic concurrency; a lost race is a retryable conflict. */
+export function transition(port: JobStorePort, job: Job, update: JobUpdate, now: number): Job {
+  let next: Job;
+  try {
+    next = advanceJob(job, update, now);
+  } catch (cause) {
+    throw new ExecutorFailure(jobError("conflict", toFailure(cause).message));
   }
-  const next: JobRecord = { ...job, ...patch, status, revision: job.revision + 1, updatedAt: now };
-  const saved = await repository.update(next, job.revision);
-  if (!saved) throw new ExecutorFailure(jobError("conflict", "Another worker updated this job first.", true));
-  return saved;
+  if (!port.transition(job, next)) throw new ExecutorFailure(jobError("conflict", "Another worker updated this job first.", true));
+  return next;
 }
 
 /** Marks a job failed with a typed error. */
-export async function failJob(repository: JobRepository, job: JobRecord, error: JobError, now: number): Promise<JobRecord> {
-  return transition(repository, job, { status: "failed", error, notice: null }, now);
+export function failJob(port: JobStorePort, job: Job, error: JobError, now: number): Job {
+  return transition(port, job, { status: "failed", error, notice: null }, now);
+}
+
+/**
+ * Applies `patch` (keeping or changing the status), re-reading once or twice on a lost race so a
+ * provider reference is never dropped. A job that finished meanwhile is returned as it is.
+ */
+export function save(port: JobStorePort, job: Job, update: JobUpdate, now: number): Job {
+  let current = job;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return transition(port, current, update, now);
+    } catch (cause) {
+      if (!(cause instanceof ExecutorFailure) || cause.failure.code !== "conflict" || attempt >= 2) throw cause;
+      current = loadJob(port, job.id);
+      if (current.status === "completed" || current.status === "failed") return current;
+    }
+  }
+}
+
+/** Keeps the current status and changes only the given fields. */
+export function patchJob(port: JobStorePort, job: Job, patch: JobPatch, now: number): Job {
+  if (job.status === "completed" || job.status === "failed") return job;
+  return save(port, job, { ...patch, status: job.status }, now);
+}
+
+/**
+ * Moves an admitted (`queued`) job to `submitting` and returns it. A `submitting` job is returned
+ * only to the caller holding its latest revision (the one that claimed it); anyone else gets
+ * undefined, meaning the job is already being sent.
+ */
+export function claimForSubmit(port: JobStorePort, job: Job, now: number): Job | undefined {
+  const current = loadJob(port, job.id);
+  if (current.status === "submitting") return current.revision === job.revision ? current : undefined;
+  if (current.status !== "queued" || current.providerRef !== null) return undefined;
+  return transition(port, current, { status: "submitting" }, now);
+}
+
+/** Resolves request image paths against the data directory; absolute paths pass through. */
+export function absoluteInput(input: GenerationInput, mediaRoot: string): GenerationInput {
+  return { ...input, images: input.images.map((path) => (isAbsolute(path) ? path : resolve(mediaRoot, path))) };
 }
 
 /** Poll pacing: 2 s doubling-ish to a 15 s ceiling. */

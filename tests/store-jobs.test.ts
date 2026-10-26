@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { afterEach, describe, test } from "node:test";
 import { toFailure } from "@/lib/domain/failure";
 import { advanceJob, createJob } from "@/lib/domain/job";
+import { MOCK_RECIPES } from "@/server/catalog/defaults";
 import { createScript, reviseScript } from "@/lib/domain/script";
 import { openStore } from "@/server/store";
 import { clock, ridgelineBeats, seedProject, tempStore } from "./support/domain-fixtures";
@@ -18,10 +19,7 @@ function newJob(projectId: string, now: number, requestId = randomUUID(), prompt
       id: randomUUID(),
       requestId,
       projectId,
-      recipeId: "mock-still",
-      capability: "text_to_image",
-      executor: "mock",
-      request: { prompt, inputs: [], target: { kind: "loose" } },
+      request: { recipe: MOCK_RECIPES[0], input: { prompt } },
     },
     now,
   );
