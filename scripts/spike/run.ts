@@ -4,10 +4,10 @@
  * Usage: npx tsx scripts/spike/run.ts <t2i-face|t2i-product|edit|ltx|router-edit|router-llm|balance>
  * Reads .env.local, enforces the allowance cap, appends rows to docs/VERIFICATION.md.
  */
-import { Comfy, comfy, type Job } from "@comfyorg/sdk";
+import { Comfy, comfy } from "@comfyorg/sdk";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "../..");
