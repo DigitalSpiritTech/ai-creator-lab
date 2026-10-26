@@ -15,12 +15,12 @@ afterEach(() => {
 });
 
 describe("migrations", () => {
-  test("an empty directory migrates to version 1 with WAL, foreign keys, and media folders", () => {
+  test("an empty directory migrates to the latest version with WAL, foreign keys, and media folders", () => {
     const { store, dir, cleanup } = tempStore();
     cleanups.push(cleanup);
-    assert.equal(SCHEMA_VERSION, 1);
+    assert.equal(SCHEMA_VERSION, 2);
     const pragma = (sql: string) => Object.values(store.database.prepare(sql).get()!)[0];
-    assert.equal(pragma("PRAGMA user_version"), 1);
+    assert.equal(pragma("PRAGMA user_version"), 2);
     assert.equal(pragma("PRAGMA journal_mode"), "wal");
     assert.equal(pragma("PRAGMA foreign_keys"), 1);
     const tables = store.database
@@ -30,6 +30,7 @@ describe("migrations", () => {
     assert.deepEqual(tables, [
       "assets",
       "content_pieces",
+      "conversation_messages",
       "exports",
       "jobs",
       "library_items",

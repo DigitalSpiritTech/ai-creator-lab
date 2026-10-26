@@ -7,7 +7,8 @@
 import { z } from "zod";
 import { AspectRatioSchema, CapabilitySchema } from "@/lib/catalog";
 import { IdSchema, RecipeIdSchema, text } from "@/lib/domain/common";
-import { ExportRecordSchema, beginExport, updateCut } from "@/lib/domain/content";
+import { AssetSchema } from "@/lib/domain/asset";
+import { ExportRecordSchema } from "@/lib/domain/content";
 import { fail } from "@/lib/domain/failure";
 import {
   type CharacterItem,
@@ -16,6 +17,7 @@ import {
   chooseWardrobe,
 } from "@/lib/domain/library";
 import { GenerationProposalSchema, GenerationTargetSchema, type Job, JobSchema } from "@/lib/domain/job";
+import { assembleAd as assembleExport } from "@/server/assembly";
 import { defaultRecipes, recipesFor } from "@/server/catalog/defaults";
 import { runToCompletion, startGeneration } from "@/server/executors/run";
 import type { Store } from "@/server/store";
@@ -306,25 +308,17 @@ export const submitProposal = defineTool({
 export const assembleAd = defineTool({
   name: "assemble_ad",
   description:
-    "Check that every beat has an approved clip and freeze the cut (order, mute, captions) into an export plan. Rendering the 1080 x 1920 MP4 arrives with the assembly task; until then this returns the plan without saving it.",
+    "Join the approved clips in cut order into one 1080 x 1920, 24 fps MP4 with the beats' on-screen text burned in (unless captions is false) and audio kept (unless mute is true). Every beat needs an approved clip first. Returns the saved export record (sources, hashes, script version, options, output hash, duration) and the export asset. Passing the same exportId again returns the same export instead of rendering twice.",
   input: z
     .object({
       contentId: IdSchema,
+      exportId: IdSchema.optional().describe("Optional id that makes retries safe; reuse it to get the same export back."),
       mute: z.boolean().optional(),
       captions: z.boolean().optional(),
     })
     .strict(),
-  output: ExportRecordSchema,
-  run: ({ store, now, newId }, input) =>
-    store.transaction(() => {
-      let content = store.content.getRequired(input.contentId);
-      if (input.mute !== undefined || input.captions !== undefined) {
-        const next = updateCut(content, { mute: input.mute, captions: input.captions }, now());
-        if (next.cut.mute !== content.cut.mute || next.cut.captions !== content.cut.captions) content = store.content.update(next);
-      }
-      const script = store.scripts.get(content.scriptId, content.scriptVersion) ?? fail("storage", "This content piece's script version is missing.");
-      return beginExport(newId(), content, script, (id) => store.assets.get(id), now());
-    }),
+  output: z.object({ export: ExportRecordSchema, asset: AssetSchema.nullable() }),
+  run: ({ store, now, newId }, input) => assembleExport(store, input, { now, newId }),
 });
 
 export const listRecipes = defineTool({

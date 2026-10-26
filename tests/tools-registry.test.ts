@@ -252,7 +252,7 @@ describe("store-backed tools", () => {
     assert.equal(finalState.contents.length, 1);
   });
 
-  test("proposals, the approval gate, and the mock executor take a beat from still to clip to export plan", async () => {
+  test("proposals, the approval gate, and the mock executor take a beat from still to clip to a rendered export", async () => {
     const { store, now, tools, project } = setup();
     const saved = await ok<{ character: { id: string } }>(tools, "save_character_bible", {
       projectId: project.id,
@@ -335,10 +335,15 @@ describe("store-backed tools", () => {
     assert.equal(store.assets.getRequired(clipId).kind, "storyboard");
     await ok(tools, "approve", { kind: "clip", contentId: content.id, beatIndex: 1, assetId: clipId });
 
-    const plan = await ok<{ status: string; sources: { assetId: string }[]; options: { mute: boolean } }>(tools, "assemble_ad", { contentId: content.id, mute: true });
-    assert.equal(plan.status, "rendering");
-    assert.deepEqual(plan.sources.map((source) => source.assetId), [clipId]);
-    assert.equal(plan.options.mute, true);
-    assert.equal(store.content.listExports(content.id).length, 0);
+    const assembled = await ok<{
+      export: { status: string; sources: { assetId: string }[]; options: { mute: boolean } };
+      asset: { kind: string; width: number; height: number; video: { hasAudio: boolean } };
+    }>(tools, "assemble_ad", { contentId: content.id, mute: true });
+    assert.equal(assembled.export.status, "completed");
+    assert.deepEqual(assembled.export.sources.map((source) => source.assetId), [clipId]);
+    assert.equal(assembled.export.options.mute, true);
+    assert.deepEqual([assembled.asset.kind, assembled.asset.width, assembled.asset.height], ["export", 1080, 1920]);
+    assert.equal(assembled.asset.video.hasAudio, false);
+    assert.equal(store.content.listExports(content.id).length, 1);
   });
 });

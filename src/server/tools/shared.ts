@@ -16,11 +16,24 @@ export function checkRevision(current: number, expected: number | undefined, wha
   }
 }
 
-/** Other active outputs of the job that produced `asset`. */
+/**
+ * The other active candidates competing with `asset`: outputs of the same job and, for a
+ * character reference or reference sheet, outputs of every job aimed at the same target (a
+ * proposal runs one job per candidate).
+ */
 export function jobSiblings(store: Store, asset: Asset): string[] {
   if (asset.provenance.source !== "generated") return [];
-  return store.assets
-    .list({ jobId: asset.provenance.jobId, state: "active" })
+  const source = store.jobs.get(asset.provenance.jobId);
+  const target = source?.request.target;
+  const jobIds = new Set([asset.provenance.jobId]);
+  if (source && target && (target.kind === "character_reference" || target.kind === "reference_sheet")) {
+    const key = JSON.stringify(target);
+    for (const job of store.jobs.listByProject(source.projectId)) {
+      if (JSON.stringify(job.request.target) === key) jobIds.add(job.id);
+    }
+  }
+  return [...jobIds]
+    .flatMap((jobId) => store.assets.list({ jobId, state: "active" }))
     .map((sibling) => sibling.id)
     .filter((id) => id !== asset.id);
 }

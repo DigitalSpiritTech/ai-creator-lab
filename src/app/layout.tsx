@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { AppRail } from "@/components/shell/app-rail";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -12,7 +13,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <div className="flex min-h-screen min-w-[1024px] bg-background text-foreground">
+            <AppRail />
+            <main className="min-w-0 flex-1">{children}</main>
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );

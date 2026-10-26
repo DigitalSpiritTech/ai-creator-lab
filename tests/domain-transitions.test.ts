@@ -211,7 +211,7 @@ describe("delete everywhere", () => {
     content = approveCandidate(content, 1, "clip", clip.id, NOW).content;
     const record = completeExport(
       beginExport(randomUUID(), content, script, (id) => [still, clip].find((entry) => entry.id === id), NOW),
-      randomUUID(),
+      { assetId: randomUUID(), sha256: "b".repeat(64), durationSeconds: 5, filterSummary: "test" },
       NOW + 1,
     );
     let character = createCharacter(randomUUID(), averyBible(), NOW);

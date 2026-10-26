@@ -85,6 +85,8 @@ export const ExportSourceSchema = z
     beatIndex: z.number().int().positive(),
     assetId: IdSchema,
     sha256: Sha256Schema,
+    /** Segment length in the export: the clip's length (or the beat's, for a still) rounded to whole frames. */
+    durationSeconds: z.number().positive().max(60),
     onScreenText: z.string().max(80),
   })
   .strict();
@@ -104,10 +106,31 @@ const exportBase = {
 
 export const ExportRecordSchema = z.discriminatedUnion("status", [
   z.object({ ...exportBase, status: z.literal("rendering") }).strict(),
-  z.object({ ...exportBase, status: z.literal("completed"), assetId: IdSchema, completedAt: TimestampSchema }).strict(),
+  z
+    .object({
+      ...exportBase,
+      status: z.literal("completed"),
+      assetId: IdSchema,
+      sha256: Sha256Schema,
+      durationSeconds: z.number().positive(),
+      /** The ffmpeg graph and encoder settings, summarized for the source record. */
+      filterSummary: z.string().max(2000),
+      completedAt: TimestampSchema,
+    })
+    .strict(),
   z.object({ ...exportBase, status: z.literal("failed"), error: text(500), failedAt: TimestampSchema }).strict(),
 ]);
 export type ExportRecord = z.infer<typeof ExportRecordSchema>;
+
+/** Every export is 1080 x 1920 at this frame rate. */
+export const EXPORT_FPS = 24;
+export const EXPORT_WIDTH = 1080;
+export const EXPORT_HEIGHT = 1920;
+
+/** Rounds a length to whole frames at the export frame rate. */
+export function wholeFrames(seconds: number): number {
+  return Math.max(1, Math.round(seconds * EXPORT_FPS));
+}
 
 const EMPTY_SLOT: Slot = { state: "empty" };
 
@@ -290,7 +313,8 @@ export function updateCut(content: ContentPiece, patch: CutPatch, now: number): 
 
 /**
  * Freezes the approved clips, in cut order, into a rendering export record.
- * Every shot needs an approved, active clip.
+ * Every shot needs an approved, active clip; the first one without names its beat.
+ * A still clip (a storyboard or image) lasts as long as its beat.
  */
 export function beginExport(
   id: string,
@@ -304,17 +328,22 @@ export function beginExport(
   }
   const sources = content.cut.order.map((shotId) => {
     const shot = content.shots.find((candidate) => candidate.id === shotId)!;
-    if (shot.clip.state !== "approved") fail("invalid", `Approve a clip for beat ${shot.beatIndex} before exporting.`);
+    const beat = script.beats[shot.beatIndex - 1];
+    if (shot.clip.state !== "approved") {
+      fail("invalid", `Beat ${shot.beatIndex} has no approved clip. Approve a clip for beat ${shot.beatIndex} before exporting.`);
+    }
     const asset = findAsset(shot.clip.assetId);
     if (!asset || asset.state.state !== "active") {
       fail("invalid", `The approved clip for beat ${shot.beatIndex} is missing or archived.`);
     }
+    const seconds = asset.video?.durationSeconds ?? beat?.durationSeconds ?? 5;
     return {
       shotId,
       beatIndex: shot.beatIndex,
       assetId: asset.id,
       sha256: asset.sha256,
-      onScreenText: script.beats[shot.beatIndex - 1]?.onScreenText ?? "",
+      durationSeconds: wholeFrames(seconds) / EXPORT_FPS,
+      onScreenText: beat?.onScreenText ?? "",
     };
   });
   return ExportRecordSchema.parse({
@@ -331,9 +360,17 @@ export function beginExport(
   });
 }
 
-export function completeExport(record: ExportRecord, assetId: string, now: number): ExportRecord {
+/** What a finished render adds to its export record. */
+export interface ExportOutput {
+  assetId: string;
+  sha256: string;
+  durationSeconds: number;
+  filterSummary: string;
+}
+
+export function completeExport(record: ExportRecord, output: ExportOutput, now: number): ExportRecord {
   if (record.status !== "rendering") fail("conflict", "This export already finished.");
-  return ExportRecordSchema.parse({ ...record, status: "completed", assetId, completedAt: now });
+  return ExportRecordSchema.parse({ ...record, ...output, status: "completed", completedAt: now });
 }
 
 export function failExport(record: ExportRecord, error: string, now: number): ExportRecord {

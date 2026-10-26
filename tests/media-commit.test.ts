@@ -180,7 +180,7 @@ describe("archive and delete everywhere", () => {
       contentRevision: content.revision,
       scriptVersion: 1,
       options: { mute: false, captions: true },
-      sources: [{ shotId: content.shots[0].id, beatIndex: 1, assetId: clipAsset.id, sha256: clipAsset.sha256, onScreenText: "" }],
+      sources: [{ shotId: content.shots[0].id, beatIndex: 1, assetId: clipAsset.id, sha256: clipAsset.sha256, durationSeconds: 5, onScreenText: "" }],
       brokenAssetIds: [],
       createdAt: now(),
       status: "rendering",

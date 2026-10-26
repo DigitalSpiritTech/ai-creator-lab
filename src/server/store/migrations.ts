@@ -85,6 +85,16 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX exports_content ON exports(content_id);
   `,
+  // Version 2: assistant conversations. `seq` orders messages; content is the Anthropic content array.
+  `
+  CREATE TABLE conversation_messages (
+    seq INTEGER PRIMARY KEY,
+    id TEXT NOT NULL UNIQUE,
+    project_id TEXT NOT NULL REFERENCES projects(id),
+    data TEXT NOT NULL CHECK (${jsonOwnId} AND json_extract(data, '$.projectId') = project_id)
+  );
+  CREATE INDEX conversation_messages_project ON conversation_messages(project_id, seq);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

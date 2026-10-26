@@ -1,0 +1,49 @@
+/**
+ * Every prompt template applied to the Avery Lane bible and the Ridgeline script, for the
+ * snapshot tests in agent-prompts.test.ts.
+ * @packageDocumentation
+ */
+import { type CharacterBible, CharacterBibleSchema } from "@/lib/domain/library";
+import { type Beat, BeatSchema } from "@/lib/domain/script";
+import { bodyPrompt, clipPrompt, facePrompt, referenceSheetPrompt, refinePrompt, stillPrompt } from "@/server/tools/prompts";
+import { averyBible, ridgelineBeats } from "./domain-fixtures";
+
+export const WARDROBE = "Olive utility jacket over a white tee";
+export const PRODUCT = "Ridgeline 32 oz insulated bottle";
+
+export function fixtureBible(): CharacterBible {
+  return CharacterBibleSchema.parse({ ...averyBible(), references: { faceAssetId: null, bodyAssetId: null }, version: 1 });
+}
+
+export function fixtureBeats(): Beat[] {
+  const beats = ridgelineBeats().map((beat, position) => BeatSchema.parse({ ...beat, index: position + 1 }));
+  const textcard = BeatSchema.parse({
+    index: beats.length + 1,
+    type: "textcard",
+    purpose: "cta",
+    onScreenText: "Link in bio.",
+    visual: "The Ridgeline bottle on the kitchen counter in soft window light.",
+    setting: "a bright kitchen counter by a window",
+    productVisible: true,
+  });
+  return [...beats, textcard];
+}
+
+export function promptCases(): Record<string, string> {
+  const bible = fixtureBible();
+  const [hook, problem, proof, , cta] = fixtureBeats();
+  return {
+    face: facePrompt(bible),
+    body: bodyPrompt(bible),
+    sheet: referenceSheetPrompt(bible, WARDROBE),
+    stillTalkingSheet: stillPrompt({ beat: hook, bible, wardrobe: WARDROBE, character: { mode: "sheet", image: 1 }, product: { name: PRODUCT, image: 2 } }),
+    stillTalkingFaceBody: stillPrompt({ beat: proof, bible, wardrobe: WARDROBE, character: { mode: "face", face: 1, body: 2 }, product: { name: PRODUCT, image: 3 } }),
+    stillBroll: stillPrompt({ beat: problem, product: { name: PRODUCT, image: 1 } }),
+    stillTextcardWithSet: stillPrompt({ beat: cta, product: { name: PRODUCT, image: 1 }, set: { name: "Bright kitchen counter by a window", image: 2 } }),
+    clipTalking: clipPrompt(hook, { wardrobe: WARDROBE }),
+    clipBroll: clipPrompt(problem),
+    clipTextcard: clipPrompt(cta),
+    refineStill: refinePrompt("Make the morning light warmer."),
+    refineSheet: refinePrompt("Clean the grime from the background", "sheet"),
+  };
+}

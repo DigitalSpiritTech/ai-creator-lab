@@ -14,7 +14,8 @@ import {
 } from "@/lib/domain/common";
 import { fail } from "@/lib/domain/failure";
 
-export const AssetKindSchema = z.enum(["image", "video", "sheet", "storyboard"]);
+/** `export` is an assembled ad; it plays like a video but is never a shot candidate. */
+export const AssetKindSchema = z.enum(["image", "video", "sheet", "storyboard", "export"]);
 export type AssetKind = z.infer<typeof AssetKindSchema>;
 
 export const AssetMimeSchema = z.enum(["image/png", "image/jpeg", "image/webp", "image/svg+xml", "video/mp4"]);
@@ -70,6 +71,11 @@ export const VideoMetadataSchema = z
   .strict();
 export type VideoMetadata = z.infer<typeof VideoMetadataSchema>;
 
+/** Kinds stored as MP4 with playback metadata. */
+export function isPlayable(kind: AssetKind): boolean {
+  return kind === "video" || kind === "export";
+}
+
 export const AssetSchema = z
   .object({
     id: IdSchema,
@@ -88,8 +94,8 @@ export const AssetSchema = z
     createdAt: TimestampSchema,
   })
   .strict()
-  .refine((asset) => (asset.kind === "video") === (asset.mime === "video/mp4"), "Video assets must be MP4 files.")
-  .refine((asset) => asset.kind !== "video" || asset.video !== undefined, "Video assets need playback metadata.");
+  .refine((asset) => isPlayable(asset.kind) === (asset.mime === "video/mp4"), "Video assets must be MP4 files.")
+  .refine((asset) => !isPlayable(asset.kind) || asset.video !== undefined, "Video assets need playback metadata.");
 export type Asset = z.infer<typeof AssetSchema>;
 
 export function isActive(asset: Asset): boolean {

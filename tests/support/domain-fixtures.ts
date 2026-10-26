@@ -119,6 +119,7 @@ const MIME_FOR: Record<AssetKind, AssetMime> = {
   sheet: "image/png",
   storyboard: "image/svg+xml",
   video: "video/mp4",
+  export: "video/mp4",
 };
 
 /**
@@ -166,7 +167,7 @@ export async function generateAssets(
     width: 1080,
     height: 1920,
     video:
-      kind === "video"
+      kind === "video" || kind === "export"
         ? {
             durationSeconds: 5,
             frameRate: 24,
