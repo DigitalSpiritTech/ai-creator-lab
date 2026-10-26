@@ -97,74 +97,81 @@ const prompts = {
   clip: "A woman in her early thirties with dark hair tied back stands at a bright kitchen counter holding a dark green steel water bottle, speaking to the camera with an easy smile, small natural head movement, static phone camera, soft morning light, quiet kitchen ambience. She says, \"Twenty-four hours later it was still cold. I checked.\" No text on screen. Her face and clothing stay consistent.",
 };
 
-const step = process.argv[2];
-if (step === "fetch") {
-  const [, , , jobId, node, saveAs] = process.argv;
-  const client = new Comfy({ apiKey });
-  const job = await client.jobs.get(jobId);
-  console.log("job", job.id, job.status, "outputs:", job.outputs.map(o => o.nodeId + ":" + o.name).join(","));
-  const path = resolve(out, saveAs);
-  await job.getOutputs(node)[0].toFile(path);
-  console.log("saved", path, probe(path), "metrics:", JSON.stringify(job.metrics));
-  process.exit(0);
-}
-if (step === "balance") { const b = await balanceCents(); console.log(`balance ${b.toFixed(2)}c = ${(b * CREDITS_PER_CENT).toFixed(0)} credits`); process.exit(0); }
-assertUnderCap();
-const before = await balanceCents();
-console.log(`balance before: ${(before * CREDITS_PER_CENT).toFixed(0)} credits`);
-try {
-  if (step === "t2i-face" || step === "t2i-product") {
-    const which = step === "t2i-face" ? "face" : "product";
-    const r = await runCloud("z-image-turbo-t2i.api.json", "9", wf => { wf.setInput("4", "text", prompts[which]); wf.setInput("6", "width", 1024); wf.setInput("6", "height", 1024); wf.setInput("8", "seed", which === "face" ? 7 : 11); }, `${which}.png`);
-    const after = await balanceCents();
-    logRow("cloud", "z-image-turbo-t2i", `prompt:${which}`, `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
-  } else if (step === "edit") {
-    const r = await runCloud("qwen-image-edit-2511-2ref.api.json", "9", (wf, client) => {
-      wf.setInput("20", "image", client.assets.fromFile(resolve(out, "face.png")));
-      wf.setInput("21", "image", client.assets.fromFile(resolve(out, "product.png")));
-      wf.setInput("4", "prompt", prompts.compose); wf.setInput("8", "seed", 3);
-    }, "composite.png");
-    const after = await balanceCents();
-    logRow("cloud", "qwen-image-edit-2511-2ref", "face.png + product.png", `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
-  } else if (step === "ltx") {
-    const r = await runCloud("ltx-2.5-i2v.api.json", "9", (wf, client) => {
-      wf.setInput("22", "image", client.assets.fromFile(resolve(out, "composite-576x1024.png")));
-      wf.setInput("5", "text", prompts.clip); wf.setInput("12", "noise_seed", 5);
-    }, "clip.mp4");
-    const after = await balanceCents();
-    logRow("cloud", "ltx-2.5-i2v", "composite.png", `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
-  } else if (step === "router-edit") {
-    comfy.config({ credentials: apiKey });
-    const b64 = (f: string) => readFileSync(resolve(out, f)).toString("base64");
-    const t0 = Date.now();
-    const res = await comfy.models.run("vertexai/gemini-nano-banana-2.1", {
-      contents: [{ role: "user", parts: [{ text: prompts.compose }, { inlineData: { mimeType: "image/png", data: b64("face.png") } }, { inlineData: { mimeType: "image/png", data: b64("product.png") } }] }],
-      generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "9:16", imageSize: "1K", imageOutputOptions: { mimeType: "image/png" } } },
-      uploadImagesToStorage: true,
-    }, { idempotencyKey: randomUUID() });
-    const ms = Date.now() - t0;
-    if (res.kind !== "json") throw new Error("expected json");
-    const data = res.data as { candidates: { content: { parts: { thought?: boolean; fileData?: { fileUri: string }; inlineData?: { data: string } }[] } }[] };
-    const part = data.candidates[0].content.parts.find(p => !p.thought && (p.fileData || p.inlineData));
-    if (!part) throw new Error("no image part: " + JSON.stringify(data).slice(0, 300));
-    const bytes = part.fileData ? new Uint8Array(await (await fetch(part.fileData.fileUri)).arrayBuffer()) : Buffer.from(part.inlineData!.data, "base64");
-    const path = resolve(out, "router-composite.png"); writeFileSync(path, bytes);
-    const after = await balanceCents();
-    logRow("router", "vertexai/gemini-nano-banana-2.1", "face.png + product.png", `${path.replace(root + "/", "")} ${probe(path)}`, before, after, ms, `request ${res.requestId}`);
-  } else if (step === "router-llm") {
-    comfy.config({ credentials: apiKey });
-    const t0 = Date.now();
-    const res = await comfy.models.run("anthropic/claude-opus-5-5", { model: "claude-opus-5-5", max_tokens: 120, messages: [{ role: "user", content: "In one sentence, what makes a good UGC hook for an insulated water bottle? Reply with JSON {\"hook\": string}." }] }, { idempotencyKey: randomUUID() });
-    const ms = Date.now() - t0;
-    console.log("router llm reply:", JSON.stringify(res.data).slice(0, 400));
-    const after = await balanceCents();
-    logRow("router", "anthropic/claude-opus-5-5", "120 token prompt", "json reply received", before, after, ms, `request ${res.requestId}`);
-  } else {
-    throw new Error("unknown step");
+async function main() {
+  const step = process.argv[2];
+  if (step === "fetch") {
+    const [, , , jobId, node, saveAs] = process.argv;
+    const client = new Comfy({ apiKey });
+    const job = await client.jobs.get(jobId);
+    console.log("job", job.id, job.status, "outputs:", job.outputs.map(o => o.nodeId + ":" + o.name).join(","));
+    const path = resolve(out, saveAs);
+    await job.getOutputs(node)[0].toFile(path);
+    console.log("saved", path, probe(path), "metrics:", JSON.stringify(job.metrics));
+    process.exit(0);
   }
-} catch (e) {
-  const after = await balanceCents().catch(() => before);
-  console.error("FAILED:", (e as Error).message);
-  logRow(step.startsWith("router") ? "router" : "cloud", step, "", `FAILED: ${(e as Error).message.slice(0, 200).replace(/\|/g, "/")}`, before, after, 0, "");
-  process.exit(1);
+  if (step === "balance") { const b = await balanceCents(); console.log(`balance ${b.toFixed(2)}c = ${(b * CREDITS_PER_CENT).toFixed(0)} credits`); process.exit(0); }
+  assertUnderCap();
+  const before = await balanceCents();
+  console.log(`balance before: ${(before * CREDITS_PER_CENT).toFixed(0)} credits`);
+  try {
+    if (step === "t2i-face" || step === "t2i-product") {
+      const which = step === "t2i-face" ? "face" : "product";
+      const r = await runCloud("z-image-turbo-t2i.api.json", "9", wf => { wf.setInput("4", "text", prompts[which]); wf.setInput("6", "width", 1024); wf.setInput("6", "height", 1024); wf.setInput("8", "seed", which === "face" ? 7 : 11); }, `${which}.png`);
+      const after = await balanceCents();
+      logRow("cloud", "z-image-turbo-t2i", `prompt:${which}`, `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
+    } else if (step === "edit") {
+      const r = await runCloud("qwen-image-edit-2511-2ref.api.json", "9", (wf, client) => {
+        wf.setInput("20", "image", client.assets.fromFile(resolve(out, "face.png")));
+        wf.setInput("21", "image", client.assets.fromFile(resolve(out, "product.png")));
+        wf.setInput("4", "prompt", prompts.compose); wf.setInput("8", "seed", 3);
+      }, "composite.png");
+      const after = await balanceCents();
+      logRow("cloud", "qwen-image-edit-2511-2ref", "face.png + product.png", `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
+    } else if (step === "ltx") {
+      const r = await runCloud("ltx-2.5-i2v.api.json", "9", (wf, client) => {
+        wf.setInput("22", "image", client.assets.fromFile(resolve(out, "composite-576x1024.png")));
+        wf.setInput("5", "text", prompts.clip); wf.setInput("12", "noise_seed", 5);
+      }, "clip.mp4");
+      const after = await balanceCents();
+      logRow("cloud", "ltx-2.5-i2v", "composite.png", `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
+    } else if (step === "router-edit") {
+      comfy.config({ credentials: apiKey });
+      const b64 = (f: string) => readFileSync(resolve(out, f)).toString("base64");
+      const t0 = Date.now();
+      const res = await comfy.models.run("vertexai/gemini-nano-banana-2.1", {
+        contents: [{ role: "user", parts: [{ text: prompts.compose }, { inlineData: { mimeType: "image/png", data: b64("face.png") } }, { inlineData: { mimeType: "image/png", data: b64("product.png") } }] }],
+        generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "9:16", imageSize: "1K", imageOutputOptions: { mimeType: "image/png" } } },
+        uploadImagesToStorage: true,
+      }, { idempotencyKey: randomUUID() });
+      const ms = Date.now() - t0;
+      if (res.kind !== "json") throw new Error("expected json");
+      const data = res.data as { candidates: { content: { parts: { thought?: boolean; fileData?: { fileUri: string }; inlineData?: { data: string } }[] } }[] };
+      const part = data.candidates[0].content.parts.find(p => !p.thought && (p.fileData || p.inlineData));
+      if (!part) throw new Error("no image part: " + JSON.stringify(data).slice(0, 300));
+      const bytes = part.fileData ? new Uint8Array(await (await fetch(part.fileData.fileUri)).arrayBuffer()) : Buffer.from(part.inlineData!.data, "base64");
+      const path = resolve(out, "router-composite.png"); writeFileSync(path, bytes);
+      const after = await balanceCents();
+      logRow("router", "vertexai/gemini-nano-banana-2.1", "face.png + product.png", `${path.replace(root + "/", "")} ${probe(path)}`, before, after, ms, `request ${res.requestId}`);
+    } else if (step === "router-llm") {
+      comfy.config({ credentials: apiKey });
+      const t0 = Date.now();
+      const res = await comfy.models.run("anthropic/claude-opus-5-5", { model: "claude-opus-5-5", max_tokens: 120, messages: [{ role: "user", content: "In one sentence, what makes a good UGC hook for an insulated water bottle? Reply with JSON {\"hook\": string}." }] }, { idempotencyKey: randomUUID() });
+      const ms = Date.now() - t0;
+      console.log("router llm reply:", JSON.stringify(res.data).slice(0, 400));
+      const after = await balanceCents();
+      logRow("router", "anthropic/claude-opus-5-5", "120 token prompt", "json reply received", before, after, ms, `request ${res.requestId}`);
+    } else {
+      throw new Error("unknown step");
+    }
+  } catch (e) {
+    const after = await balanceCents().catch(() => before);
+    console.error("FAILED:", (e as Error).message);
+    logRow(step.startsWith("router") ? "router" : "cloud", step, "", `FAILED: ${(e as Error).message.slice(0, 200).replace(/\|/g, "/")}`, before, after, 0, "");
+    process.exit(1);
+  }
 }
+
+main().catch((error) => {
+  console.error("FAILED:", error instanceof Error ? error.message : error);
+  process.exit(1);
+});

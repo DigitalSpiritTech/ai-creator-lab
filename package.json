@@ -14,7 +14,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:acceptance": "node --import tsx scripts/acceptance-smoke.ts",
-    "spike": "tsx scripts/spike/run.ts"
+    "spike": "node --import tsx scripts/spike/run.ts",
+    "live-check": "node --import tsx --conditions=react-server scripts/live-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

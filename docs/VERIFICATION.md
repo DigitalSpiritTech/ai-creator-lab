@@ -10,6 +10,7 @@ Columns: date (America/Chicago), who, target (cloud, deployment, proxy, router),
 
 | Date | Who | Target | Recipe | Inputs | Result | Credits (before / after / delta) | Duration | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-10-26 16:35 | live-check | cloud | z-image-turbo-t2i through propose_candidates, submit_proposal, run.ts, store commit | face-lock prompt with explicit head turn, 896x1120 (4:5) | .data/media/8c4e589d-...-0.png, three-quarter view as asked; asset row committed with sha | about 2 to 3 (settle later) | 22s | job 8c4e589d-80fa-462d-8a8a-b09034f19704; first real run through the application code path |
 | 10/26/2026, 15:39:41 | spike | router | anthropic/claude-opus-5-5 | 120 token prompt | json reply received | 5461 / 5461 / 0 (0.00c) | 3s | request 1c0aa9c7-9fa1-4d7c-bc02-30fd88fc5cb6 |
 | 10/26/2026, 15:39:19 | spike | router | vertexai/gemini-nano-banana-2.1 | face.png + product.png | .data/spike/router-composite.png 768x1376 png | 5474 / 5474 / 0 (0.00c) | 15s | request d52907a3-4341-4c26-9bc6-c77bd36eac54 |
 | 10/26/2026, 15:38:32 | spike | cloud | ltx-2.5-i2v | composite.png | .data/spike/clip.mp4 576x1024 h264 121f 5.04s audio:aac | 5484 / 5484 / 0 (0.00c) | 47s | job 371d686a-ee2f-4926-81cf-441830a4de13 |
