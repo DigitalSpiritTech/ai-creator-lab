@@ -145,7 +145,7 @@ describe("prompt wiring", () => {
         "The person shown in the character reference sheet, reference image 1, wearing olive utility jacket over a white tee. " +
         "Mid-sentence, talking to a phone camera held at arm's length, relaxed natural expression, mouth slightly open as if speaking. " +
         "Avery at a kitchen counter, bottle open, condensation. " +
-        "Setting: the location in reference image 3, bright kitchen counter by a window. " +
+        "Setting: the place in reference image 3 (bright kitchen counter by a window), matching its layout, furniture, and lighting. " +
         "The product in reference image 2 is a matte dark green 32 oz insulated steel bottle with a black screw cap, clearly visible, true to its shape, color, and materials, no text, lettering, or logo on the product. " +
         "Only the objects described; no additional phones or props, and no bottles beyond those described. " +
         "Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image. " +
