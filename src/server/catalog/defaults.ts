@@ -34,16 +34,67 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
   },
   "ltx-2.5-flf2v": {
     title: "LTX 2.5 first and last frame to video on Comfy Cloud",
-    verified: null,
-    costHint: "Expected near the image-to-video cost, about 10 to 12 credits for 121 frames at 576x1024; not yet measured.",
+    verified: "2026-10-26",
+    costHint: "About 10 credits for 121 frames at 576x1024 with audio.",
     ceilingUsd: 0.12,
     fitImages: true,
     defaults: { width: 576, height: 1024, length: 121 },
-    notes: "Both frames are center-cropped and scaled to the same output canvas before upload. Not yet run on Comfy Cloud.",
+    notes: "Both frames are center-cropped and scaled to the same output canvas before upload. Pair it with an ending still composed for the same shot; unrelated endpoints dissolve in the last second.",
   },
 };
 
 const GEMINI_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "9:16", "16:9", "21:9"] as const;
+
+/**
+ * The Gemini image request shape (Nano Banana family on Vertex AI): prompt text plus inline reference
+ * parts; with no `references` the recipe generates from the prompt alone.
+ */
+function geminiImageFieldMap(references?: { min: number; max: number }) {
+  return {
+    template: {
+      contents: [{ role: "user", parts: [] }],
+      generationConfig: { responseModalities: ["IMAGE"], imageConfig: { imageOutputOptions: { mimeType: "image/png" } } },
+      uploadImagesToStorage: true,
+    },
+    prompt: { path: "contents.0.parts.0.text" },
+    ...(references
+      ? {
+          images: {
+            path: "contents.0.parts",
+            mode: "append",
+            encoding: "base64",
+            item: { inlineData: { mimeType: "{mime}", data: "{data}" } },
+            min: references.min,
+            max: references.max,
+          },
+        }
+      : {}),
+    aspectRatio: { path: "generationConfig.imageConfig.aspectRatio" },
+    sizeTier: { path: "generationConfig.imageConfig.imageSize" },
+    seed: { path: "generationConfig.seed" },
+    output: "gemini",
+  };
+}
+
+/** Kling 3.0 Omni: reference images as first (and optionally last) frame, 720p std or 1080p pro, native sound. */
+function klingOmniFieldMap(references: { min: number; max: number }) {
+  return {
+    template: { mode: "pro", sound: "on" },
+    prompt: { path: "prompt" },
+    images: {
+      path: "image_list",
+      mode: "append",
+      encoding: "base64",
+      item: { image_url: "{data}", type: "{role}" },
+      roles: ["first_frame", "end_frame"],
+      min: references.min,
+      max: references.max,
+    },
+    aspectRatio: { path: "aspect_ratio" },
+    duration: { path: "duration", values: { "5": "5", "10": "10" } },
+    output: "kling",
+  };
+}
 
 export const ROUTER_RECIPES: RouterRecipe[] = [
   RouterRecipeSchema.parse({
@@ -59,26 +110,71 @@ export const ROUTER_RECIPES: RouterRecipe[] = [
     defaults: { aspectRatio: "9:16", sizeTier: "1K" },
     provider: "vertexai",
     model: "vertexai/gemini-nano-banana-2.1",
-    fieldMap: {
-      template: {
-        contents: [{ role: "user", parts: [] }],
-        generationConfig: { responseModalities: ["IMAGE"], imageConfig: { imageOutputOptions: { mimeType: "image/png" } } },
-        uploadImagesToStorage: true,
-      },
-      prompt: { path: "contents.0.parts.0.text" },
-      images: {
-        path: "contents.0.parts",
-        mode: "append",
-        encoding: "base64",
-        item: { inlineData: { mimeType: "{mime}", data: "{data}" } },
-        min: 1,
-        max: 14,
-      },
-      aspectRatio: { path: "generationConfig.imageConfig.aspectRatio" },
-      sizeTier: { path: "generationConfig.imageConfig.imageSize" },
-      seed: { path: "generationConfig.seed" },
-      output: "gemini",
-    },
+    fieldMap: geminiImageFieldMap({ min: 1, max: 14 }),
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-nano-banana-pro-edit",
+    kind: "router",
+    title: "Nano Banana Pro on Comfy Router",
+    capability: "image_edit",
+    openWeights: false,
+    verified: "2026-10-27",
+    costHint: "About 36 credits (0.17 USD) for a three-reference still at 1K.",
+    ceilingUsd: 0.25,
+    limits: { aspectRatios: [...GEMINI_RATIOS], sizeTiers: ["1K", "2K", "4K"], maxReferences: 14 },
+    defaults: { aspectRatio: "9:16", sizeTier: "1K" },
+    notes: "Google's Gemini 3 Pro Image (Nano Banana Pro). Takes up to 14 references, so a sheet, a product and a set fit in one still.",
+    provider: "vertexai",
+    model: "vertexai/gemini-3-pro-image",
+    fieldMap: geminiImageFieldMap({ min: 1, max: 14 }),
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-nano-banana-pro-t2i",
+    kind: "router",
+    title: "Nano Banana Pro from text on Comfy Router",
+    capability: "text_to_image",
+    openWeights: false,
+    verified: null,
+    costHint: "Expected near the edit price, about 36 credits (0.17 USD) at 1K; not yet measured.",
+    ceilingUsd: 0.25,
+    limits: { aspectRatios: [...GEMINI_RATIOS], sizeTiers: ["1K", "2K", "4K"], maxReferences: 0 },
+    defaults: { aspectRatio: "4:5", sizeTier: "1K" },
+    notes: "Google's Gemini 3 Pro Image (Nano Banana Pro) with no references: faces, products and places from a prompt alone.",
+    provider: "vertexai",
+    model: "vertexai/gemini-3-pro-image",
+    fieldMap: geminiImageFieldMap(),
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-kling-3-omni-i2v",
+    kind: "router",
+    title: "Kling 3.0 Omni image to video on Comfy Router",
+    capability: "image_to_video",
+    openWeights: false,
+    verified: "2026-10-27",
+    costHint: "About 148 credits (0.70 USD) for 5 s in pro mode with sound; 10 s reserves double.",
+    ceilingUsd: 0.8,
+    limits: { aspectRatios: ["9:16", "16:9", "1:1"], durations: [5, 10], maxReferences: 1 },
+    defaults: { aspectRatio: "9:16", durationSeconds: 5 },
+    notes: "1080p pro mode with native sound. The approved still is the first frame. Output is 1088x1904 for 9:16; the export scales it to 1080x1920.",
+    provider: "kling",
+    model: "kling/kling-v3-omni",
+    fieldMap: klingOmniFieldMap({ min: 1, max: 1 }),
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-kling-3-omni-flf2v",
+    kind: "router",
+    title: "Kling 3.0 Omni first and last frame on Comfy Router",
+    capability: "first_last_to_video",
+    openWeights: false,
+    verified: null,
+    costHint: "Expected near the image-to-video price, about 148 credits (0.70 USD) for 5 s in pro mode; not yet measured.",
+    ceilingUsd: 0.8,
+    limits: { aspectRatios: ["9:16", "16:9", "1:1"], durations: [5, 10], maxReferences: 2 },
+    defaults: { aspectRatio: "9:16", durationSeconds: 5 },
+    notes: "1080p pro mode with native sound. The first still is the first frame, the second the last frame.",
+    provider: "kling",
+    model: "kling/kling-v3-omni",
+    fieldMap: klingOmniFieldMap({ min: 2, max: 2 }),
   }),
   RouterRecipeSchema.parse({
     id: "router-ltx-2.5-fast",

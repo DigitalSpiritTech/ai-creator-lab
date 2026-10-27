@@ -31,6 +31,7 @@ Cut order if behind schedule: E7 MCP server, A8 Set library item, B7 first/last 
 - [x] B10 Mock recipes hidden from the catalog a real install lists; `MOCK_RECIPES=1` lists them, the test suite and the acceptance smoke set it themselves. The maintainer's direction: "don't need mock stuff in a real app".
 - [ ] B11 Three-reference Qwen Image Edit sidecar (`image3` on TextEncodeQwenImageEditPlus) so a still that needs sheet, product and set stays on open weights; today a three-reference still routes to Nano Banana on the Router.
 - [ ] B12 Short pause before the automatic black-output retry. The 22:18 run's retry fired 36 s after the original into the same transient Cloud window and spent a second clip's credits; a deferred submission (admitted job, submit after about 60 s) would have avoided it.
+- [x] B13 Premium hosted recipes beside the open-weights set: Nano Banana Pro (edit, verified; from text, unverified) and Kling 3.0 Omni (image to video, verified; first and last frame, unverified) on Comfy Router, with the Router ceiling scaled by clip length. The assistant passes a recipeId when the user names a model; Settings defaults and the Manual panel cover the rest.
 
 ## C. Agent (creative-prompts)
 

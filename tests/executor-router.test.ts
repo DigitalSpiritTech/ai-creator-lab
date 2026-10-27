@@ -306,3 +306,14 @@ test("the Wan first-and-last recipe sends both frames with their roles, in order
     assert.equal(media[1].url, `data:image/png;base64,${images[1].base64}`);
     assert.throws(() => buildRouterBody(recipe, { prompt: "x", images: [first] }, images.slice(0, 1)), /at least 2 reference images/);
   }));
+
+test("an unquoted Router ceiling scales with the clip length asked for", async () => {
+  const { ceilingFor } = await import("@/server/executors/router");
+  const { ROUTER_RECIPES } = await import("@/server/catalog/defaults");
+  const kling = ROUTER_RECIPES.find((recipe) => recipe.id === "router-kling-3-omni-i2v")!;
+  assert.equal(ceilingFor(kling, { prompt: "p", images: [] }), 0.8);
+  assert.equal(ceilingFor(kling, { prompt: "p", images: [], durationSeconds: 5 }), 0.8);
+  assert.equal(ceilingFor(kling, { prompt: "p", images: [], durationSeconds: 10 }), 1.6);
+  const banana = ROUTER_RECIPES.find((recipe) => recipe.id === "router-nano-banana-pro-edit")!;
+  assert.equal(ceilingFor(banana, { prompt: "p", images: [], durationSeconds: 10 }), 0.25);
+});

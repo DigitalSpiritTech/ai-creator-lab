@@ -126,6 +126,18 @@ export interface RouterExecutorOptions {
 
 const IN_FLIGHT_NOTICE = "Router is generating. The request stays open until it answers; it is never sent twice.";
 
+/**
+ * The recipe's ceiling scaled by clip length: a ceiling is stated for the default duration, so a clip
+ * twice as long reserves twice as much. Recipes without a duration keep the ceiling as stated.
+ */
+export function ceilingFor(recipe: RouterRecipe, input: GenerationInput): number | null {
+  if (recipe.ceilingUsd === undefined) return null;
+  const base = recipe.defaults.durationSeconds;
+  const asked = input.durationSeconds;
+  if (!base || !asked || asked === base) return recipe.ceilingUsd;
+  return Math.round(recipe.ceilingUsd * (asked / base) * 100) / 100;
+}
+
 export class RouterExecutor implements Executor {
   readonly kind = "router" as const;
   private readonly jobs: JobStorePort;
@@ -160,9 +172,10 @@ export class RouterExecutor implements Executor {
     try {
       const recipe = this.recipeOf(request);
       const body = await this.body(recipe, request.input);
-      if (!this.options.quote) return { kind: "unquoted", ceilingUsd: recipe.ceilingUsd ?? null, note: recipe.costHint };
+      const ceiling = ceilingFor(recipe, request.input);
+      if (!this.options.quote) return { kind: "unquoted", ceilingUsd: ceiling, note: recipe.costHint };
       const quote = await this.options.quote(recipe.model, body);
-      return quote.kind === "unquoted" ? { ...quote, ceilingUsd: quote.ceilingUsd ?? recipe.ceilingUsd ?? null } : quote;
+      return quote.kind === "unquoted" ? { ...quote, ceilingUsd: quote.ceilingUsd ?? ceiling } : quote;
     } catch (cause) {
       return { kind: "rejected", error: toJobError(cause) };
     }

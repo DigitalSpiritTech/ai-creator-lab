@@ -8,7 +8,7 @@ It is early software. One user, one machine, one content type (Ad). The first fu
 
 - A Comfy account and API key from https://platform.comfy.org. Two ways to use it:
   - A Comfy Cloud plan with API access (the free tier does not include it). This unlocks the open-weights workflows that ship with the app: Z-Image for text to image, Qwen Image Edit for compositions, and LTX 2.5 for video.
-  - Or credits only, no plan, using hosted models through Comfy Router. Router models draw from the same credit balance.
+  - Or credits only, no plan, using hosted models through Comfy Router. Router models draw from the same credit balance. The starter catalog includes Nano Banana 2.1 and Nano Banana Pro for stills and Kling 3.0 Omni for clips; Settings picks the default per step, and you can ask the assistant for a specific model on any proposal.
 - An Anthropic API key for the assistant. Usage is small compared with generation.
 - Node 22.13 or newer.
 - ffmpeg and ffprobe on your machine. Captions need an ffmpeg built with the `drawtext` filter.
@@ -107,7 +107,7 @@ Scripts (all in `package.json`):
 - `npm run build`, `npm start` build and serve.
 - `npm run lint`, `npm run typecheck`, `npm test` are the checks. `npm run test:acceptance` runs the whole flow against the mock executor with no credits.
 - `npm run --silent mcp` starts the MCP server on stdio (see below).
-- `npm run spike`, `npm run live-check`, `npm run e2e-real` call real providers and spend credits. They need the key and a nonzero allowance.
+- `npm run spike`, `npm run live-check`, `npm run e2e-real`, `npm run e2e-photos`, `npm run live-premium` call real providers and spend credits. They need the key and a nonzero allowance.
 
 Where things live:
 

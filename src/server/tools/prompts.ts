@@ -272,7 +272,7 @@ export function stillPrompt(parts: StillPromptParts): string {
   }
   lines.push(onlyDescribedObjects(visual));
   if (!character && beat.type !== "talking") lines.push("No faces in frame.");
-  lines.push("Vertical 9:16 phone photo, natural light, candid UGC look.", NO_TEXT);
+  lines.push("Vertical 9:16 phone photo, natural light, candid UGC look. The photo itself, full frame, not a screenshot: no camera app interface, buttons, icons, or phone frame.", NO_TEXT);
   if (bible && character) {
     lines.push(
       character.mode === "sheet"

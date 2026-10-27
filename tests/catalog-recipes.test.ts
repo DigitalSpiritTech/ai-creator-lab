@@ -90,10 +90,14 @@ test("starter recipes match the spike: verified defaults per MVP capability, unv
   const summary = Object.fromEntries(recipes.filter((recipe) => recipe.kind !== "mock").map((recipe) => [recipe.id, [recipe.kind, recipe.capability, recipe.verified]]));
   assert.deepEqual(summary, {
     "ltx-2.5-i2v": ["workflow", "image_to_video", "2026-10-26"],
-    "ltx-2.5-flf2v": ["workflow", "first_last_to_video", null],
+    "ltx-2.5-flf2v": ["workflow", "first_last_to_video", "2026-10-26"],
     "qwen-image-edit-2511-2ref": ["workflow", "image_edit", "2026-10-26"],
     "z-image-turbo-t2i": ["workflow", "text_to_image", "2026-10-26"],
     "router-nano-banana-2.1-edit": ["router", "image_edit", "2026-10-26"],
+    "router-nano-banana-pro-edit": ["router", "image_edit", "2026-10-27"],
+    "router-nano-banana-pro-t2i": ["router", "text_to_image", null],
+    "router-kling-3-omni-i2v": ["router", "image_to_video", "2026-10-27"],
+    "router-kling-3-omni-flf2v": ["router", "first_last_to_video", null],
     "router-ltx-2.5-fast": ["router", "text_to_video", null],
     "router-wan-3-i2v": ["router", "image_to_video", null],
     "router-wan-3-flf2v": ["router", "first_last_to_video", null],
@@ -141,9 +145,9 @@ test("the first-and-last LTX sidecar binds both frames, both lengths, and both g
 
   const recipes = await defaultRecipes(workflowsDir, { mocks: true });
   const ranked = recipesFor(recipes, "first_last_to_video");
-  assert.deepEqual(ranked.map((recipe) => recipe.id), ["ltx-2.5-flf2v", "router-wan-3-flf2v", "mock-first-last-to-video"]);
+  assert.deepEqual(ranked.map((recipe) => recipe.id), ["ltx-2.5-flf2v", "router-kling-3-omni-flf2v", "router-wan-3-flf2v", "mock-first-last-to-video"]);
   const flf = ranked[0];
-  assert.ok(flf.kind === "workflow" && flf.fitImages && flf.openWeights && flf.verified === null);
+  assert.ok(flf.kind === "workflow" && flf.fitImages && flf.openWeights && flf.verified === "2026-10-26");
   assert.deepEqual(DEFAULT_RECIPE_IDS.first_last_to_video, { primary: "ltx-2.5-flf2v", hosted: "router-wan-3-flf2v", mock: "mock-first-last-to-video" });
 });
 

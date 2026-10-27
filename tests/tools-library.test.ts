@@ -148,7 +148,7 @@ describe("prompt wiring", () => {
         "Setting: the place in reference image 3 (bright kitchen counter by a window), matching its layout, furniture, and lighting. " +
         "The product in reference image 2 is a matte dark green 32 oz insulated steel bottle with a black screw cap, clearly visible, true to its shape, color, and materials, no text, lettering, or logo on the product. " +
         "Only the objects described; no additional phones or props, and no bottles beyond those described. " +
-        "Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image. " +
+        "Vertical 9:16 phone photo, natural light, candid UGC look. The photo itself, full frame, not a screenshot: no camera app interface, buttons, icons, or phone frame. No text, captions, logos, or watermarks in the image. " +
         "Preserve the person's identity, face, hair, build, and wardrobe exactly as in the sheet.",
     );
 
