@@ -2,7 +2,7 @@
 
 AI Creator Lab is an open-source studio for creators who make short vertical content around a single product. It runs on your own computer or server and generates on your own Comfy account (Comfy Cloud, Comfy API, or Comfy Router), so there is no middleman and no per-seat platform fee. A built-in assistant walks you from "here is what I'm selling" to a locked AI creator character, a script, the shots, and a finished 1080 x 1920 ad. Everything you approve is kept in a Library you can reuse in the next piece of content.
 
-It is early software. One user, one machine, one content type (Ad). The first full ad was produced on real credits on October 26, 2026; see `docs/VERIFICATION.md` for exactly what has and has not been tested on a real account.
+It is early software. One user, one machine, one content type (Ad). The first full ad was produced on real credits on October 26, 2026; see `docs/VERIFICATION.md` for exactly what has and has not been tested on a real account, and `docs/TESTING.md` for the start-to-finish manual test (open weights and premium models, from a brief and from your own photos).
 
 ## What you need
 

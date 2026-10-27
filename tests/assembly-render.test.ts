@@ -246,3 +246,13 @@ describe("assembly", () => {
     }
   });
 });
+
+test("a near-9:16 source fills the canvas and is cropped; a different shape is letterboxed", async () => {
+  const { fillsCanvas } = await import("@/server/assembly/graph");
+  assert.equal(fillsCanvas({ width: 1088, height: 1904 }), true, "Kling 9:16 output");
+  assert.equal(fillsCanvas({ width: 576, height: 1024 }), true, "LTX 9:16 output");
+  assert.equal(fillsCanvas({ width: 720, height: 1280 }), true);
+  assert.equal(fillsCanvas({ width: 160, height: 90 }), false, "landscape");
+  assert.equal(fillsCanvas({ width: 1080, height: 1350 }), false, "4:5 still");
+  assert.equal(fillsCanvas({}), false, "unknown size");
+});

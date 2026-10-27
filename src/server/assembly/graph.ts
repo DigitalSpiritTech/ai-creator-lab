@@ -19,6 +19,22 @@ export interface Segment {
   frames: number;
   /** Caption text burned in for this segment; empty draws nothing. */
   caption: string;
+  /** Source pixel size, when known; decides fill-and-crop against fit-and-pad. */
+  width?: number;
+  height?: number;
+}
+
+/** Aspect ratios this close to 9:16 are filled and center-cropped; anything further off is letterboxed. */
+export const FILL_TOLERANCE = 0.03;
+
+/**
+ * Whether a source fills the canvas (losing a sliver at the edges) or fits inside it with black bars.
+ * Every clip the app makes is composed at 9:16, so a provider's near miss (Kling returns 1088x1904)
+ * fills; a genuinely different shape, or an unknown size, keeps all of its picture.
+ */
+export function fillsCanvas(segment: Pick<Segment, "width" | "height">): boolean {
+  if (!segment.width || !segment.height) return false;
+  return Math.abs((segment.width / segment.height) / (EXPORT_WIDTH / EXPORT_HEIGHT) - 1) <= FILL_TOLERANCE;
 }
 
 export interface AssemblyPlan {
@@ -44,8 +60,12 @@ function inputArgs(segment: Segment): string[] {
 function videoChain(index: number, segment: Segment, fontPath: string | undefined): string {
   const filters = [
     "setpts=PTS-STARTPTS",
-    `scale=${EXPORT_WIDTH}:${EXPORT_HEIGHT}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=lanczos`,
-    `pad=${EXPORT_WIDTH}:${EXPORT_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black`,
+    ...(fillsCanvas(segment)
+      ? [`scale=${EXPORT_WIDTH}:${EXPORT_HEIGHT}:force_original_aspect_ratio=increase:force_divisible_by=2:flags=lanczos`, `crop=${EXPORT_WIDTH}:${EXPORT_HEIGHT}`]
+      : [
+          `scale=${EXPORT_WIDTH}:${EXPORT_HEIGHT}:force_original_aspect_ratio=decrease:force_divisible_by=2:flags=lanczos`,
+          `pad=${EXPORT_WIDTH}:${EXPORT_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black`,
+        ]),
     "setsar=1",
     `fps=${EXPORT_FPS}`,
     "tpad=stop_mode=clone:stop_duration=1",
