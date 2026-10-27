@@ -90,6 +90,12 @@ function placeImages(body: Record<string, unknown>, field: ImageField, images: P
     setPath(body, field.path, items[0]);
     return;
   }
+  if (field.mode === "indexed") {
+    const paths = field.paths ?? [];
+    if (items.length > paths.length) throw invalid(`This model takes at most ${paths.length} reference image${paths.length === 1 ? "" : "s"}.`);
+    items.forEach((item, index) => setPath(body, paths[index], item));
+    return;
+  }
   const existing = getPath(body, field.path);
   setPath(body, field.path, [...(Array.isArray(existing) ? existing : []), ...items]);
 }

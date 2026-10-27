@@ -8,7 +8,7 @@ It is early software. One user, one machine, one content type (Ad). The first fu
 
 - A Comfy account and API key from https://platform.comfy.org. Two ways to use it:
   - A Comfy Cloud plan with API access (the free tier does not include it). This unlocks the open-weights workflows that ship with the app: Z-Image for text to image, Qwen Image Edit for compositions, and LTX 2.5 for video.
-  - Or credits only, no plan, using hosted models through Comfy Router. Router models draw from the same credit balance. The starter catalog includes Nano Banana 2.1 and Nano Banana Pro for stills and Kling 3.0 Omni for clips; Settings picks the default per step, and you can ask the assistant for a specific model on any proposal.
+  - Or credits only, no plan, using hosted models through Comfy Router. Router models draw from the same credit balance. The starter catalog includes Nano Banana 2.1 and Nano Banana Pro for stills and Kling 3.0 Omni for clips, and Settings lists every other Router model: switch one on and it joins the recipe pickers (FLUX by BFL, Kling, Seedance, MiniMax, Wan, LTX, Gemini and OpenAI image families have adapters today). Settings picks the default per step, and you can ask the assistant for a specific model on any proposal.
 - An Anthropic API key for the assistant. Usage is small compared with generation.
 - Node 22.13 or newer.
 - ffmpeg and ffprobe on your machine. Captions need an ffmpeg built with the `drawtext` filter.

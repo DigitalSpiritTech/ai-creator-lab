@@ -64,8 +64,10 @@ export type FieldTargets = z.infer<typeof FieldTargetsSchema>;
 export const ImageFieldSchema = z
   .object({
     path: BodyPathSchema,
-    /** `append` pushes one item per image into the array at path; `set` writes the first image at path. */
-    mode: z.enum(["append", "set"]),
+    /** `append` pushes one item per image into the array at path; `set` writes the first image at path; `indexed` writes each image to its own path from `paths`. */
+    mode: z.enum(["append", "set", "indexed"]),
+    /** With mode `indexed`: the body path for each image position, for example input_image, input_image_2. */
+    paths: z.array(BodyPathSchema).max(16).optional(),
     /** How the bytes travel: raw base64, a `data:` URL, or a short-lived uploaded asset URL. */
     encoding: z.enum(["base64", "data_url", "url"]),
     /** JSON template per image; the strings "{data}", "{mime}", and "{role}" are replaced. */
@@ -78,7 +80,7 @@ export const ImageFieldSchema = z
   .strict();
 export type ImageField = z.infer<typeof ImageFieldSchema>;
 
-export const RouterOutputFamilySchema = z.enum(["gemini", "flux", "minimax", "wan", "kling", "seedance", "ltx", "binary"]);
+export const RouterOutputFamilySchema = z.enum(["gemini", "flux", "minimax", "wan", "kling", "seedance", "ltx", "openai", "binary"]);
 export type RouterOutputFamily = z.infer<typeof RouterOutputFamilySchema>;
 
 export const RouterFieldMapSchema = z

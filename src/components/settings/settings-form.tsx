@@ -246,6 +246,14 @@ export function SettingsForm() {
         </div>
       </section>
 
+      <RouterModels
+        enabled={view.workspace.routerModels}
+        disabled={busy}
+        onChange={(routerModels) => {
+          void saveWorkspace({ routerModels }).then(() => getJson<{ recipes: RecipeSummary[] }>("/api/recipes").then(({ recipes: list }) => setRecipes(list), () => undefined));
+        }}
+      />
+
       <section className="space-y-2 text-sm">
         <h2 className="text-sm font-semibold">Data directory</h2>
         <code className="block rounded-md bg-muted px-2 py-1 text-xs">{view.dataDirectory}</code>
@@ -305,5 +313,107 @@ export function ProviderChoice({ value, fromEnvironment, disabled, onChange }: {
       ))}
       {fromEnvironment ? <p className="text-xs text-muted-foreground">Set by LLM_PROVIDER in .env.local.</p> : null}
     </fieldset>
+  );
+}
+
+interface RouterModelRow {
+  id: string;
+  provider: string;
+  model: string;
+  family: string | null;
+  capabilities: string[];
+  supported: boolean;
+  enabled: boolean;
+  note: string | null;
+}
+
+/**
+ * Every model Comfy Router offers. Models whose provider family the app has an adapter for can be
+ * switched on; each then appears in the recipe pickers for the capabilities it covers. The rest are
+ * listed so the catalog is visible, with the capabilities read from their schemas when known.
+ */
+function RouterModels({ enabled, disabled, onChange }: { enabled: string[]; disabled: boolean; onChange: (models: string[]) => void }) {
+  const [rows, setRows] = useState<RouterModelRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [showUnsupported, setShowUnsupported] = useState(false);
+
+  const load = useCallback(async (refresh = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { models } = await getJson<{ models: RouterModelRow[] }>(`/api/router/models${refresh ? "?refresh=1" : ""}`);
+      setRows(models);
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  const initial = useCallback(() => load(), [load]);
+  useLoad(initial);
+
+  const on = new Set(enabled);
+  const visible = (rows ?? []).filter((row) => (showUnsupported || row.supported) && (!filter || row.id.toLowerCase().includes(filter.toLowerCase())));
+  const families = new Map<string, RouterModelRow[]>();
+  for (const row of visible) {
+    const key = row.family ?? `${row.provider} (no adapter yet)`;
+    families.set(key, [...(families.get(key) ?? []), row]);
+  }
+  const supportedCount = (rows ?? []).filter((row) => row.supported).length;
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">Comfy Router models</h2>
+        <div className="flex items-center gap-2">
+          <Input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter by name" className="h-7 w-44 text-xs" aria-label="Filter Router models" />
+          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+            <input type="checkbox" checked={showUnsupported} onChange={(event) => setShowUnsupported(event.target.checked)} /> show models without an adapter
+          </label>
+          <Button size="sm" variant="outline" disabled={loading} onClick={() => void load(true)}>
+            <RefreshCw className={loading ? "animate-spin" : undefined} /> Refresh list
+          </Button>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {rows ? `${rows.length} models on Router, ${supportedCount} with an adapter. ` : ""}
+        Switch a model on and it joins the recipe pickers for the capabilities its adapter covers; the price is reserved at the adapter&apos;s ceiling until Router can quote it. The starter recipes stay regardless.
+      </p>
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {rows === null && !error ? <p className="text-xs text-muted-foreground">Loading the model list…</p> : null}
+      {[...families.entries()].map(([family, list]) => (
+        <div key={family} className="rounded-lg border p-3">
+          <h3 className="mb-2 text-xs font-medium">{family}</h3>
+          <ul className="grid gap-1 text-xs sm:grid-cols-2">
+            {list.map((row) => (
+              <li key={row.id} className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id={`router-${row.id}`}
+                  disabled={disabled || !row.supported}
+                  checked={on.has(row.id)}
+                  onChange={(event) => {
+                    const next = new Set(on);
+                    if (event.target.checked) next.add(row.id);
+                    else next.delete(row.id);
+                    onChange([...next].sort());
+                  }}
+                  className="mt-0.5"
+                />
+                <label htmlFor={`router-${row.id}`} className="min-w-0">
+                  <span className="font-mono">{row.id}</span>
+                  <span className="block text-muted-foreground">
+                    {row.capabilities.length ? row.capabilities.map((capability) => CAPABILITY_LABELS[capability as Capability] ?? capability).join(", ") : "capabilities unknown"}
+                    {row.note ? ` · ${row.note}` : ""}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
   );
 }

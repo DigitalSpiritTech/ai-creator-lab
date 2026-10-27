@@ -23,6 +23,7 @@ export function routerFamily(recipe: Pick<RouterRecipe, "model" | "fieldMap">): 
     kling: "kling",
     byteplus: "seedance",
     ltx: "ltx",
+    openai: "openai",
     elevenlabs: "binary",
   };
   return byProvider[provider];
@@ -161,7 +162,20 @@ function ltx(data: unknown): RouterMedia {
   throw failedUpstream(parsed.error?.message ?? parsed.status);
 }
 
-const PARSERS: Record<Exclude<RouterOutputFamily, "binary">, (data: unknown) => RouterMedia> = { gemini, flux, minimax, wan, kling, seedance, ltx };
+function openai(data: unknown): RouterMedia {
+  const parsed = pick(
+    z.object({ data: z.array(z.object({ b64_json: z.string().optional(), url: z.string().optional() }).passthrough()).optional(), error: z.object({ message: z.string().optional(), code: z.string().nullish() }).partial().nullish() }).passthrough(),
+    data,
+  );
+  const first = parsed.data?.[0];
+  if (first?.b64_json) return { kind: "inline", bytes: Buffer.from(first.b64_json, "base64"), mime: "image/png" };
+  if (first?.url) return { kind: "url", url: first.url };
+  if (parsed.error?.code && /moderation|safety|policy/i.test(parsed.error.code)) refusedThrow(parsed.error.message ?? parsed.error.code);
+  if (parsed.error?.message) throw failedUpstream(parsed.error.message);
+  throw unreadable();
+}
+
+const PARSERS: Record<Exclude<RouterOutputFamily, "binary">, (data: unknown) => RouterMedia> = { gemini, flux, minimax, wan, kling, seedance, ltx, openai };
 
 /** Finds the generated media in a Router result, or throws a typed failure (refusal or upstream failure). */
 export function extractRouterMedia(

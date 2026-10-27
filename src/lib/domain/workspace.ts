@@ -10,6 +10,8 @@ import { fail } from "@/lib/domain/failure";
 export const WorkspaceSettingsSchema = z
   .object({
     defaultRecipes: z.partialRecord(CapabilitySchema, RecipeIdSchema).default({}),
+    /** Comfy Router model ids the user switched on; each gets a recipe per capability its adapter supports. */
+    routerModels: z.array(z.string().regex(/^[\w.-]+\/[\w.-]+$/).max(200)).max(200).default([]),
     allowanceUsd: z.number().nonnegative().max(10_000).default(0),
     autoApprove: z.boolean().default(false),
     revision: RevisionSchema.default(0),
@@ -21,6 +23,7 @@ export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 export const UpdateWorkspaceSettingsSchema = z
   .object({
     defaultRecipes: z.partialRecord(CapabilitySchema, RecipeIdSchema).optional(),
+    routerModels: z.array(z.string().regex(/^[\w.-]+\/[\w.-]+$/).max(200)).max(200).optional(),
     allowanceUsd: z.number().nonnegative().max(10_000).optional(),
     autoApprove: z.boolean().optional(),
     revision: RevisionSchema.optional(),
@@ -41,6 +44,7 @@ export function updateWorkspaceSettings(
   }
   return WorkspaceSettingsSchema.parse({
     defaultRecipes: patch.defaultRecipes ?? current.defaultRecipes,
+    routerModels: patch.routerModels ?? current.routerModels,
     allowanceUsd: patch.allowanceUsd ?? current.allowanceUsd,
     autoApprove: patch.autoApprove ?? current.autoApprove,
     revision: current.revision + 1,

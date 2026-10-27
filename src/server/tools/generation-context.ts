@@ -7,6 +7,7 @@
 import { resolve } from "node:path";
 import type { Recipe } from "@/lib/catalog";
 import { defaultRecipes } from "@/server/catalog/defaults";
+import { adapterRecipes } from "@/server/catalog/router-adapters";
 import { createExecutors } from "@/server/executors";
 import { readSecrets } from "@/server/secrets";
 import type { Store } from "@/server/store";
@@ -30,9 +31,13 @@ export function createGenerationContext(store: Store, options: { workflowsDir?: 
   let catalog: Promise<Recipe[]> | undefined;
   const context: GenerationContext = {
     executors: createExecutors({ jobs: store.jobs, mediaRoot: store.dataDir, apiKey, workflowsDir }),
-    recipes: () => {
+    recipes: async () => {
       catalog ??= defaultRecipes(workflowsDir);
-      return catalog;
+      const starters = await catalog;
+      // Router models the user switched on in Settings add their adapter recipes after the starters.
+      const enabled = adapterRecipes(store.workspace.get().routerModels);
+      const known = new Set(starters.map((recipe) => recipe.id));
+      return [...starters, ...enabled.filter((recipe) => !known.has(recipe.id))];
     },
   };
   forStore.clear();
