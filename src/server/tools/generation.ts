@@ -253,7 +253,7 @@ export function endingFrame(store: Store, content: ContentPiece, assetId: string
 export const generateClip = defineTool({
   name: "generate_clip",
   description:
-    "Propose a clip for one beat from its approved still (the first frame). Talking beats carry the spoken line in quotes for synchronized audio; b-roll is ambient sound only. With mode first_last, the clip also ends on lastAssetId, which must be an approved still in this content piece or the project's reference sheet.",
+    "Propose a clip for one beat from its approved still (the first frame). Talking beats carry the spoken line in quotes for synchronized audio; b-roll is ambient sound only. With mode first_last, the clip also ends on lastAssetId, which must be an approved still in this content piece or the project's reference sheet; use it only when that ending still was composed for the same shot, since unrelated endpoints produce a dissolve.",
   input: z
     .object({
       contentId: IdSchema,

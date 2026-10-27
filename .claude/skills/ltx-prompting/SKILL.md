@@ -8,7 +8,7 @@ description: Write LTX 2.5 image-to-video and first/last-frame prompts with sync
 ## Facts
 
 - LTX 2.5 generates video and synchronized audio together. Describe sounds and dialogue in the prompt. Put spoken lines in quotes: `She says, "Twenty-four hours later it was still cold."` Lip sync is approximate; keep lines short.
-- Image-to-video uses the input image as the first frame. First/last uses two images with the same aspect ratio; the ending pose is guided, not copied pixel for pixel.
+- Image-to-video uses the input image as the first frame. First/last uses two images with the same aspect ratio; the ending pose is guided, not copied pixel for pixel. Verified October 26 on Comfy Cloud: both endpoints are honored, and when the two frames are different scenes the model bridges them with a dissolve in the last second, so compose the ending frame for the same shot (same setting, same wardrobe, a plausible few seconds later).
 - Verified native vertical canvas on the distilled open-weights graph: 576 x 1024, 121 frames at 24 fps (about 5.04 seconds). Cloud templates may allow 720 x 1280; verify in the spike before offering it. Frame counts follow 8n+1.
 - Prompt enhancers add one to two minutes; leave them off by default.
 - Final delivery is 1080 x 1920; native output is resized at assembly, not regenerated.
