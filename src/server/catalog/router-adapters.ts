@@ -223,7 +223,7 @@ export function adapterFor(model: string): Adapter | null {
   const [provider, name = ""] = model.split("/");
   const n = name.toLowerCase();
   if (provider === "vertexai" && (n.includes("image") || n.includes("banana"))) return { info: { family: "Gemini image", capabilities: ["text_to_image", "image_edit"] }, build: geminiImage };
-  if (provider === "bfl" && !n.includes("video") && !n.includes("erase") && !n.includes("expand") && !n.includes("fill")) return { info: { family: "FLUX (BFL)", capabilities: ["text_to_image", "image_edit"] }, build: bflImage };
+  if (provider === "bfl" && !n.includes("video") && !n.includes("erase") && !n.includes("expand") && !n.includes("fill") && !n.includes("vto")) return { info: { family: "FLUX (BFL)", capabilities: ["text_to_image", "image_edit"] }, build: bflImage };
   if (provider === "kling" && n === "kling-image-o1") return { info: { family: "Kling image", capabilities: ["text_to_image", "image_edit"] }, build: klingImage };
   if (provider === "kling" && (n.endsWith("-omni") || n === "kling-video-o1")) return { info: { family: "Kling omni video", capabilities: ["image_to_video", "first_last_to_video", "text_to_video"] }, build: klingOmniVideo };
   if (provider === "kling" && /^kling-v\d/.test(n)) return { info: { family: "Kling text video", capabilities: ["text_to_video"] }, build: klingTextVideo };

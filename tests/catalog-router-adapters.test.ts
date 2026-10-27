@@ -20,6 +20,7 @@ test("families are matched by provider and name; unknown providers have no adapt
   assert.equal(adapterFor("veo/veo-3.1-generate-001"), null);
   assert.equal(adapterFor("openai/gpt-5"), null);
   assert.equal(adapterFor("bfl/flux-3-video"), null);
+  assert.equal(adapterFor("bfl/vto-v1"), null, "virtual try-on has its own request shape");
 });
 
 test("enabled models expand to recipes with stable ids, and the bodies follow each provider's shape", () => {
@@ -38,7 +39,7 @@ test("enabled models expand to recipes with stable ids, and the bodies follow ea
     { type: "image_url", image_url: { url: "data:image/png;base64,AAAA" }, role: "first_frame" },
     { type: "image_url", image_url: { url: "data:image/png;base64,AAAA" }, role: "last_frame" },
   ]);
-  assert.equal((seedanceBody as { duration: number }).duration, 5);
+  assert.equal((seedanceBody as unknown as { duration: number }).duration, 5);
   const klingImage = recipes.find((recipe) => recipe.id === "router-kling-kling-image-o1-text-to-image")!;
   assert.deepEqual(buildRouterBody(klingImage, { prompt: "p", images: [], aspectRatio: "3:4" }, []), { resolution: "1k", n: 1, result_type: "single", prompt: "p", aspect_ratio: "3:4" });
   assert.throws(() => buildRouterBody(flux, { prompt: "p", images: Array(10).fill("x"), aspectRatio: "1:1" }, Array(10).fill(png)), /at most 9 reference images/);
