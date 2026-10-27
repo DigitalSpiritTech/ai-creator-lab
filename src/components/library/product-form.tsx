@@ -1,5 +1,5 @@
 /**
- * Create or edit a Library product (`save_product`): name, link, allowed claims, and photos.
+ * Create or edit a Library product (`save_product`): name, appearance, link, allowed claims, and photos.
  * @packageDocumentation
  */
 "use client";
@@ -16,6 +16,7 @@ import type { ProductItem } from "@/lib/domain/library";
 
 export function ProductForm({ product, onSaved }: { product?: ProductItem; onSaved: () => void }) {
   const [name, setName] = useState(product?.name ?? "");
+  const [appearance, setAppearance] = useState(product?.appearance ?? "");
   const [link, setLink] = useState(product?.link ?? "");
   const [claims, setClaims] = useState((product?.allowedClaims ?? []).join("\n"));
   const [images, setImages] = useState<string[]>(product?.imageAssetIds ?? []);
@@ -47,6 +48,7 @@ export function ProductForm({ product, onSaved }: { product?: ProductItem; onSav
         revision: product?.revision,
         product: {
           name: name.trim(),
+          appearance: appearance.trim(),
           link: link.trim() || null,
           allowedClaims: claims.split("\n").map((claim) => claim.trim()).filter(Boolean),
           imageAssetIds: images,
@@ -65,6 +67,13 @@ export function ProductForm({ product, onSaved }: { product?: ProductItem; onSav
       <label className="block space-y-1">
         <span className="text-xs font-medium">Name</span>
         <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ridgeline 32 oz insulated bottle" maxLength={120} />
+      </label>
+      <label className="block space-y-1">
+        <span className="text-xs font-medium">Appearance</span>
+        <Textarea value={appearance} onChange={(event) => setAppearance(event.target.value)} rows={2} maxLength={300} placeholder="Matte sage-green steel bottle, 32 oz, black flip-top lid with a carry loop" />
+        <span className="block text-xs text-muted-foreground">
+          How the product looks: shape, color, finish, size. Stills describe the product by this, never by its name, so leave out brand text.
+        </span>
       </label>
       <label className="block space-y-1">
         <span className="text-xs font-medium">Link</span>

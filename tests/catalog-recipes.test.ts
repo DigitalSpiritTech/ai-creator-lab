@@ -23,7 +23,7 @@ import { loadWorkflowRecipes } from "@/server/catalog/workflows";
 
 const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
 const read = (name: string) => JSON.parse(readFileSync(join(workflowsDir, name), "utf8"));
-const NAMES = ["z-image-turbo-t2i", "qwen-image-edit-2511-2ref", "ltx-2.5-i2v"];
+const NAMES = ["z-image-turbo-t2i", "qwen-image-edit-2511-2ref", "ltx-2.5-i2v", "ltx-2.5-flf2v"];
 
 test("every starter sidecar parses and matches its workflow graph", () => {
   for (const name of NAMES) {
@@ -90,11 +90,13 @@ test("starter recipes match the spike: verified defaults per MVP capability, unv
   const summary = Object.fromEntries(recipes.filter((recipe) => recipe.kind !== "mock").map((recipe) => [recipe.id, [recipe.kind, recipe.capability, recipe.verified]]));
   assert.deepEqual(summary, {
     "ltx-2.5-i2v": ["workflow", "image_to_video", "2026-10-26"],
+    "ltx-2.5-flf2v": ["workflow", "first_last_to_video", null],
     "qwen-image-edit-2511-2ref": ["workflow", "image_edit", "2026-10-26"],
     "z-image-turbo-t2i": ["workflow", "text_to_image", "2026-10-26"],
     "router-nano-banana-2.1-edit": ["router", "image_edit", "2026-10-26"],
     "router-ltx-2.5-fast": ["router", "text_to_video", null],
     "router-wan-3-i2v": ["router", "image_to_video", null],
+    "router-wan-3-flf2v": ["router", "first_last_to_video", null],
   });
   for (const capability of MVP_CAPABILITIES) {
     const ranked = recipesFor(recipes, capability);
@@ -108,4 +110,39 @@ test("starter recipes match the spike: verified defaults per MVP capability, unv
   const ltx = recipes.find((recipe) => recipe.id === "ltx-2.5-i2v");
   assert.ok(ltx?.kind === "workflow" && ltx.fitImages);
   assert.ok(recipes.filter((recipe) => recipe.kind !== "mock").every((recipe) => recipe.ceilingUsd !== undefined));
+});
+
+test("the first-and-last LTX sidecar binds both frames, both lengths, and both guide strengths", async () => {
+  const sidecar = SlotSidecarSchema.parse(read("ltx-2.5-flf2v.slots.json"));
+  const graph = WorkflowGraphSchema.parse(read(sidecar.workflow));
+  assert.deepEqual(sidecarProblems(sidecar, graph), []);
+  assert.equal(sidecar.verified, null);
+  assert.deepEqual(imageSlotNames(sidecar), ["first", "last"]);
+  assert.deepEqual(sidecar.limits, SlotSidecarSchema.parse(read("ltx-2.5-i2v.slots.json")).limits);
+  assert.deepEqual([graph["22"].inputs.image, graph["25"].inputs.image], ["first.png", "last.png"]);
+  assert.deepEqual([graph["24"].inputs.frame_idx, graph["27"].inputs.frame_idx], [0, -1]);
+  assert.equal(graph["9"].inputs.filename_prefix, "ai-creator-lab/ltx-flf2v");
+  const writes: [string, string, unknown][] = [];
+  applySlots({ setInput: (node, field, value) => writes.push([node, field, value]) }, sidecar, {
+    first: { asset: "first" },
+    last: { asset: "last" },
+    length: 97,
+    firstStrength: 0.9,
+    lastStrength: 0.6,
+  });
+  assert.deepEqual(writes, [
+    ["22", "image", { asset: "first" }],
+    ["25", "image", { asset: "last" }],
+    ["8", "length", 97],
+    ["10", "frames_number", 97],
+    ["24", "strength", 0.9],
+    ["27", "strength", 0.6],
+  ]);
+
+  const recipes = await defaultRecipes(workflowsDir);
+  const ranked = recipesFor(recipes, "first_last_to_video");
+  assert.deepEqual(ranked.map((recipe) => recipe.id), ["ltx-2.5-flf2v", "router-wan-3-flf2v", "mock-first-last-to-video"]);
+  const flf = ranked[0];
+  assert.ok(flf.kind === "workflow" && flf.fitImages && flf.openWeights && flf.verified === null);
+  assert.deepEqual(DEFAULT_RECIPE_IDS.first_last_to_video, { primary: "ltx-2.5-flf2v", hosted: "router-wan-3-flf2v", mock: "mock-first-last-to-video" });
 });

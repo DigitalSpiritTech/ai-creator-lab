@@ -1,9 +1,13 @@
 /**
- * The model port the agent loop talks to, and its Anthropic implementation. Tests replace it with
- * a scripted model, so the loop runs with no network.
+ * The model port the agent loop talks to, with two implementations: the Anthropic API (streaming,
+ * Anthropic key) and Comfy Router (the same Messages body, Comfy key only, one complete reply).
+ * Tests replace both with a scripted model, so the loop runs with no network.
  * @packageDocumentation
  */
+import { randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
+import { comfy } from "@comfyorg/sdk";
+import { z } from "zod";
 import type {
   MessageCreateParamsStreaming,
   MessageParam,
@@ -11,7 +15,7 @@ import type {
   Tool as AnthropicTool,
 } from "@anthropic-ai/sdk/resources/messages";
 import type { ApiMessage } from "@/lib/domain/conversation";
-import { fail } from "@/lib/domain/failure";
+import { ServiceError, fail } from "@/lib/domain/failure";
 
 /** The assistant model when `LLM_MODEL` is not set. */
 export const DEFAULT_LLM_MODEL = "claude-opus-5-5";
@@ -173,4 +177,97 @@ export function anthropicModel(options: { apiKey?: string; model?: string } = {}
       yield* translateStream(stream);
     },
   };
+}
+
+/** The slice of `comfy.models` the Router assistant uses; tests pass a fake with recorded replies. */
+export interface RouterMessagesPort {
+  run(model: string, input: Record<string, unknown>, options?: { idempotencyKey?: string; signal?: AbortSignal }): Promise<{ kind: string; data?: unknown }>;
+}
+
+const tokenCount = z.number().int().nonnegative().nullable().optional();
+
+/** The non-streamed Messages API reply Router returns for `anthropic/*` models. */
+export const RouterMessageSchema = z.looseObject({
+  content: z.array(z.looseObject({ type: z.string() })),
+  stop_reason: z.string().nullable().optional(),
+  usage: z
+    .looseObject({
+      input_tokens: tokenCount,
+      output_tokens: tokenCount,
+      cache_read_input_tokens: tokenCount,
+      cache_creation_input_tokens: tokenCount,
+    })
+    .optional(),
+});
+
+/**
+ * Turns a complete Messages reply into the events the streaming adapter emits: one text delta per
+ * text block, each tool_use as-is, then the stop with usage (cache fields included). Thinking blocks
+ * are not shown or stored, so they are skipped.
+ */
+export function messageEvents(reply: unknown): ModelEvent[] {
+  const parsed = RouterMessageSchema.safeParse(reply);
+  if (!parsed.success) fail("provider", "Comfy Router returned a reply the assistant could not read.");
+  const events: ModelEvent[] = [];
+  for (const block of parsed.data.content) {
+    if (block.type === "text" && typeof block.text === "string" && block.text.length > 0) {
+      events.push({ type: "text", delta: block.text });
+    } else if (block.type === "tool_use" && typeof block.id === "string" && typeof block.name === "string") {
+      events.push({ type: "tool_use", id: block.id, name: block.name, input: block.input ?? {} });
+    }
+  }
+  const usage = parsed.data.usage ?? {};
+  const cacheReadInputTokens = usage.cache_read_input_tokens ?? 0;
+  const cacheCreationInputTokens = usage.cache_creation_input_tokens ?? 0;
+  events.push({
+    type: "stop",
+    stopReason: parsed.data.stop_reason ?? null,
+    usage: {
+      inputTokens: (usage.input_tokens ?? 0) + cacheReadInputTokens + cacheCreationInputTokens,
+      outputTokens: usage.output_tokens ?? 0,
+      cacheReadInputTokens,
+      cacheCreationInputTokens,
+    },
+  });
+  return events;
+}
+
+/**
+ * The assistant on Comfy Router with only the Comfy key: posts the identical Messages body
+ * (system, tools, messages, and cache breakpoints; Router forwards it unchanged) to
+ * `anthropic/<model>` without streaming, and replays the complete reply as {@link ModelEvent}s.
+ * Each call gets its own idempotency key. The key defaults to `COMFY_API_KEY`.
+ */
+export function routerModel(options: { apiKey?: string; model?: string; models?: RouterMessagesPort } = {}): LlmModel {
+  return {
+    async *stream(params) {
+      let models = options.models;
+      if (!models) {
+        const apiKey = options.apiKey?.trim() || process.env.COMFY_API_KEY?.trim();
+        if (!apiKey) fail("invalid", "Add a Comfy API key in Settings to use the assistant through Comfy Router.");
+        comfy.config({ credentials: apiKey });
+        models = comfy.models;
+      }
+      const model = (options.model?.trim() || process.env.LLM_MODEL?.trim() || DEFAULT_LLM_MODEL).replace(/^anthropic\//, "");
+      const { stream, ...body } = buildRequest(params, model);
+      void stream;
+      let result: { kind: string; data?: unknown };
+      try {
+        result = await models.run(`anthropic/${model}`, body as unknown as Record<string, unknown>, { idempotencyKey: randomUUID(), signal: params.signal });
+      } catch (error) {
+        if (params.signal?.aborted || error instanceof ServiceError) throw error;
+        const detail = error instanceof Error ? ` ${error.message.slice(0, 200)}` : "";
+        fail("provider", `Comfy Router could not run the assistant.${detail}`);
+      }
+      if (result.kind !== "json") fail("provider", "Comfy Router returned a file instead of a message.");
+      yield* messageEvents(result.data);
+    },
+  };
+}
+
+/** The assistant for the configured provider: Comfy Router when `llmProvider` is "router", else the Anthropic API. */
+export function assistantModel(settings: { llmProvider?: string; anthropicApiKey?: string; comfyApiKey?: string; llmModel?: string }): LlmModel {
+  return settings.llmProvider === "router"
+    ? routerModel({ apiKey: settings.comfyApiKey, model: settings.llmModel })
+    : anthropicModel({ apiKey: settings.anthropicApiKey, model: settings.llmModel });
 }

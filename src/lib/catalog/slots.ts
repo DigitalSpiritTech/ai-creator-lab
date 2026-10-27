@@ -34,6 +34,8 @@ export const SlotSidecarSchema = z.object({
   workflow: z.string().regex(/^[\w.-]+\.api\.json$/),
   capability: CapabilitySchema,
   openWeights: z.boolean().default(true),
+  /** ISO date of the last real run that passed; null or absent until one has. */
+  verified: z.iso.date().nullable().optional(),
   maxReferences: z.number().int().positive().optional(),
   outputNode: z.string().min(1),
   slots: z.record(z.string().regex(/^[A-Za-z][\w]*$/), SlotSchema),

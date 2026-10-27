@@ -1,7 +1,7 @@
 /**
  * Starter recipes and per-capability defaults, as decided by the October 26 spike (docs/VERIFICATION.md):
  * Z-Image Turbo for text_to_image, Qwen Image Edit 2511 for image_edit with Nano Banana 2.1 hosted,
- * LTX 2.5 on Cloud for image_to_video. Anything not run on a real account carries `verified: null`.
+ * LTX 2.5 on Cloud for image_to_video, LTX 2.5 first-and-last-frame on Cloud for first_last_to_video. Anything not run on a real account carries `verified: null`.
  * @packageDocumentation
  */
 import { resolve } from "node:path";
@@ -31,6 +31,15 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
     fitImages: true,
     defaults: { width: 576, height: 1024, length: 121 },
     notes: "Input images are center-cropped and scaled to the output size before upload; the graph needs an exact match.",
+  },
+  "ltx-2.5-flf2v": {
+    title: "LTX 2.5 first and last frame to video on Comfy Cloud",
+    verified: null,
+    costHint: "Expected near the image-to-video cost, about 10 to 12 credits for 121 frames at 576x1024; not yet measured.",
+    ceilingUsd: 0.12,
+    fitImages: true,
+    defaults: { width: 576, height: 1024, length: 121 },
+    notes: "Both frames are center-cropped and scaled to the same output canvas before upload. Not yet run on Comfy Cloud.",
   },
 };
 
@@ -124,6 +133,37 @@ export const ROUTER_RECIPES: RouterRecipe[] = [
       output: "wan",
     },
   }),
+  RouterRecipeSchema.parse({
+    id: "router-wan-3-flf2v",
+    kind: "router",
+    title: "Wan 3 first and last frame on Comfy Router",
+    capability: "first_last_to_video",
+    openWeights: false,
+    verified: null,
+    costHint: "Priced by Router; not yet measured here.",
+    ceilingUsd: 1,
+    limits: { aspectRatios: ["9:16", "16:9", "1:1"], durations: [5], maxReferences: 2 },
+    defaults: { aspectRatio: "9:16", durationSeconds: 5 },
+    provider: "wan",
+    model: "wan/wan3.0-video",
+    fieldMap: {
+      template: { input: {}, parameters: { resolution: "720P", prompt_extend: false, audio: true, watermark: false } },
+      prompt: { path: "input.prompt" },
+      images: {
+        path: "input.media",
+        mode: "append",
+        encoding: "data_url",
+        item: { type: "{role}", url: "{data}" },
+        roles: ["first_frame", "last_frame"],
+        min: 2,
+        max: 2,
+      },
+      aspectRatio: { path: "parameters.ratio" },
+      duration: { path: "parameters.duration" },
+      seed: { path: "parameters.seed" },
+      output: "wan",
+    },
+  }),
 ];
 
 const MOCK_CAPABILITIES: Capability[] = ["text_to_image", "image_edit", "image_to_video", "first_last_to_video", "text_to_video"];
@@ -148,6 +188,7 @@ export const DEFAULT_RECIPE_IDS: Partial<Record<Capability, { primary: string; h
   text_to_image: { primary: "z-image-turbo-t2i", mock: "mock-text-to-image" },
   image_edit: { primary: "qwen-image-edit-2511-2ref", hosted: "router-nano-banana-2.1-edit", mock: "mock-image-edit" },
   image_to_video: { primary: "ltx-2.5-i2v", hosted: "router-wan-3-i2v", mock: "mock-image-to-video" },
+  first_last_to_video: { primary: "ltx-2.5-flf2v", hosted: "router-wan-3-flf2v", mock: "mock-first-last-to-video" },
   text_to_video: { primary: "router-ltx-2.5-fast", mock: "mock-text-to-video" },
 };
 

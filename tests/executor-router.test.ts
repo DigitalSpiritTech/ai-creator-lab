@@ -293,3 +293,16 @@ test("media downloads recheck redirects, pin the checked address, and never leak
     return true;
   });
 });
+
+test("the Wan first-and-last recipe sends both frames with their roles, in order", () =>
+  withTemp(async (directory) => {
+    const recipe = routerRecipe("router-wan-3-flf2v");
+    const first = await png(join(directory, "first.png"), 32, 56);
+    const last = await png(join(directory, "last.png"), 56, 32);
+    const images = await prepareImages([first, last], recipe);
+    const body = buildRouterBody(recipe, { prompt: "She turns to the window.", images: [first, last], aspectRatio: "9:16" }, images);
+    const media = (body.input as { media: { type: string; url: string }[] }).media;
+    assert.deepEqual(media.map((item) => item.type), ["first_frame", "last_frame"]);
+    assert.equal(media[1].url, `data:image/png;base64,${images[1].base64}`);
+    assert.throws(() => buildRouterBody(recipe, { prompt: "x", images: [first] }, images.slice(0, 1)), /at least 2 reference images/);
+  }));

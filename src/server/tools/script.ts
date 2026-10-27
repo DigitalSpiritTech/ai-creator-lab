@@ -4,7 +4,8 @@
  */
 import { z } from "zod";
 import { IdSchema, text } from "@/lib/domain/common";
-import { ContentPieceSchema, planShots as planContentShots, syncShotsToScript, updateCut } from "@/lib/domain/content";
+import { ContentPieceSchema, type Slot, planShots as planContentShots, syncShotsToScript, updateCut } from "@/lib/domain/content";
+import { nextRevision } from "@/lib/domain/common";
 import { fail } from "@/lib/domain/failure";
 import {
   BeatInputSchema,
@@ -108,5 +109,29 @@ export const setCutOrder = defineTool({
       if (input.shotIds.some((id) => !ids.has(id))) fail("invalid", "Order only this content piece's shots.");
       if (input.shotIds.length === content.cut.order.length && input.shotIds.every((id, index) => id === content.cut.order[index])) return content;
       return store.content.update(updateCut(content, { order: input.shotIds }, now()));
+    }),
+});
+
+const reopen = (slot: Slot): Slot => (slot.state === "approved" ? { state: "open", candidateIds: slot.candidateIds, selectedId: null } : slot);
+
+export const resetShots = defineTool({
+  name: "reset_shots",
+  description:
+    "Regenerate from here: withdraw the approved still and clip of one beat and every beat after it. Candidates stay, so earlier choices can be approved again.",
+  input: z.object({ contentId: IdSchema, fromBeatIndex: z.number().int().positive() }).strict(),
+  output: z.object({ content: ContentPieceSchema, resetBeats: z.array(z.number().int().positive()) }),
+  run: ({ store, now }, input) =>
+    store.transaction(() => {
+      const content = store.content.getRequired(input.contentId);
+      if (!content.shots.some((shot) => shot.beatIndex === input.fromBeatIndex)) fail("not_found", `Beat ${input.fromBeatIndex} has no shot in this content piece.`);
+      const resetBeats = content.shots
+        .filter((shot) => shot.beatIndex >= input.fromBeatIndex && (shot.still.state === "approved" || shot.clip.state === "approved"))
+        .map((shot) => shot.beatIndex);
+      if (resetBeats.length === 0) return { content, resetBeats };
+      const next = ContentPieceSchema.parse({
+        ...nextRevision(content, now()),
+        shots: content.shots.map((shot) => (shot.beatIndex >= input.fromBeatIndex ? { ...shot, still: reopen(shot.still), clip: reopen(shot.clip) } : shot)),
+      });
+      return { content: store.content.update(next), resetBeats };
     }),
 });

@@ -11,7 +11,7 @@ import type { Project } from "@/lib/domain/project";
 import type { Script } from "@/lib/domain/script";
 import type { Store } from "@/server/store";
 import { checklistText } from "@/server/agent/prompts/checklists";
-import { BODY_REFERENCE, FACE_LOCK, bodyPrompt, facePrompt, productPhotoPrompt } from "@/server/tools/prompts";
+import { BACKDROP_NAMES, BODY_REFERENCE, FACE_LOCK, backdropFor, bodyPrompt, facePrompt, productPhotoPrompt } from "@/server/tools/prompts";
 
 export interface ProjectSnapshot {
   project: Project;
@@ -183,7 +183,7 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
         id: "sheet",
         step: 7,
         title: "Reference sheet",
-        guidance: `Pick this project's outfit. Suggest the one from the bible's wardrobe defaults that suits the brief (${item.bible.wardrobeDefaults.map((outfit) => `"${outfit}"`).join(", ")}) as the default, or the user names one. Then call generate_reference_sheet with projectId, characterId ${item.id}, and that wardrobe.`,
+        guidance: `Pick this project's outfit. Suggest the one from the bible's wardrobe defaults that suits the brief and has a clear tone difference from gray (${item.bible.wardrobeDefaults.map((outfit) => `"${outfit}" (${BACKDROP_NAMES[backdropFor(outfit)]} background)`).join(", ")}) as the default, or the user names one. Then call generate_reference_sheet with projectId, characterId ${item.id}, and that wardrobe, and say which background the sheet uses.`,
       };
     }
     if (candidates.sheet.length) {

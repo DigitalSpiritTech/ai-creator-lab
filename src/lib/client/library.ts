@@ -23,5 +23,5 @@ export function bibleFields(item: CharacterItem): CharacterBibleFields {
 }
 
 export function productFields(item: ProductItem): ProductFields {
-  return { name: item.name, link: item.link, allowedClaims: item.allowedClaims, imageAssetIds: item.imageAssetIds };
+  return { name: item.name, appearance: item.appearance, link: item.link, allowedClaims: item.allowedClaims, imageAssetIds: item.imageAssetIds };
 }

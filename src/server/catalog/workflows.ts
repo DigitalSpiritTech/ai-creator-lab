@@ -47,7 +47,7 @@ export async function loadWorkflowRecipes(directory: string, meta: Record<string
           title: info?.title ?? titleFrom(id),
           capability: sidecar.capability,
           openWeights: sidecar.openWeights,
-          verified: info?.verified ?? null,
+          verified: info?.verified ?? sidecar.verified ?? null,
           costHint: info?.costHint ?? "Cost unknown until it runs; Cloud bills by GPU time.",
           ceilingUsd: info?.ceilingUsd,
           limits: {

@@ -51,6 +51,8 @@ export interface SettingsView {
     comfyApiKey: { present: boolean; source: "environment" | "settings" | null };
     anthropicApiKey: { present: boolean; source: "environment" | "settings" | null };
     llmModel: { value: string | null; source: "environment" | "settings" | null };
+    /** Which provider runs the assistant; defaults to "anthropic". */
+    llmProvider: { value: string; source: "environment" | "settings" | null };
   };
   allowance: { operatorUsd: number; effectiveUsd: number; spentUsd: number; reservedUsd: number };
   dataDirectory: string;

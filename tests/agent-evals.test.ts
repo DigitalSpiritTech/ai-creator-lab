@@ -203,7 +203,10 @@ describe("agent evals", () => {
             assert.match(latestState(params), /Next step: 7\. Reference sheet/);
             return [toolUse("generate_reference_sheet", { projectId: project.id, characterId })];
           },
-          say(`Avery is linked with the olive jacket, and two reference sheets are proposed. Inspect them at full size; reject any where ${CHECKLISTS.sheet[2].toLowerCase()}.`),
+          (params) => {
+            assert.match(JSON.stringify(params.messages.at(-1)), /Background: deep neutral gray, chosen to contrast with the outfit/);
+            return say(`Avery is linked with the olive jacket, and two reference sheets on a deep gray background are proposed. Inspect them at full size; reject any where ${CHECKLISTS.sheet[2].toLowerCase()}.`);
+          },
         ]),
       ),
     );

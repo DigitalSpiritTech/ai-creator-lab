@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { ArrowDown, ArrowUp, History, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, History, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useProject } from "@/components/project/project-context";
 import { EmptyState, Notice } from "@/components/shell/page-header";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { callTool, errorMessage, getJson } from "@/lib/client/api";
+import type { GenerationProposal } from "@/lib/client/types";
 import type { BeatInput, Script } from "@/lib/domain/script";
 
 type DraftBeat = Required<Omit<BeatInput, "notes">> & { notes: string };
@@ -64,7 +65,7 @@ const STARTER: DraftBeat[] = [
 ];
 
 export function ScriptTab() {
-  const { projectId, view, refresh, notify } = useProject();
+  const { projectId, view, refresh, notify, propose } = useProject();
   const scripts = view.scripts;
   const [scriptId, setScriptId] = useState<string | null>(scripts[0]?.id ?? null);
   const script = scripts.find((entry) => entry.id === scriptId) ?? scripts[0] ?? null;
@@ -136,6 +137,27 @@ export function ScriptTab() {
       setMessage({ tone: "ok", text: content ? "Shots updated to the current script." : "Shots planned: one per beat. Open the Shots tab." });
     } catch (cause) {
       notify("error", errorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Withdraws approvals from this beat on, then opens the beat's compose proposal at the gate. */
+  async function regenerateFrom(beatIndex: number) {
+    if (!content) return;
+    if (!window.confirm(`Withdraw the approved stills and clips of beat ${beatIndex} and every later beat? Candidates stay.`)) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const { resetBeats } = await callTool<{ resetBeats: number[] }>("reset_shots", { contentId: content.id, fromBeatIndex: beatIndex }, projectId);
+      propose(await callTool<GenerationProposal>("compose_still", { contentId: content.id, beatIndex }, projectId), "workspace");
+      setMessage({
+        tone: "ok",
+        text: `${resetBeats.length ? `Approvals withdrawn for beats ${resetBeats.join(", ")}.` : "No approvals to withdraw."} New stills for beat ${beatIndex} wait for your approval in Chat.`,
+      });
+      await refresh();
+    } catch (cause) {
+      setMessage({ tone: "error", text: errorMessage(cause) });
     } finally {
       setBusy(false);
     }
@@ -249,6 +271,16 @@ export function ScriptTab() {
                   <div className="flex flex-col gap-1">
                     <Button size="icon-xs" variant="ghost" disabled={index === 0} onClick={() => move(index, -1)} aria-label={`Move beat ${index + 1} up`}><ArrowUp /></Button>
                     <Button size="icon-xs" variant="ghost" disabled={index === beats.length - 1} onClick={() => move(index, 1)} aria-label={`Move beat ${index + 1} down`}><ArrowDown /></Button>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      disabled={busy || dirty || !content || content.scriptVersion !== script?.version}
+                      onClick={() => void regenerateFrom(index + 1)}
+                      aria-label={`Regenerate from beat ${index + 1}`}
+                      title="Regenerate from here"
+                    >
+                      <RotateCcw />
+                    </Button>
                     <Button size="icon-xs" variant="ghost" disabled={beats.length === 1} onClick={() => setBeats((current) => current.filter((_, position) => position !== index))} aria-label={`Remove beat ${index + 1}`}><Trash2 /></Button>
                   </div>
                 </td>

@@ -91,6 +91,20 @@ export function SettingsForm() {
     }
   }
 
+  async function saveProvider(llmProvider: string) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await sendJson("/api/settings/keys", { llmProvider });
+      setMessage({ tone: "ok", text: llmProvider === "router" ? "The assistant now runs through Comfy Router on your Comfy credits." : "The assistant now uses your Anthropic key directly." });
+      await load();
+    } catch (cause) {
+      setMessage({ tone: "error", text: errorMessage(cause) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function clearKey(name: "comfyApiKey" | "anthropicApiKey") {
     setBusy(true);
     try {
@@ -150,6 +164,12 @@ export function SettingsForm() {
           </div>
           <Button type="submit" size="sm" disabled={busy}>Save keys</Button>
         </form>
+        <ProviderChoice
+          value={view.keys.llmProvider?.value ?? "anthropic"}
+          fromEnvironment={view.keys.llmProvider?.source === "environment"}
+          disabled={busy}
+          onChange={(value) => void saveProvider(value)}
+        />
       </section>
 
       <section className="space-y-3" aria-label="Comfy connection">
@@ -262,5 +282,28 @@ function DefaultRecipe({ capability, value, recipes, disabled, onChange }: { cap
         ))}
       </NativeSelect>
     </>
+  );
+}
+
+export const ASSISTANT_PROVIDERS = [
+  { value: "anthropic", label: "Anthropic key (direct)", hint: "Uses the Anthropic API key above." },
+  { value: "router", label: "Comfy Router (uses your Comfy credits, no Anthropic key)", hint: "Uses the Comfy API key above; assistant turns draw from the same credits as generation." },
+] as const;
+
+export function ProviderChoice({ value, fromEnvironment, disabled, onChange }: { value: string; fromEnvironment: boolean; disabled: boolean; onChange: (value: string) => void }) {
+  return (
+    <fieldset className="space-y-1.5 rounded-lg border p-3 text-sm" disabled={disabled || fromEnvironment}>
+      <legend className="px-1 text-xs font-medium">Assistant provider</legend>
+      {ASSISTANT_PROVIDERS.map((provider) => (
+        <label key={provider.value} className="flex items-start gap-2">
+          <input type="radio" name="assistant-provider" value={provider.value} checked={value === provider.value} onChange={() => onChange(provider.value)} className="mt-1" />
+          <span>
+            {provider.label}
+            <span className="block text-xs text-muted-foreground">{provider.hint}</span>
+          </span>
+        </label>
+      ))}
+      {fromEnvironment ? <p className="text-xs text-muted-foreground">Set by LLM_PROVIDER in .env.local.</p> : null}
+    </fieldset>
   );
 }

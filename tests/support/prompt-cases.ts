@@ -10,6 +10,8 @@ import { averyBible, ridgelineBeats } from "./domain-fixtures";
 
 export const WARDROBE = "Olive utility jacket over a white tee";
 export const PRODUCT = "Ridgeline 32 oz insulated bottle";
+/** A wardrobe that needs the light background (gray and black clothing). */
+export const DARK_WARDROBE = "Heather gray hoodie and black leggings";
 
 export function fixtureBible(): CharacterBible {
   return CharacterBibleSchema.parse({ ...averyBible(), references: { faceAssetId: null, bodyAssetId: null }, version: 1 });
@@ -34,8 +36,11 @@ export function promptCases(): Record<string, string> {
   const [hook, problem, proof, , cta] = fixtureBeats();
   return {
     face: facePrompt(bible),
+    faceDarkGarment: facePrompt(bible, "a heather gray hoodie"),
     body: bodyPrompt(bible),
+    bodyLightBackdrop: bodyPrompt(bible, "light"),
     sheet: referenceSheetPrompt(bible, WARDROBE),
+    sheetDarkWardrobe: referenceSheetPrompt(bible, DARK_WARDROBE),
     stillTalkingSheet: stillPrompt({ beat: hook, bible, wardrobe: WARDROBE, character: { mode: "sheet", image: 1 }, product: { name: PRODUCT, image: 2 } }),
     stillTalkingFaceBody: stillPrompt({ beat: proof, bible, wardrobe: WARDROBE, character: { mode: "face", face: 1, body: 2 }, product: { name: PRODUCT, image: 3 } }),
     stillBroll: stillPrompt({ beat: problem, product: { name: PRODUCT, image: 1 } }),

@@ -5,18 +5,24 @@ import { CREATIVE_DIRECTOR_PROMPT, agentTools, loadSnapshot, nextStage, systemPr
 import { AGENT_TOOL_DESCRIPTIONS } from "@/server/agent/tools";
 import { stagePrompt } from "@/server/agent/prompts/creative-director";
 import { INTERNAL_TOOLS, TOOLS, type ToolContext, callTool, toolsToJsonSchema } from "@/server/tools";
-import { PROMPT_LIMIT, facePrompt, onlyDescribedObjects, withoutProductName } from "@/server/tools/prompts";
+import { PROMPT_LIMIT, backdropFor, backdropOf, facePrompt, onlyDescribedObjects, withoutProductName } from "@/server/tools/prompts";
 import { averyBible, clock, seedProject, tempStore } from "./support/domain-fixtures";
 import { promptCases } from "./support/prompt-cases";
 
 /** Snapshots of every template for the Avery Lane bible and the Ridgeline script. */
 const EXPECTED: Record<string, string> = {
   face:
-    "Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. Portrait, head and shoulders, head turned about thirty degrees to the left so the far cheek narrows and the near ear shows, eyes toward the camera, neutral expression with a hint of a smile, soft natural window light, plain light gray background, no accessories beyond those described, photographic, 85mm look. No text, captions, logos, or watermarks in the image.",
+    "Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. Portrait, head and shoulders, wearing a plain fitted navy crew-neck top, head turned about thirty degrees to the left so the far cheek narrows and the near ear shows, eyes toward the camera, neutral expression with a hint of a smile, soft natural window light, a deep neutral gray (#3a3a3c) seamless background, no accessories beyond those described, photographic, 85mm look. The outfit must contrast clearly with the background so the silhouette reads. No text, captions, logos, or watermarks in the image.",
+  faceDarkGarment:
+    "Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. Portrait, head and shoulders, wearing a heather gray hoodie, head turned about thirty degrees to the left so the far cheek narrows and the near ear shows, eyes toward the camera, neutral expression with a hint of a smile, soft natural window light, a light warm neutral seamless background (light greige, roughly #d8d2c8), no accessories beyond those described, photographic, 85mm look. The outfit must contrast clearly with the background so the silhouette reads. No text, captions, logos, or watermarks in the image.",
   body:
-    "Same person as the reference image, identical face and hair. Build: Average height, athletic and relaxed. Three-quarter view full-body standing pose, body turned about thirty degrees from the camera, relaxed, arms at sides, fitted neutral athleticwear (plain fitted tee and leggings or shorts), simple trainers, head to toe inside the frame, plain light gray background, even soft light, photographic. No text, captions, logos, or watermarks in the image.",
+    "Same person as the reference image, identical face and hair. Build: Average height, athletic and relaxed. Three-quarter view full-body standing pose, body turned about thirty degrees from the camera, relaxed, arms at sides, fitted navy athleticwear (plain fitted tee and leggings or shorts), simple trainers, head to toe inside the frame, a deep neutral gray (#3a3a3c) seamless background, even soft light, photographic. The outfit must contrast clearly with the background so the silhouette reads. No text, captions, logos, or watermarks in the image.",
+  bodyLightBackdrop:
+    "Same person as the reference image, identical face and hair. Build: Average height, athletic and relaxed. Three-quarter view full-body standing pose, body turned about thirty degrees from the camera, relaxed, arms at sides, fitted charcoal athleticwear (plain fitted tee and leggings or shorts), simple trainers, head to toe inside the frame, a light warm neutral seamless background (light greige, roughly #d8d2c8), even soft light, photographic. The outfit must contrast clearly with the background so the silhouette reads. No text, captions, logos, or watermarks in the image.",
   sheet:
-    "Character reference sheet of one consistent person, on a deep neutral grey (#3a3a3c) seamless studio background, clean editorial layout in three vertical columns read left to right, identical identity, lighting, and color grading in every panel.\nColumn 1, largest, about a third of the width: chest-up portrait turned slightly off frontal, sharp focus on the eyes, iris color clearly visible, soft catchlights in both eyes, natural skin texture with subtle imperfections, no mirror symmetry.\nColumn 2: full-body front view, relaxed standing pose, arms slightly away from the body, head to toe inside the frame with even margins.\nColumn 3: full-body back view, same pose mirrored, showing hair fall, posture, and garment fit.\nThe person is the person in reference image 1 (face, hair, skin, eyes) with the build of reference image 2. Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. Wardrobe in every panel: Olive utility jacket over a white tee.\nSoft even studio light, large diffused key with gentle fill, neutral white balance, true-to-life skin, 85mm look, tack-sharp detail. No text, no labels, no logos, no colored rim light, no 3D render look.",
+    "Character reference sheet of one consistent person, on a deep neutral gray (#3a3a3c) seamless studio background, clean editorial layout in three vertical columns read left to right, identical identity, lighting, and color grading in every panel.\nColumn 1, largest, about a third of the width: chest-up portrait turned slightly off frontal, sharp focus on the eyes, iris color clearly visible, soft catchlights in both eyes, natural skin texture with subtle imperfections, no mirror symmetry.\nColumn 2: full-body front view, relaxed standing pose, arms slightly away from the body, head to toe inside the frame with even margins.\nColumn 3: full-body back view, same pose mirrored, showing hair fall, posture, and garment fit.\nThe person is the person in reference image 1 (face, hair, skin, eyes) with the build of reference image 2. Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. Wardrobe in every panel: Olive utility jacket over a white tee. The outfit must contrast clearly with the background so the silhouette reads.\nSoft even studio light, large diffused key with gentle fill, neutral white balance, true-to-life skin, 85mm look, tack-sharp detail. No text, no labels, no logos, no colored rim light, no 3D render look.",
+  sheetDarkWardrobe:
+    "Character reference sheet of one consistent person, on a light warm neutral seamless studio background (light greige, roughly #d8d2c8), clean editorial layout in three vertical columns read left to right, identical identity, lighting, and color grading in every panel.\nColumn 1, largest, about a third of the width: chest-up portrait turned slightly off frontal, sharp focus on the eyes, iris color clearly visible, soft catchlights in both eyes, natural skin texture with subtle imperfections, no mirror symmetry.\nColumn 2: full-body front view, relaxed standing pose, arms slightly away from the body, head to toe inside the frame with even margins.\nColumn 3: full-body back view, same pose mirrored, showing hair fall, posture, and garment fit.\nThe person is the person in reference image 1 (face, hair, skin, eyes) with the build of reference image 2. Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. Wardrobe in every panel: Heather gray hoodie and black leggings. The outfit must contrast clearly with the background so the silhouette reads.\nSoft even studio light, large diffused key with gentle fill, neutral white balance, true-to-life skin, 85mm look, tack-sharp detail. No text, no labels, no logos, no colored rim light, no 3D render look.",
   stillTalkingSheet:
     "Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings. The person shown in the character reference sheet, reference image 1, wearing olive utility jacket over a white tee. Mid-sentence, talking to a phone camera held at arm's length, relaxed natural expression, mouth slightly open as if speaking. Avery in the driver's seat holding the bottle, morning light. Setting: a car interior. The product in reference image 2 is a 32 oz insulated bottle, clearly visible, true to its shape, color, and materials, no text, lettering, or logo on the product. Only the objects described; no additional phones or props, and no bottles beyond those described. Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image. Preserve the person's identity, face, hair, build, and wardrobe exactly as in the sheet.",
   stillTalkingFaceBody:
@@ -36,7 +42,7 @@ const EXPECTED: Record<string, string> = {
   refineStill:
     "Make the morning light warmer. Change only that. Keep the person, product, composition, lighting, and background otherwise identical. No text, captions, logos, or watermarks in the image.",
   refineSheet:
-    "Clean the grime from the background. Change only that. Keep the three-panel layout, the same person in every panel, the wardrobe, and the clean deep grey background otherwise identical. No text, captions, logos, or watermarks in the image.",
+    "Clean the grime from the background. Change only that. Keep the three-panel layout, the same person in every panel, the wardrobe, and the clean seamless background otherwise identical. No text, captions, logos, or watermarks in the image.",
 };
 
 const cleanups: (() => void)[] = [];
@@ -63,6 +69,27 @@ describe("prompt templates", () => {
     assert.ok(face.startsWith(averyBible().visualCore));
     assert.match(body, /thirty degrees/);
     assert.match(body, /athleticwear/);
+  });
+
+  test("reference backgrounds contrast with the outfit: deep gray by default, light warm for gray or dark clothing", () => {
+    const cases = promptCases();
+    for (const name of ["face", "body", "sheet"]) {
+      assert.match(cases[name], /deep neutral gray \(#3a3a3c\) seamless/, name);
+      assert.equal(backdropOf(cases[name]), "gray", name);
+    }
+    for (const name of ["faceDarkGarment", "bodyLightBackdrop", "sheetDarkWardrobe"]) {
+      assert.match(cases[name], /light warm neutral seamless (studio )?background \(light greige, roughly #d8d2c8\)/, name);
+      assert.equal(backdropOf(cases[name]), "light", name);
+    }
+    for (const name of ["face", "faceDarkGarment", "body", "bodyLightBackdrop", "sheet", "sheetDarkWardrobe"]) {
+      assert.match(cases[name], /The outfit must contrast clearly with the background so the silhouette reads\./, name);
+      assert.doesNotMatch(cases[name], /(white|black) (seamless |studio )*background/i, name);
+    }
+    assert.match(cases.body, /fitted navy athleticwear/);
+    assert.match(cases.bodyLightBackdrop, /fitted charcoal athleticwear/);
+    assert.doesNotMatch(cases.body, /neutral athleticwear/);
+    for (const garment of ["gray tee", "Grey hoodie", "charcoal jacket", "black leggings", "dark denim"]) assert.equal(backdropFor(garment), "light", garment);
+    for (const garment of ["Olive utility jacket over a white tee", "Oatmeal knit sweater and jeans", "navy athleticwear"]) assert.equal(backdropFor(garment), "gray", garment);
   });
 
   test("stills reference the sheet when approved and face plus body otherwise", () => {

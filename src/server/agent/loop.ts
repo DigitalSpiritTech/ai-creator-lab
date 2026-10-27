@@ -19,6 +19,7 @@ import { type GenerationProposal, GenerationProposalSchema } from "@/lib/domain/
 import { type LlmModel, type Usage, addUsage, anthropicModel, emptyUsage } from "@/server/agent/model";
 import { stagePrompt, systemPrompt } from "@/server/agent/prompts/creative-director";
 import { loadSnapshot, renderSnapshot } from "@/server/agent/state";
+import { BACKDROP_NAMES, backdropOf } from "@/server/tools/prompts";
 import { agentToolNames, agentTools } from "@/server/agent/tools";
 import { conversationsOf } from "@/server/store/conversations";
 import { type ToolContext, callTool, getTool } from "@/server/tools";
@@ -97,11 +98,15 @@ function resultText(context: ToolContext, projectId: string, name: string, outpu
   const proposal = GenerationProposalSchema.safeParse(output);
   if (proposal.success) {
     const p = proposal.data;
+    const backdrop = backdropOf(p.prompt);
     return [
       `Proposal ${p.id} is waiting for the user's approval on its card. Nothing has been generated.`,
       `${p.count} candidate(s) with ${p.recipeTitle} (${p.capability}), ${p.references.length} reference image(s), estimate ${estimateText(p)}.`,
       `Target: ${JSON.stringify(p.target)}.`,
-    ].join(" ");
+      backdrop ? `Background: ${BACKDROP_NAMES[backdrop]}, chosen to contrast with the outfit; tell the user.` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
   }
   if (name === "get_project_state") {
     const snapshot = loadSnapshot(context.store, projectId);

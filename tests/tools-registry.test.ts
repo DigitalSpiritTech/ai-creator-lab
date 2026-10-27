@@ -31,6 +31,7 @@ const ROSTER = [
   "archive_library_item",
   "create_set",
   "set_cut_order",
+  "reset_shots",
 ];
 
 const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));

@@ -131,36 +131,81 @@ export function productPhotoPrompt(product: ProductLook, setting = "a light wood
   ].join(" ");
 }
 
+/** Background tones for identity references; never white or black. */
+export type Backdrop = "gray" | "light";
+
+export const BACKDROPS: Record<Backdrop, string> = {
+  gray: "a deep neutral gray (#3a3a3c) seamless background",
+  light: "a light warm neutral seamless background (light greige, roughly #d8d2c8)",
+};
+
+/** Short names for telling the user which background a proposal uses. */
+export const BACKDROP_NAMES: Record<Backdrop, string> = { gray: "deep neutral gray", light: "light warm neutral" };
+
+/** Athleticwear colors that contrast with each background. */
+export const ATHLETICWEAR: Record<Backdrop, string> = { gray: "navy", light: "charcoal" };
+
+export const CONTRAST = "The outfit must contrast clearly with the background so the silhouette reads.";
+
+const DARK_GARMENT = /\b(gr[ae]y|charcoal|black|dark)\b/i;
+
+/**
+ * The background for a garment: gray, charcoal, black, or dark clothing goes on the light warm
+ * background (a gray tee on gray loses the silhouette); everything else on deep neutral gray.
+ */
+export function backdropFor(garment: string): Backdrop {
+  return DARK_GARMENT.test(garment) ? "light" : "gray";
+}
+
+/** Which background a reference prompt asked for, for proposal copy; undefined for other prompts. */
+export function backdropOf(prompt: string): Backdrop | undefined {
+  if (prompt.includes("#d8d2c8")) return "light";
+  if (prompt.includes("#3a3a3c")) return "gray";
+  return undefined;
+}
+
+/** The top the face lock shows at the shoulders; navy reads against the deep gray background. */
+export const FACE_GARMENT = "a plain fitted navy crew-neck top";
+
 /**
  * The face lock prompt. Z-Image ignores "three-quarter view" on its own, so the turn is spelled
- * out as a thirty-degree head turn with what it does to the cheek and ear.
+ * out as a thirty-degree head turn with what it does to the cheek and ear. The background follows
+ * the garment at the shoulders.
  */
-export function facePrompt(bible: Pick<CharacterBible, "visualCore">): string {
+export function facePrompt(bible: Pick<CharacterBible, "visualCore">, garment: string = FACE_GARMENT): string {
   return [
     sentence(bible.visualCore),
-    "Portrait, head and shoulders, head turned about thirty degrees to the left so the far cheek narrows and the near ear shows, eyes toward the camera, neutral expression with a hint of a smile, soft natural window light, plain light gray background, no accessories beyond those described, photographic, 85mm look.",
+    `Portrait, head and shoulders, wearing ${inline(garment)}, head turned about thirty degrees to the left so the far cheek narrows and the near ear shows, eyes toward the camera, neutral expression with a hint of a smile, soft natural window light, ${BACKDROPS[backdropFor(garment)]}, no accessories beyond those described, photographic, 85mm look.`,
+    CONTRAST,
     NO_TEXT,
   ].join(" ");
 }
 
-/** The body reference prompt, an edit of the locked face (the only reference image). */
-export function bodyPrompt(bible: Pick<CharacterBible, "build">): string {
+/**
+ * The body reference prompt, an edit of the locked face (the only reference image). Navy
+ * athleticwear on deep gray by default, or charcoal on the light background.
+ */
+export function bodyPrompt(bible: Pick<CharacterBible, "build">, backdrop: Backdrop = "gray"): string {
   return [
     "Same person as the reference image, identical face and hair.",
     `Build: ${sentence(bible.build)}`,
-    "Three-quarter view full-body standing pose, body turned about thirty degrees from the camera, relaxed, arms at sides, fitted neutral athleticwear (plain fitted tee and leggings or shorts), simple trainers, head to toe inside the frame, plain light gray background, even soft light, photographic.",
+    `Three-quarter view full-body standing pose, body turned about thirty degrees from the camera, relaxed, arms at sides, fitted ${ATHLETICWEAR[backdrop]} athleticwear (plain fitted tee and leggings or shorts), simple trainers, head to toe inside the frame, ${BACKDROPS[backdrop]}, even soft light, photographic.`,
+    CONTRAST,
     NO_TEXT,
   ].join(" ");
 }
 
-/** The reference sheet prompt from the character-bible skill, verbatim. */
+/**
+ * The reference sheet prompt from the character-bible skill, with the background chosen from the
+ * wardrobe so the outfit contrasts with it.
+ */
 export function referenceSheetPrompt(bible: Pick<CharacterBible, "visualCore">, wardrobe: string): string {
   return [
-    "Character reference sheet of one consistent person, on a deep neutral grey (#3a3a3c) seamless studio background, clean editorial layout in three vertical columns read left to right, identical identity, lighting, and color grading in every panel.",
+    `Character reference sheet of one consistent person, on ${BACKDROPS[backdropFor(wardrobe)].replace("seamless background", "seamless studio background")}, clean editorial layout in three vertical columns read left to right, identical identity, lighting, and color grading in every panel.`,
     "Column 1, largest, about a third of the width: chest-up portrait turned slightly off frontal, sharp focus on the eyes, iris color clearly visible, soft catchlights in both eyes, natural skin texture with subtle imperfections, no mirror symmetry.",
     "Column 2: full-body front view, relaxed standing pose, arms slightly away from the body, head to toe inside the frame with even margins.",
     "Column 3: full-body back view, same pose mirrored, showing hair fall, posture, and garment fit.",
-    `The person is the person in reference image 1 (face, hair, skin, eyes) with the build of reference image 2. ${sentence(bible.visualCore)} Wardrobe in every panel: ${clause(wardrobe)}.`,
+    `The person is the person in reference image 1 (face, hair, skin, eyes) with the build of reference image 2. ${sentence(bible.visualCore)} Wardrobe in every panel: ${clause(wardrobe)}. ${CONTRAST}`,
     "Soft even studio light, large diffused key with gentle fill, neutral white balance, true-to-life skin, 85mm look, tack-sharp detail. No text, no labels, no logos, no colored rim light, no 3D render look.",
   ].join("\n");
 }
@@ -277,7 +322,7 @@ export function clipPrompt(beat: Beat, parts: ClipPromptParts = {}): string {
 export function refinePrompt(instruction: string, kind: "still" | "sheet" = "still"): string {
   const keep =
     kind === "sheet"
-      ? "Keep the three-panel layout, the same person in every panel, the wardrobe, and the clean deep grey background otherwise identical."
+      ? "Keep the three-panel layout, the same person in every panel, the wardrobe, and the clean seamless background otherwise identical."
       : "Keep the person, product, composition, lighting, and background otherwise identical.";
   return `${clause(instruction)}. Change only that. ${keep} ${NO_TEXT}`;
 }

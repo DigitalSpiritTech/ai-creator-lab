@@ -1,5 +1,5 @@
 /**
- * API keys and the assistant model: read from the environment first, then from
+ * API keys, the assistant model, and the assistant provider: read from the environment first, then from
  * `<dataDir>/secrets.json` (written by Settings with mode 0600). Values never leave the server;
  * `secretsStatus` is the only shape API routes return, and it carries presence, not values.
  *
@@ -15,11 +15,17 @@ export const SECRETS_FILE = "secrets.json";
 
 const SecretValueSchema = z.string().trim().min(1).max(500);
 
+/** Where the assistant runs: the Anthropic API with its own key, or Comfy Router with the Comfy key. */
+export const LlmProviderSchema = z.enum(["anthropic", "router"]);
+export type LlmProvider = z.infer<typeof LlmProviderSchema>;
+export const DEFAULT_LLM_PROVIDER: LlmProvider = "anthropic";
+
 export const SecretsFileSchema = z
   .object({
     comfyApiKey: SecretValueSchema.optional(),
     anthropicApiKey: SecretValueSchema.optional(),
     llmModel: z.string().trim().min(1).max(120).optional(),
+    llmProvider: LlmProviderSchema.optional(),
   })
   .strip();
 export type SecretsFile = z.infer<typeof SecretsFileSchema>;
@@ -30,6 +36,7 @@ export const SecretsPatchSchema = z
     comfyApiKey: z.string().trim().max(500).nullable().optional(),
     anthropicApiKey: z.string().trim().max(500).nullable().optional(),
     llmModel: z.string().trim().max(120).nullable().optional(),
+    llmProvider: LlmProviderSchema.nullable().optional(),
   })
   .strict();
 export type SecretsPatch = z.infer<typeof SecretsPatchSchema>;
@@ -38,12 +45,14 @@ export interface Secrets {
   comfyApiKey?: string;
   anthropicApiKey?: string;
   llmModel?: string;
+  llmProvider?: LlmProvider;
 }
 
 const ENV_NAMES = {
   comfyApiKey: "COMFY_API_KEY",
   anthropicApiKey: "ANTHROPIC_API_KEY",
   llmModel: "LLM_MODEL",
+  llmProvider: "LLM_PROVIDER",
 } as const satisfies Record<keyof Secrets, string>;
 
 export type SecretSource = "environment" | "settings" | null;
@@ -53,6 +62,8 @@ export interface SecretsStatus {
   anthropicApiKey: { present: boolean; source: SecretSource };
   /** The model id is not a secret, so its value is returned. */
   llmModel: { value: string | null; source: SecretSource };
+  /** The assistant provider; `anthropic` when nothing is set (source null). */
+  llmProvider: { value: LlmProvider; source: SecretSource };
 }
 
 function readFile(dataDir: string): SecretsFile {
@@ -74,14 +85,16 @@ function fromEnv(env: Record<string, string | undefined>, name: string): string 
 function resolveAll(dataDir: string, env: Record<string, string | undefined>): { values: Secrets; sources: Record<keyof Secrets, SecretSource> } {
   const file = readFile(dataDir);
   const values: Secrets = {};
-  const sources = { comfyApiKey: null, anthropicApiKey: null, llmModel: null } as Record<keyof Secrets, SecretSource>;
+  const sources = { comfyApiKey: null, anthropicApiKey: null, llmModel: null, llmProvider: null } as Record<keyof Secrets, SecretSource>;
   for (const key of Object.keys(ENV_NAMES) as (keyof Secrets)[]) {
-    const environment = fromEnv(env, ENV_NAMES[key]);
+    let environment = fromEnv(env, ENV_NAMES[key]);
+    // An unrecognized LLM_PROVIDER is ignored rather than trusted.
+    if (key === "llmProvider" && environment !== undefined && !LlmProviderSchema.safeParse(environment.toLowerCase()).success) environment = undefined;
     if (environment) {
-      values[key] = environment;
+      (values as Record<string, string>)[key] = key === "llmProvider" ? environment.toLowerCase() : environment;
       sources[key] = "environment";
     } else if (file[key]) {
-      values[key] = file[key];
+      (values as Record<string, string>)[key] = file[key];
       sources[key] = "settings";
     }
   }
@@ -100,6 +113,7 @@ export function secretsStatus(dataDir: string, env: Record<string, string | unde
     comfyApiKey: { present: !!values.comfyApiKey, source: sources.comfyApiKey },
     anthropicApiKey: { present: !!values.anthropicApiKey, source: sources.anthropicApiKey },
     llmModel: { value: values.llmModel ?? null, source: sources.llmModel },
+    llmProvider: { value: values.llmProvider ?? DEFAULT_LLM_PROVIDER, source: sources.llmProvider },
   };
 }
 
@@ -110,7 +124,7 @@ export function writeSecrets(dataDir: string, patch: SecretsPatch): void {
     const value = patch[key];
     if (value === undefined) continue;
     if (value === null || value === "") delete next[key];
-    else next[key] = value;
+    else (next as Record<string, string>)[key] = value;
   }
   const path = join(dataDir, SECRETS_FILE);
   const temporary = `${path}.${process.pid}.tmp`;

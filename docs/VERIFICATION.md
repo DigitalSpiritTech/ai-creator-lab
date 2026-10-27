@@ -24,6 +24,8 @@ Columns: date (America/Chicago), who, target (cloud, deployment, proxy, router),
 | 2026-10-26 15:34 | spike | cloud | z-image-turbo-t2i | prompt:face (1024x1024, seed 7) | .data/spike/face.png 1024x1024 png | 5496 / 5494 / 2 (0.94c) | 17s (queue 8.4s, exec 7.7s) | job f33eefc3-d88b-4a35-9f1a-3c9a0229c1b5; output recovered by job id after a client-side status bug |
 
 
+Pending, not yet run on a real account: `ltx-2.5-flf2v` (first and last frame to video on Comfy Cloud) and `router-wan-3-flf2v` (hosted alternative) are unverified. The workflow's node classes and required inputs were checked offline against Cloud's node list; no credits have been spent on either. Add a row above when the first real run happens.
+
 ## Spike results (October 26, evening)
 
 All four capability checks passed on real accounts in about 40 minutes, for 36 credits total (about 0.17 USD). Balance endpoint: `GET https://cloud.comfy.org/api/billing/balance` with `X-API-Key`; `effective_balance_cents` times 2.11 equals the credit count shown in the Cloud UI. The balance lags a run by up to a minute, so per-run deltas read immediately can show zero; settle from the balance later.

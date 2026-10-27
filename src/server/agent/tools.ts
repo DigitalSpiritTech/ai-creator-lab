@@ -108,6 +108,10 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     "Set the order the approved clips play in the export: pass every shot id of the ad exactly once. assemble_ad uses this order.",
     'Example: the user wants the product reveal before the problem beat.',
   ].join(" "),
+  reset_shots: [
+    "Regenerate from here: withdraw the approved still and clip of beat fromBeatIndex and every later beat (candidates stay); then compose new stills for the first one.",
+    'Example: the user says "redo everything from beat 3", so reset from beat 3 and propose its stills.',
+  ].join(" "),
 };
 
 /** The `tools` array for the assistant: the roster, with model-facing descriptions. */

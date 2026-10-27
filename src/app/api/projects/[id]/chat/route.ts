@@ -1,11 +1,12 @@
 /**
  * The project chat. GET returns the stored conversation; POST streams one assistant turn as
  * server-sent events (`event: <type>` with the AgentEvent as JSON data). Closing the request aborts
- * the turn. The Anthropic key and model come from the environment, then Settings.
+ * the turn. The provider (Anthropic, or Comfy Router with the Comfy key), its key, and the model come
+ * from the environment, then Settings.
  * @packageDocumentation
  */
 import { z } from "zod";
-import { type AgentEvent, anthropicModel, runAgentTurn } from "@/server/agent";
+import { type AgentEvent, assistantModel, runAgentTurn } from "@/server/agent";
 import { readSecrets } from "@/server/secrets";
 import { conversationsOf } from "@/server/store/conversations";
 import { encodeSse } from "@/lib/client/sse";
@@ -36,8 +37,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await withStore((store) => store.projects.getRequired(projectId));
     const store = getStore();
     const context = toolContextFor(store);
-    const secrets = readSecrets(store.dataDir);
-    const model = anthropicModel({ apiKey: secrets.anthropicApiKey, model: secrets.llmModel });
+    const model = assistantModel(readSecrets(store.dataDir));
     const encoder = new TextEncoder();
     const abort = new AbortController();
     request.signal.addEventListener("abort", () => abort.abort());

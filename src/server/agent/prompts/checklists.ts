@@ -21,7 +21,7 @@ export const CHECKLISTS = {
     "The portrait is the largest panel (a quarter to a third of the sheet) and not dead-on frontal",
     "Irises show their color and both eyes have a catchlight",
     "The face in the full-body panels matches the portrait (one identity, not two)",
-    "Clean grey background, no colored rim light, no plastic or game-render skin, face not mirror-symmetric",
+    "Clean, even background that the outfit stands out against; no colored rim light, no plastic or game-render skin, face not mirror-symmetric",
     "The same chosen outfit in every panel",
     "No text, labels, logos, or watermarks",
   ],

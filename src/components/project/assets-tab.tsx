@@ -10,6 +10,7 @@ import { Link2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CandidateGrid } from "@/components/cards/candidate-grid";
+import { ProductForm } from "@/components/library/product-form";
 import { AssetThumb } from "@/components/media/asset-media";
 import { useProject } from "@/components/project/project-context";
 import { SheetChecklist, sheetChecklist } from "@/components/project/sheet-checklist";
@@ -21,6 +22,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { callTool, errorMessage, getJson } from "@/lib/client/api";
 import type { Asset, CharacterItem, GenerationProposal, LibraryView, ProjectLink } from "@/lib/client/types";
 import { bibleFields, productFields } from "@/lib/client/library";
+import type { ProductItem } from "@/lib/domain/library";
 
 type CharacterLink = Extract<ProjectLink, { kind: "character" }>;
 
@@ -54,17 +56,7 @@ export function AssetsTab() {
           <p className="text-xs text-muted-foreground">No product linked yet.</p>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {view.products.map((product) => (
-              <div key={product.id} className="flex gap-3 rounded-lg border p-3 text-xs">
-                <AssetThumb id={product.imageAssetIds[0]} label="Photo" className="size-16" />
-                <div>
-                  <Link href={`/library/${product.id}`} className="font-medium hover:underline">{product.name}</Link>
-                  <ul className="mt-1 list-disc pl-4 text-muted-foreground">
-                    {product.allowedClaims.map((claim) => <li key={claim}>{claim}</li>)}
-                  </ul>
-                </div>
-              </div>
-            ))}
+            {view.products.map((product) => <ProductCard key={product.id} product={product} />)}
           </div>
         )}
       </section>
@@ -216,6 +208,38 @@ function LinkFromLibrary({ kind }: { kind: "character" | "product" }) {
       <Button size="sm" variant="outline" disabled={!choice} onClick={() => void link()}>
         <Link2 /> Link
       </Button>
+    </div>
+  );
+}
+
+function ProductCard({ product }: { product: ProductItem }) {
+  const { refresh } = useProject();
+  const [editing, setEditing] = useState(false);
+  return (
+    <div className="space-y-3 rounded-lg border p-3 text-xs">
+      <div className="flex gap-3">
+        <AssetThumb id={product.imageAssetIds[0]} label="Photo" className="size-16" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <Link href={`/library/${product.id}`} className="font-medium hover:underline">{product.name}</Link>
+            <Button size="xs" variant="ghost" onClick={() => setEditing((open) => !open)} aria-expanded={editing}>{editing ? "Close" : "Edit"}</Button>
+          </div>
+          <p className="mt-1 text-muted-foreground">{product.appearance || "No appearance yet. Stills need it to show the product."}</p>
+          <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+            {product.allowedClaims.map((claim) => <li key={claim}>{claim}</li>)}
+          </ul>
+        </div>
+      </div>
+      {editing ? (
+        <ProductForm
+          key={product.revision}
+          product={product}
+          onSaved={() => {
+            setEditing(false);
+            void refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

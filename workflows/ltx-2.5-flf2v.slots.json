@@ -1,0 +1,31 @@
+{
+  "workflow": "ltx-2.5-flf2v.api.json",
+  "capability": "first_last_to_video",
+  "openWeights": true,
+  "verified": null,
+  "outputNode": "9",
+  "slots": {
+    "prompt": { "node": "5", "input": "text" },
+    "first": { "node": "22", "input": "image", "kind": "image" },
+    "last": { "node": "25", "input": "image", "kind": "image" },
+    "width": { "node": "8", "input": "width" },
+    "height": { "node": "8", "input": "height" },
+    "length": [
+      { "node": "8", "input": "length" },
+      { "node": "10", "input": "frames_number" }
+    ],
+    "seed": { "node": "12", "input": "noise_seed" },
+    "firstStrength": { "node": "24", "input": "strength" },
+    "lastStrength": { "node": "27", "input": "strength" }
+  },
+  "limits": {
+    "sizes": [
+      [576, 1024],
+      [1024, 576],
+      [768, 768]
+    ],
+    "length": { "default": 121, "rule": "8n+1" },
+    "fps": 24
+  },
+  "notes": "LTX 2.5 22B distilled int8 with LTXVAddGuide on frame 0 and frame -1, then LTXVCropGuides before decoding; same model files and sampler as the image-to-video workflow. Unverified on Comfy Cloud."
+}

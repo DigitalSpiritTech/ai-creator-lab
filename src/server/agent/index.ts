@@ -3,7 +3,19 @@
  * @packageDocumentation
  */
 export { type AgentEvent, type AgentTurnInput, type AgentUsage, type AgentTurnOptions, MAX_TOOL_CALLS, runAgentTurn } from "@/server/agent/loop";
-export { DEFAULT_LLM_MODEL, type LlmModel, type ModelEvent, type StreamParams, type Usage, anthropicModel, buildRequest } from "@/server/agent/model";
+export {
+  DEFAULT_LLM_MODEL,
+  type LlmModel,
+  type ModelEvent,
+  type RouterMessagesPort,
+  type StreamParams,
+  type Usage,
+  anthropicModel,
+  assistantModel,
+  buildRequest,
+  messageEvents,
+  routerModel,
+} from "@/server/agent/model";
 export { CREATIVE_DIRECTOR_PROMPT, STATE_CLOSE, STATE_OPEN, stagePrompt, systemPrompt } from "@/server/agent/prompts/creative-director";
 export { CHECKLISTS, type ChecklistKind } from "@/server/agent/prompts/checklists";
 export { type ProjectSnapshot, type Stage, type StageId, loadSnapshot, nextStage, renderSnapshot } from "@/server/agent/state";

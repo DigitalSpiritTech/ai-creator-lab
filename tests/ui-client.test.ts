@@ -16,6 +16,9 @@ import type { ChatItem } from "@/components/project/project-context";
 import { applyAgentEvent, historyToItems, parseAgentEvent } from "@/lib/client/chat";
 import { ASSET_KINDS, assetKindInfo, describeEstimate, describeTarget, shouldPoll, summarizeSubmit } from "@/lib/client/format";
 import { AssetMedia } from "@/components/media/asset-media";
+import { ProductForm } from "@/components/library/product-form";
+import { ProviderChoice } from "@/components/settings/settings-form";
+import { productFields } from "@/lib/client/library";
 import { AssetKindSchema } from "@/lib/domain/asset";
 import { createSseParser, encodeSse } from "@/lib/client/sse";
 import type { GenerationProposal } from "@/lib/client/types";
@@ -165,5 +168,27 @@ describe("asset kinds", () => {
     );
     assert.match(html, /<video/);
     assert.match(html, new RegExp(`poster="/api/assets/${id}\\?poster"`));
+  });
+});
+
+describe("product appearance and assistant provider", () => {
+  test("the product form edits appearance and linking keeps it", () => {
+    const html = renderToStaticMarkup(createElement(ProductForm, { onSaved: () => undefined }));
+    assert.match(html, /Appearance/);
+    assert.match(html, /never by its name/);
+    const product = {
+      id: randomUUID(), kind: "product" as const, archived: false, brokenAssetIds: [], revision: 2, createdAt: 1, updatedAt: 1,
+      name: "Ridgeline 32 oz insulated bottle", appearance: "Matte sage-green steel bottle", link: null, allowedClaims: ["Dishwasher safe"], imageAssetIds: [],
+    };
+    assert.equal(productFields(product).appearance, "Matte sage-green steel bottle");
+  });
+
+  test("the provider choice offers direct Anthropic and Comfy Router", () => {
+    const html = renderToStaticMarkup(createElement(ProviderChoice, { value: "router", fromEnvironment: false, disabled: false, onChange: () => undefined }));
+    assert.match(html, /Anthropic key \(direct\)/);
+    assert.match(html, /Comfy Router \(uses your Comfy credits, no Anthropic key\)/);
+    assert.match(html, /checked="" value="router"/);
+    const locked = renderToStaticMarkup(createElement(ProviderChoice, { value: "anthropic", fromEnvironment: true, disabled: false, onChange: () => undefined }));
+    assert.match(locked, /LLM_PROVIDER in .env.local/);
   });
 });

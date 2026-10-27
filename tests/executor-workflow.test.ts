@@ -316,3 +316,37 @@ test("planWorkflow rejects wrong reference counts, unsupported sizes, and broken
   assert.equal(plan.values.width, 768);
   assert.equal(plan.values.seed, 9);
 });
+
+test("LTX first-and-last fits both frames to one canvas, binds each to its loader, and verifies the MP4", () =>
+  withTemp(async (directory) => {
+    const first = await png(join(directory, "start.png"), 1000, 800);
+    const last = await png(join(directory, "end.png"), 700, 1200);
+    const clip = join(directory, "clip.mp4");
+    await run(process.env.FFMPEG_PATH || "ffmpeg", [
+      "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=c=green:s=576x1024:r=24", "-f", "lavfi", "-i", "sine=frequency=330:sample_rate=48000",
+      "-frames:v", "121", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", clip,
+    ]);
+    const fake = new FakeCloud(jobs.ltx.id, jobs.ltx.states, "9", [{ source: clip, type: "video", contentType: "video/mp4" }]);
+    const repository = new MemoryJobStore();
+    const executor = new WorkflowExecutor({ jobs: repository, client: fake, workflowsDir });
+    const job = request(repository, await recipe("ltx-2.5-flf2v"), {
+      prompt: "She sets the bottle down and looks out the window.",
+      images: [first, last],
+      durationSeconds: 5,
+      slots: { firstStrength: 0.8, lastStrength: 0.6 },
+    });
+    const submitted = await executor.submit(job);
+    assert.equal(submitted.kind, "accepted");
+    assert.deepEqual(fake.uploads.map(({ width, height }) => [width, height]), [[576, 1024], [576, 1024]]);
+    const graph = fake.submitted[0].graph as Record<string, { inputs: Record<string, unknown> }>;
+    const loaded = (node: string) => (graph[node].inputs.image as { asset: string }).asset;
+    assert.match(loaded("22"), /first\.png$/);
+    assert.match(loaded("25"), /last\.png$/);
+    assert.deepEqual([graph["8"].inputs.length, graph["10"].inputs.frames_number], [121, 121]);
+    assert.deepEqual([graph["24"].inputs.strength, graph["27"].inputs.strength], [0.8, 0.6]);
+    assert.equal(graph["12"].inputs.noise_seed, seedFromId(submitted.job!.id));
+    const outcome = await pollAndRetrieve(executor, submitted.job!.id, { root: directory, folder: "clips" }, { sleep: async () => undefined });
+    assert.equal(outcome.kind, "completed");
+    const [saved] = (outcome as { job: Job }).job.retrieved;
+    assert.deepEqual([saved.mime, saved.width, saved.height, saved.video?.frames], ["video/mp4", 576, 1024, 121]);
+  }));

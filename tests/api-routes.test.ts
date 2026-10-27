@@ -338,3 +338,36 @@ describe("cut order", () => {
     assert.equal(partial.status, 400);
   });
 });
+
+describe("regenerate from here", () => {
+  test("reset_shots withdraws approvals from a beat on and keeps candidates", async () => {
+    const id = await createProject("Regenerate check");
+    const beat = (visual: string) => ({ type: "broll", purpose: "proof", visual, productVisible: false });
+    const script = await routes.tools.POST(
+      json(`/api/projects/${id}/tools/save_script`, { projectId: id, title: "Ridgeline regenerate", beats: [beat("A bright kitchen counter by a window"), beat("A car interior at dusk")] }),
+      params({ id, name: "save_script" }),
+    );
+    const scriptId = ((await script.json()) as { script: { id: string } }).script.id;
+    const content = (await (await routes.tools.POST(json(`/api/projects/${id}/tools/plan_shots`, { projectId: id, scriptId }), params({ id, name: "plan_shots" }))).json()) as { id: string };
+    const proposal = await (await routes.tools.POST(json(`/api/projects/${id}/tools/compose_still`, { contentId: content.id, beatIndex: 2, count: 1 }), params({ id, name: "compose_still" }))).json();
+    await routes.submit.POST(json(`/api/projects/${id}/proposals/submit`, { proposal }), params({ id }));
+    let stillId: string | undefined;
+    for (let attempt = 0; attempt < 60 && !stillId; attempt++) {
+      const jobs = (await (await routes.jobs.GET(new Request(url(`/api/projects/${id}/jobs`)), params({ id }))).json()) as { unfinished: unknown[]; recent: { outputs?: string[] }[] };
+      if (jobs.unfinished.length === 0) stillId = jobs.recent[0]?.outputs?.[0];
+      else await new Promise((done) => setTimeout(done, 250));
+    }
+    assert.ok(stillId, "mock still did not finish");
+    const approved = await routes.tools.POST(json(`/api/projects/${id}/tools/approve`, { kind: "still", assetId: stillId, contentId: content.id, beatIndex: 2 }), params({ id, name: "approve" }));
+    assert.equal(approved.status, 200);
+
+    const reset = await routes.tools.POST(json(`/api/projects/${id}/tools/reset_shots`, { contentId: content.id, fromBeatIndex: 1 }), params({ id, name: "reset_shots" }));
+    assert.equal(reset.status, 200);
+    const body = (await reset.json()) as { resetBeats: number[]; content: { shots: { still: { state: string; candidateIds?: string[] } }[] } };
+    assert.deepEqual(body.resetBeats, [2]);
+    assert.equal(body.content.shots[1].still.state, "open");
+    assert.deepEqual(body.content.shots[1].still.candidateIds, [stillId]);
+    const missing = await routes.tools.POST(json(`/api/projects/${id}/tools/reset_shots`, { contentId: content.id, fromBeatIndex: 9 }), params({ id, name: "reset_shots" }));
+    assert.equal(missing.status, 404);
+  });
+});

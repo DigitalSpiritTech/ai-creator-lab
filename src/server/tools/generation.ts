@@ -8,7 +8,7 @@ import { z } from "zod";
 import { AspectRatioSchema, CapabilitySchema } from "@/lib/catalog";
 import { IdSchema, RecipeIdSchema, text } from "@/lib/domain/common";
 import { AssetSchema } from "@/lib/domain/asset";
-import { ExportRecordSchema } from "@/lib/domain/content";
+import { type ContentPiece, ExportRecordSchema } from "@/lib/domain/content";
 import { fail } from "@/lib/domain/failure";
 import {
   type CharacterItem,
@@ -232,16 +232,36 @@ export const refineStill = defineTool({
   },
 });
 
+/**
+ * The ending frame for a first-and-last clip: an approved still from any beat of this content piece,
+ * or a reference sheet linked to this project's character. Anything else is refused.
+ */
+export function endingFrame(store: Store, content: ContentPiece, assetId: string, startAssetId: string): string {
+  if (assetId === startAssetId) fail("invalid", "The ending frame must be a different image from the starting still.");
+  const asset = store.assets.getRequired(assetId);
+  if (asset.state.state !== "active") fail("invalid", "Restore the ending frame before using it.");
+  const approvedStill = content.shots.some((shot) => shot.still.state === "approved" && shot.still.assetId === assetId);
+  const linkedSheet =
+    asset.kind === "sheet" &&
+    store.library.listLinks(content.projectId).some((link) => link.kind === "character" && link.sheetAssetId === assetId);
+  if (!approvedStill && !linkedSheet) {
+    fail("invalid", "The ending frame must be an approved still in this content piece or the project's reference sheet.");
+  }
+  return assetId;
+}
+
 export const generateClip = defineTool({
   name: "generate_clip",
   description:
-    "Propose a clip for one beat from its approved still (the first frame). Talking beats carry the spoken line in quotes for synchronized audio; b-roll is ambient sound only.",
+    "Propose a clip for one beat from its approved still (the first frame). Talking beats carry the spoken line in quotes for synchronized audio; b-roll is ambient sound only. With mode first_last, the clip also ends on lastAssetId, which must be an approved still in this content piece or the project's reference sheet.",
   input: z
     .object({
       contentId: IdSchema,
       beatIndex: z.number().int().positive(),
       recipeId: RecipeIdSchema.optional(),
       count: z.number().int().min(1).max(4).default(1),
+      mode: z.enum(["start", "first_last"]).default("start").describe("start animates from the approved still; first_last also lands on an ending frame."),
+      lastAssetId: IdSchema.optional().describe("The ending frame for mode first_last."),
     })
     .strict(),
   output: GenerationProposalSchema,
@@ -252,9 +272,14 @@ export const generateClip = defineTool({
     const beat = script.beats[input.beatIndex - 1] ?? fail("not_found", `Beat ${input.beatIndex} is not in the script.`);
     const shot = content.shots[input.beatIndex - 1];
     if (!shot || shot.still.state !== "approved") fail("invalid", `Approve a still for beat ${input.beatIndex} before making its clip.`);
+    if (input.mode === "start" && input.lastAssetId) fail("invalid", "An ending frame needs mode first_last.");
+    const firstLast = input.mode === "first_last";
+    const lastAssetId = firstLast
+      ? endingFrame(store, content, input.lastAssetId ?? fail("invalid", "Choose the ending frame (lastAssetId) for a first-and-last clip."), shot.still.assetId)
+      : undefined;
     return buildProposal(context, {
       projectId: content.projectId,
-      capability: "image_to_video",
+      capability: firstLast ? "first_last_to_video" : "image_to_video",
       recipeId: input.recipeId,
       prompt: (() => {
         const cast = projectCast(store, content.projectId);
@@ -263,7 +288,12 @@ export const generateClip = defineTool({
           product: cast.product ? { name: cast.product.name, appearance: cast.product.appearance || undefined } : undefined,
         });
       })(),
-      references: [{ role: "image1", assetId: shot.still.assetId }],
+      references: lastAssetId
+        ? [
+            { role: "first", assetId: shot.still.assetId },
+            { role: "last", assetId: lastAssetId },
+          ]
+        : [{ role: "image1", assetId: shot.still.assetId }],
       count: input.count,
       target: { kind: "shot", contentId: content.id, beatIndex: beat.index, slot: "clip" },
       aspectRatio: "9:16",
