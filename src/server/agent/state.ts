@@ -24,6 +24,8 @@ export interface ProjectSnapshot {
   content?: ContentPiece;
   /** Finished exports of the newest Ad. */
   completedExports: number;
+  /** Which locked references are uploaded photos rather than generated images. */
+  uploads: { face: boolean; body: boolean; sheet: boolean };
   /** Active candidates still waiting for a decision. */
   candidates: { face: string[]; body: string[]; sheet: string[] };
   /** Unfinished jobs and where their outputs land. */
@@ -70,6 +72,7 @@ export function loadSnapshot(store: Store, projectId: string): ProjectSnapshot |
     }
   }
   const library = store.library.list({ includeArchived: false }).filter((item) => !linked.has(item.id));
+  const uploaded = (assetId: string | null | undefined) => !!assetId && store.assets.get(assetId)?.provenance.source === "upload";
   return {
     project,
     character,
@@ -77,6 +80,11 @@ export function loadSnapshot(store: Store, projectId: string): ProjectSnapshot |
     sets,
     script,
     content,
+    uploads: {
+      face: uploaded(character?.item.bible.references.faceAssetId),
+      body: uploaded(character?.item.bible.references.bodyAssetId),
+      sheet: uploaded(character?.link.sheetAssetId),
+    },
     completedExports: content ? store.content.listExports(content.id).filter((record) => record.status === "completed").length : 0,
     candidates,
     runningJobs: jobs.filter((job) => job.status !== "completed" && job.status !== "failed").map((job) => ({ id: job.id, target: job.request.target })),
@@ -115,6 +123,9 @@ function bibleFields(item: CharacterItem): Record<string, unknown> {
 }
 
 /** The first unfinished step of the flow, with what to do there. */
+const UPLOAD_FACE =
+  "If this character is a real person the user has photos of, do not generate a face: ask them to upload a clear face photo to the face slot on the Assets tab (the chat is text only) and continue once it is locked.";
+
 export function nextStage(snapshot: ProjectSnapshot): Stage {
   const { project, character, product, script, content, candidates } = snapshot;
   if (!project.brief) {
@@ -160,7 +171,7 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
       id: "face",
       step: 5,
       title: "Face lock",
-      guidance: `Propose the face lock: propose_candidates with projectId ${project.id}, capability "${FACE_LOCK.capability}", count ${FACE_LOCK.count}, aspectRatio "${FACE_LOCK.aspectRatio}", target {"kind":"character_reference","characterId":"${item.id}","slot":"face"}, and exactly this prompt:\n${facePrompt(item.bible)}`,
+      guidance: `${UPLOAD_FACE} Otherwise propose the face lock: propose_candidates with projectId ${project.id}, capability "${FACE_LOCK.capability}", count ${FACE_LOCK.count}, aspectRatio "${FACE_LOCK.aspectRatio}", target {"kind":"character_reference","characterId":"${item.id}","slot":"face"}, and exactly this prompt:\n${facePrompt(item.bible)}`,
     };
   }
   if (!bodyAssetId) {
@@ -170,20 +181,24 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
     if (running(snapshot, (target) => target.kind === "character_reference" && target.slot === "body")) {
       return { id: "body", step: 6, title: "Body reference", guidance: "Body candidates are generating. Say they will appear in the workspace and what to look for." };
     }
+    const fromPhoto = snapshot.uploads.face;
     return {
       id: "body",
       step: 6,
       title: "Body reference",
-      guidance: `Propose the body reference: propose_candidates with projectId ${project.id}, capability "${BODY_REFERENCE.capability}", count ${BODY_REFERENCE.count}, aspectRatio "${BODY_REFERENCE.aspectRatio}", referenceAssetIds ["${faceAssetId}"], target {"kind":"character_reference","characterId":"${item.id}","slot":"body"}, and exactly this prompt:\n${bodyPrompt(item.bible)}`,
+      guidance: `${fromPhoto ? "The face is an uploaded photo of a real person. Suggest uploading a full-body photo to the body slot on the Assets tab; or, if they prefer," : "Propose the body reference:"} propose_candidates with projectId ${project.id}, capability "${BODY_REFERENCE.capability}", count ${BODY_REFERENCE.count}, aspectRatio "${BODY_REFERENCE.aspectRatio}", referenceAssetIds ["${faceAssetId}"], target {"kind":"character_reference","characterId":"${item.id}","slot":"body"}, and exactly this prompt:\n${bodyPrompt(item.bible, "gray", { photographed: fromPhoto })}`,
     };
   }
   if (!link.sheetAssetId) {
+    const photoNote = snapshot.uploads.face
+      ? "\nThe face is a real person's uploaded photo: say the sheet can still be generated from the photos and recommend it, so every shot matches; or they can upload their own sheet on the Assets tab."
+      : "";
     if (!link.wardrobe) {
       return {
         id: "sheet",
         step: 7,
         title: "Reference sheet",
-        guidance: `Pick this project's outfit. Suggest the one from the bible's wardrobe defaults that suits the brief and has a clear tone difference from gray (${item.bible.wardrobeDefaults.map((outfit) => `"${outfit}" (${BACKDROP_NAMES[backdropFor(outfit)]} background)`).join(", ")}) as the default, or the user names one. Then call generate_reference_sheet with projectId, characterId ${item.id}, and that wardrobe, and say which background the sheet uses.`,
+        guidance: `Pick this project's outfit. Suggest the one from the bible's wardrobe defaults that suits the brief and has a clear tone difference from gray (${item.bible.wardrobeDefaults.map((outfit) => `"${outfit}" (${BACKDROP_NAMES[backdropFor(outfit)]} background)`).join(", ")}) as the default, or the user names one. Then call generate_reference_sheet with projectId, characterId ${item.id}, and that wardrobe, and say which background the sheet uses.${photoNote}`,
       };
     }
     if (candidates.sheet.length) {
@@ -201,7 +216,7 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
       id: "sheet",
       step: 7,
       title: "Reference sheet",
-      guidance: `Propose the reference sheet in "${link.wardrobe}": generate_reference_sheet with projectId ${project.id} and characterId ${item.id}.`,
+      guidance: `Propose the reference sheet in "${link.wardrobe}": generate_reference_sheet with projectId ${project.id} and characterId ${item.id}.${photoNote}`,
     };
   }
   if (!product) {
@@ -282,8 +297,10 @@ export function renderSnapshot(snapshot: ProjectSnapshot): string {
   if (character) {
     const { item, link } = character;
     const { faceAssetId, bodyAssetId } = item.bible.references;
+    const locked = (id: string, photo: boolean) => `locked ${photo ? "from an uploaded photo" : "(generated)"} (${id})`;
+    const { uploads } = snapshot;
     lines.push(
-      `Character: ${item.bible.name} (characterId ${item.id}, revision ${item.revision}, bible v${item.bible.version}). Face ${faceAssetId ? `locked (${faceAssetId})` : "not locked"}. Body ${bodyAssetId ? `locked (${bodyAssetId})` : "not locked"}. Wardrobe for this project: ${link.wardrobe ?? "not chosen"}. Reference sheet: ${link.sheetAssetId ? `approved (${link.sheetAssetId})` : "not approved"}.`,
+      `Character: ${item.bible.name} (characterId ${item.id}, revision ${item.revision}, bible v${item.bible.version}). Face ${faceAssetId ? locked(faceAssetId, uploads.face) : "not locked"}. Body ${bodyAssetId ? locked(bodyAssetId, uploads.body) : "not locked"}. Wardrobe for this project: ${link.wardrobe ?? "not chosen"}. Reference sheet: ${link.sheetAssetId ? `approved${uploads.sheet ? ", uploaded by the user" : ""} (${link.sheetAssetId})` : "not approved"}.`,
       `visualCore: ${item.bible.visualCore}`,
       `Voice: ${short(item.bible.voice.style)}. Boundaries: ${item.bible.boundaries.join("; ") || "none listed"}.`,
     );
@@ -297,7 +314,9 @@ export function renderSnapshot(snapshot: ProjectSnapshot): string {
   } else {
     lines.push("Product: none linked to this project yet.");
   }
-  if (snapshot.sets.length) lines.push(`Sets: ${snapshot.sets.map((set) => `${set.name} (${set.id})`).join("; ")}.`);
+  if (snapshot.sets.length) {
+    lines.push(`Sets: ${snapshot.sets.map((set) => `${set.name} (setId ${set.id}, ${set.imageAssetIds.length} photo${set.imageAssetIds.length === 1 ? "" : "s"})`).join("; ")}. A beat whose setting names a set uses its photo.`);
+  }
   if (script) {
     lines.push(`Script: "${script.title}" (scriptId ${script.id}, version ${script.version}), ${script.beats.length} beats:`);
     for (const beat of script.beats) {

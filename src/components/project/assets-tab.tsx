@@ -11,6 +11,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CandidateGrid } from "@/components/cards/candidate-grid";
 import { ProductForm } from "@/components/library/product-form";
+import { SetForm, SetList } from "@/components/library/set-form";
+import { PhotoUpload } from "@/components/references/photo-upload";
+import { ReferenceSlot } from "@/components/references/reference-slot";
+import { approveOwnSheet } from "@/lib/client/references";
 import { AssetThumb } from "@/components/media/asset-media";
 import { useProject } from "@/components/project/project-context";
 import { SheetChecklist, sheetChecklist } from "@/components/project/sheet-checklist";
@@ -60,6 +64,7 @@ export function AssetsTab() {
           </div>
         )}
       </section>
+      <SetsSection />
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">Other assets</h2>
         {others.length ? <CandidateGrid assets={others} /> : <p className="text-xs text-muted-foreground">Nothing else here yet.</p>}
@@ -69,7 +74,8 @@ export function AssetsTab() {
 }
 
 function CharacterSection({ item, link }: { item: CharacterItem; link: CharacterLink }) {
-  const { projectId, view, propose, notify } = useProject();
+  const { projectId, view, propose, notify, refresh } = useProject();
+  const [ownChecked, setOwnChecked] = useState<boolean[]>([]);
   const [wardrobe, setWardrobe] = useState(link.wardrobe ?? item.bible.wardrobeDefaults[0] ?? "");
   const [busy, setBusy] = useState(false);
   const checklist = sheetChecklist(link.wardrobe);
@@ -101,8 +107,17 @@ function CharacterSection({ item, link }: { item: CharacterItem; link: Character
   return (
     <div className="space-y-4 rounded-xl border p-4">
       <div className="flex items-start gap-4">
-        <AssetThumb id={references.faceAssetId} label="Face" className="h-28 w-24" />
-        <AssetThumb id={references.bodyAssetId} label="Body" className="h-28 w-20" />
+        <ReferenceSlot slot="face" assetId={references.faceAssetId} characterId={item.id} projectId={projectId} className="h-28 w-24" onLocked={refresh} onError={(text) => notify("error", text)} />
+        <ReferenceSlot
+          slot="body"
+          assetId={references.bodyAssetId}
+          characterId={item.id}
+          projectId={projectId}
+          className="h-28 w-20"
+          canUpload={!!references.faceAssetId}
+          onLocked={refresh}
+          onError={(text) => notify("error", text)}
+        />
         <div className="min-w-0 flex-1 text-xs">
           <Link href={`/library/${item.id}`} className="text-sm font-medium hover:underline">{item.bible.name}</Link>
           <p className="text-muted-foreground">{item.bible.ageRange} · {item.bible.vibe.join(", ")} · bible v{item.bible.version}</p>
@@ -146,8 +161,27 @@ function CharacterSection({ item, link }: { item: CharacterItem; link: Character
           {link.sheetAssetId ? <Badge className="bg-emerald-600 text-white">Sheet approved</Badge> : null}
         </div>
         {link.sheetAssetId && !sheets.some((asset) => asset.id === link.sheetAssetId) ? (
-          <AssetThumb id={link.sheetAssetId} label="Approved sheet" className="aspect-video w-full max-w-xl" />
+          <AssetThumb id={link.sheetAssetId} label="Approved sheet" className="aspect-video w-full max-w-xl object-contain" />
         ) : null}
+        <div className="grid grid-cols-[auto_1fr] items-start gap-4 rounded-lg border border-dashed p-3" data-testid="own-sheet">
+          <PhotoUpload
+            label="Use my own sheet"
+            disabled={!wardrobe.trim() || checklist.some((_, index) => !ownChecked[index])}
+            onFiles={async ([file]) => {
+              try {
+                await approveOwnSheet(file, { projectId, character: item, currentWardrobe: link.wardrobe, wardrobe });
+                setOwnChecked([]);
+                await refresh();
+              } catch (cause) {
+                notify("error", errorMessage(cause));
+              }
+            }}
+          />
+          <div className="space-y-1">
+            <SheetChecklist items={sheetChecklist(wardrobe.trim() || link.wardrobe)} checked={ownChecked} onChange={setOwnChecked} />
+            <p className="text-[11px] text-muted-foreground">Check your sheet against every item before uploading; it is approved for this project as soon as it uploads.</p>
+          </div>
+        </div>
         {sheets.length ? (
           <>
             <SheetChecklist items={checklist} checked={checked} onChange={setChecked} />
@@ -241,5 +275,30 @@ function ProductCard({ product }: { product: ProductItem }) {
         />
       ) : null}
     </div>
+  );
+}
+
+function SetsSection() {
+  const { projectId, view, refresh } = useProject();
+  const [adding, setAdding] = useState(false);
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold">Sets</h2>
+        <Button size="sm" variant="outline" onClick={() => setAdding((open) => !open)} aria-expanded={adding}>{adding ? "Close" : "New set from photos"}</Button>
+      </div>
+      {adding ? (
+        <div className="max-w-xl rounded-lg border p-3">
+          <SetForm
+            projectId={projectId}
+            onSaved={() => {
+              setAdding(false);
+              void refresh();
+            }}
+          />
+        </div>
+      ) : null}
+      <SetList sets={view.sets} />
+    </section>
   );
 }

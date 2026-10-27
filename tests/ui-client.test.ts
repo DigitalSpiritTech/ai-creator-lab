@@ -192,3 +192,74 @@ describe("product appearance and assistant provider", () => {
     assert.match(locked, /LLM_PROVIDER in .env.local/);
   });
 });
+
+describe("real photo references", () => {
+  type Call = { url: string; method: string; body: unknown };
+  async function withFetch<T>(work: (calls: Call[]) => Promise<T>): Promise<T> {
+    const original = globalThis.fetch;
+    const calls: Call[] = [];
+    let uploads = 0;
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const path = String(input);
+      const body = init?.body instanceof FormData ? Object.fromEntries([...init.body.entries()].map(([key, value]) => [key, typeof value === "string" ? value : (value as File).name])) : init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ url: path, method: init?.method ?? "GET", body });
+      if (path.startsWith("/api/uploads")) {
+        uploads += 1;
+        return Response.json({ asset: { id: `00000000-0000-4000-8000-00000000000${uploads}`, kind: path.includes("as=sheet") ? "sheet" : "image" } }, { status: 201 });
+      }
+      return Response.json({ ok: true });
+    }) as typeof fetch;
+    try {
+      return await work(calls);
+    } finally {
+      globalThis.fetch = original;
+    }
+  }
+  const file = (name: string) => new File([new Uint8Array([1, 2, 3])], name, { type: "image/jpeg" });
+
+  test("upload then select_reference for the slot, scoped to the project", async () => {
+    const { lockPhotoAsReference } = await import("@/lib/client/references");
+    const projectId = randomUUID();
+    const characterId = randomUUID();
+    await withFetch(async (calls) => {
+      const asset = await lockPhotoAsReference(file("founder.jpg"), { characterId, slot: "face", projectId });
+      assert.deepEqual(calls.map((call) => `${call.method} ${call.url}`), ["POST /api/uploads", `POST /api/projects/${projectId}/tools/select_reference`]);
+      assert.deepEqual(calls[0].body, { image: "founder.jpg", projectId });
+      assert.deepEqual(calls[1].body, { characterId, slot: "face", assetId: asset.id });
+    });
+    await withFetch(async (calls) => {
+      await lockPhotoAsReference(file("body.jpg"), { characterId, slot: "body" });
+      assert.deepEqual(calls.map((call) => call.url), ["/api/uploads", "/api/tools/select_reference"]);
+    });
+  });
+
+  test("own sheet records a new wardrobe, uploads as a sheet, and approves it; sets upload every photo", async () => {
+    const { approveOwnSheet, createSetFromPhotos } = await import("@/lib/client/references");
+    const projectId = randomUUID();
+    const character = {
+      id: randomUUID(), kind: "character" as const, archived: false, brokenAssetIds: [], revision: 3, createdAt: 1, updatedAt: 1,
+      bible: { ...(await import("./support/domain-fixtures")).averyBible(), references: { faceAssetId: null, bodyAssetId: null, wardrobeAssetIds: [] }, version: 1 },
+    } as unknown as import("@/lib/client/types").CharacterItem;
+    await withFetch(async (calls) => {
+      await approveOwnSheet(file("sheet.png"), { projectId, character, currentWardrobe: null, wardrobe: "Navy blazer" });
+      assert.deepEqual(calls.map((call) => call.url), [`/api/projects/${projectId}/tools/save_character_bible`, "/api/uploads?as=sheet", `/api/projects/${projectId}/tools/approve`]);
+      assert.equal((calls[0].body as { wardrobe: string }).wardrobe, "Navy blazer");
+      assert.equal((calls[2].body as { kind: string }).kind, "sheet");
+    });
+    await withFetch(async (calls) => {
+      await createSetFromPhotos([file("a.jpg"), file("b.jpg")], { name: " Boardroom ", notes: "" }, projectId);
+      assert.deepEqual(calls.map((call) => call.url), ["/api/uploads", "/api/uploads", `/api/projects/${projectId}/tools/create_set`]);
+      assert.deepEqual((calls[2].body as { set: { name: string; imageAssetIds: string[] } }).set.name, "Boardroom");
+      assert.equal((calls[2].body as { set: { imageAssetIds: string[] } }).set.imageAssetIds.length, 2);
+    });
+  });
+
+  test("face and body slots need the likeness checkbox and fill non-square photos from the top", async () => {
+    const { ReferenceSlot } = await import("@/components/references/reference-slot");
+    const html = renderToStaticMarkup(createElement(ReferenceSlot, { slot: "face", assetId: randomUUID(), characterId: randomUUID(), onLocked: () => undefined, onError: () => undefined }));
+    assert.match(html, /Use a photo/);
+    assert.match(html, /I have permission to use this person(&#x27;|')s likeness\./);
+    assert.match(html, /type="file"[^>]*disabled=""/);
+    assert.match(html, /object-cover object-top/);
+  });
+});

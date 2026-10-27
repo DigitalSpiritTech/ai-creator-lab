@@ -61,6 +61,11 @@ export function setForBeat(sets: SetItem[], setting: string): SetItem | undefine
   });
 }
 
+/** Whether an asset is an uploaded photo (a real person, product, or place) rather than a generated image. */
+function isPhoto(store: Store, assetId: string | null | undefined): boolean {
+  return !!assetId && store.assets.get(assetId)?.provenance.source === "upload";
+}
+
 export const proposeCandidates = defineTool({
   name: "propose_candidates",
   description:
@@ -125,7 +130,7 @@ export const generateReferenceSheet = defineTool({
       projectId: input.projectId,
       capability: "image_edit",
       recipeId: input.recipeId,
-      prompt: referenceSheetPrompt(item.bible, link.wardrobe),
+      prompt: referenceSheetPrompt(item.bible, link.wardrobe, { photographed: isPhoto(store, faceAssetId) }),
       references: [
         { role: "image1", assetId: faceAssetId },
         { role: "image2", assetId: bodyAssetId },
@@ -166,12 +171,13 @@ export const composeStill = defineTool({
       const { link, item } = character;
       parts.bible = item.bible;
       parts.wardrobe = link.wardrobe;
+      const photographed = isPhoto(store, item.bible.references.faceAssetId);
       if (link.sheetAssetId) {
-        parts.character = { mode: "sheet", image: add(link.sheetAssetId) };
+        parts.character = { mode: "sheet", image: add(link.sheetAssetId), photographed };
       } else if (item.bible.references.faceAssetId) {
         const face = add(item.bible.references.faceAssetId);
         const body = item.bible.references.bodyAssetId ? add(item.bible.references.bodyAssetId) : undefined;
-        parts.character = { mode: "face", face, body };
+        parts.character = { mode: "face", face, body, photographed };
       }
     }
     if (product) {
@@ -181,7 +187,7 @@ export const composeStill = defineTool({
     const set = setForBeat(sets, beat.setting);
     if (set) {
       const photo = set.imageAssetIds.find((id) => store.assets.get(id)?.state.state === "active");
-      parts.set = { name: set.name, image: photo ? add(photo) : undefined };
+      parts.set = { name: set.name, image: photo ? add(photo) : undefined, photo: isPhoto(store, photo) };
     }
     return buildProposal(context, {
       projectId: content.projectId,

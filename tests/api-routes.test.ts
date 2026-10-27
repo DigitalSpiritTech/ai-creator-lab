@@ -371,3 +371,59 @@ describe("regenerate from here", () => {
     assert.equal(missing.status, 404);
   });
 });
+
+describe("real photos as references", () => {
+  async function upload(projectId: string, name: string, as?: "sheet", size = { width: 600, height: 900 }) {
+    const sharp = (await import("sharp")).default;
+    const png = await sharp({ create: { ...size, channels: 3, background: { r: 180, g: 140, b: 120 } } }).png().toBuffer();
+    const form = new FormData();
+    form.set("image", new File([new Uint8Array(png)], name, { type: "image/png" }));
+    form.set("projectId", projectId);
+    const uploads = await import("@/app/api/uploads/route");
+    return uploads.POST(new Request(url(`/api/uploads${as ? `?as=${as}` : ""}`), { method: "POST", body: form }));
+  }
+
+  test("an uploaded photo locks as the face and feeds compose_still; an uploaded sheet is approved", async () => {
+    const { averyBible, ridgelineBeats } = await import("./support/domain-fixtures");
+    const id = await createProject("Founder photos");
+    const saved = await routes.tools.POST(
+      json(`/api/projects/${id}/tools/save_character_bible`, { projectId: id, wardrobe: "Navy blazer over a white tee", bible: averyBible() }),
+      params({ id, name: "save_character_bible" }),
+    );
+    assert.equal(saved.status, 200);
+    const characterId = ((await saved.json()) as { character: { id: string } }).character.id;
+
+    const photo = await upload(id, "founder-portrait.png");
+    assert.equal(photo.status, 201);
+    const asset = ((await photo.json()) as { asset: { id: string; kind: string; provenance: { source: string; name: string } } }).asset;
+    assert.deepEqual([asset.kind, asset.provenance.source, asset.provenance.name], ["image", "upload", "founder-portrait.png"]);
+
+    const locked = await routes.tools.POST(json(`/api/projects/${id}/tools/select_reference`, { characterId, slot: "face", assetId: asset.id }), params({ id, name: "select_reference" }));
+    assert.equal(locked.status, 200);
+    assert.equal(((await locked.json()) as { character: { bible: { references: { faceAssetId: string } } } }).character.bible.references.faceAssetId, asset.id);
+
+    const script = await routes.tools.POST(json(`/api/projects/${id}/tools/save_script`, { projectId: id, title: "Founder ad", beats: ridgelineBeats() }), params({ id, name: "save_script" }));
+    const scriptId = ((await script.json()) as { script: { id: string; beats: { type: string; index: number }[] } }).script;
+    const content = (await (await routes.tools.POST(json(`/api/projects/${id}/tools/plan_shots`, { projectId: id, scriptId: scriptId.id }), params({ id, name: "plan_shots" }))).json()) as { id: string };
+    const talking = scriptId.beats.find((beat) => beat.type === "talking")!;
+    const proposed = await routes.tools.POST(json(`/api/projects/${id}/tools/compose_still`, { contentId: content.id, beatIndex: talking.index, count: 1 }), params({ id, name: "compose_still" }));
+    assert.equal(proposed.status, 200);
+    const proposal = (await proposed.json()) as { references: { assetId: string }[]; recipeId: string };
+    assert.ok(proposal.references.some((reference) => reference.assetId === asset.id), "the uploaded face is a reference");
+    assert.match(proposal.recipeId, /^mock-/);
+    const submitted = await routes.submit.POST(json(`/api/projects/${id}/proposals/submit`, { proposal }), params({ id }));
+    assert.equal(submitted.status, 200);
+
+    const sheetUpload = await upload(id, "own-sheet.png", "sheet", { width: 1600, height: 900 });
+    assert.equal(sheetUpload.status, 201);
+    const sheet = ((await sheetUpload.json()) as { asset: { id: string; kind: string } }).asset;
+    assert.equal(sheet.kind, "sheet");
+    const approved = await routes.tools.POST(json(`/api/projects/${id}/tools/approve`, { kind: "sheet", assetId: sheet.id, projectId: id, characterId }), params({ id, name: "approve" }));
+    assert.equal(approved.status, 200);
+    assert.equal(((await approved.json()) as { link: { sheetAssetId: string } }).link.sheetAssetId, sheet.id);
+
+    // The same bytes as the locked face cannot be repurposed as a sheet.
+    const reused = await upload(id, "founder-portrait.png", "sheet");
+    assert.equal(reused.status, 409);
+  });
+});

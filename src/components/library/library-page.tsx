@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { AssetThumb } from "@/components/media/asset-media";
 import { ProductForm } from "@/components/library/product-form";
+import { SetForm } from "@/components/library/set-form";
 import { EmptyState, Notice, PageHeader } from "@/components/shell/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,11 +47,11 @@ export function LibraryPage() {
       <PageHeader
         title="Library"
         description="Approved characters, products, and sets you reuse across projects."
-        actions={kind === "product" ? <Button size="sm" onClick={() => setCreating((open) => !open)}>{creating ? "Close" : "New product"}</Button> : null}
+        actions={kind === "product" || kind === "set" ? <Button size="sm" onClick={() => setCreating((open) => !open)}>{creating ? "Close" : kind === "product" ? "New product" : "New set from photos"}</Button> : null}
       />
       <div className="mb-6 flex gap-1" role="tablist">
         {KINDS.map((entry) => (
-          <Button key={entry.kind} size="sm" role="tab" aria-selected={kind === entry.kind} variant={kind === entry.kind ? "secondary" : "ghost"} onClick={() => setKind(entry.kind)}>
+          <Button key={entry.kind} size="sm" role="tab" aria-selected={kind === entry.kind} variant={kind === entry.kind ? "secondary" : "ghost"} onClick={() => { setKind(entry.kind); setCreating(false); }}>
             {entry.label}
           </Button>
         ))}
@@ -61,13 +62,18 @@ export function LibraryPage() {
           <ProductForm onSaved={() => { setCreating(false); void load(); }} />
         </div>
       ) : null}
+      {kind === "set" && creating ? (
+        <div className="mb-6 max-w-2xl rounded-xl border p-4">
+          <SetForm onSaved={() => { setCreating(false); void load(); }} />
+        </div>
+      ) : null}
       {view && view.items.length === 0 ? (
         <EmptyState title={`No ${KINDS.find((entry) => entry.kind === kind)!.label.toLowerCase()} yet`}>
           {kind === "character"
             ? "Characters are created with the assistant in a project: bible, face lock, then body reference."
             : kind === "product"
               ? "Add a product with its photos, link, and the claims an ad may make."
-              : "Sets (locations with reference images) arrive with a later task."}
+              : "Add a set from photos of a real location: a kitchen counter, a car interior, a boardroom."}
         </EmptyState>
       ) : null}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">

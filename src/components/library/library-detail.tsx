@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { ProductForm } from "@/components/library/product-form";
 import { AssetThumb } from "@/components/media/asset-media";
+import { ReferenceSlot } from "@/components/references/reference-slot";
 import { Notice, PageHeader } from "@/components/shell/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,11 +83,11 @@ export function LibraryDetail({ itemId }: { itemId: string }) {
           <section className="flex gap-4">
             <div>
               <div className="mb-1 text-xs text-muted-foreground">Face (identity reference)</div>
-              <AssetThumb id={item.bible.references.faceAssetId} label="Face" className="h-56 w-44" />
+              <ReferenceSlot slot="face" assetId={item.bible.references.faceAssetId} characterId={item.id} className="h-56 w-44" onLocked={load} onError={setError} />
             </div>
             <div>
               <div className="mb-1 text-xs text-muted-foreground">Body reference</div>
-              <AssetThumb id={item.bible.references.bodyAssetId} label="Body" className="h-56 w-36" />
+              <ReferenceSlot slot="body" assetId={item.bible.references.bodyAssetId} characterId={item.id} className="h-56 w-36" canUpload={!!item.bible.references.faceAssetId} onLocked={load} onError={setError} />
             </div>
             <dl className="grid flex-1 grid-cols-[auto_1fr] content-start gap-x-4 gap-y-1.5 text-xs">
               <dt className="text-muted-foreground">Age range</dt><dd>{item.bible.ageRange}</dd>

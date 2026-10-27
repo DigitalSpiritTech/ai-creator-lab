@@ -3,7 +3,7 @@
  * gate, and asset URLs.
  * @packageDocumentation
  */
-import type { GenerationProposal, SubmitResult } from "@/lib/client/types";
+import type { Asset, GenerationProposal, SubmitResult } from "@/lib/client/types";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -42,11 +42,14 @@ export function submitProposal(proposal: GenerationProposal, confirmUnquoted = f
   return sendJson(`/api/projects/${proposal.projectId}/proposals/submit`, { proposal, confirmUnquoted });
 }
 
-export async function uploadImage(file: File, projectId?: string): Promise<{ asset: { id: string } }> {
+export const UPLOAD_TYPES = "image/png,image/jpeg,image/webp";
+
+/** Uploads one image as an asset; `as: "sheet"` stores it as a reference sheet (needs a project). */
+export async function uploadImage(file: File, projectId?: string | null, options: { as?: "sheet" } = {}): Promise<{ asset: Asset }> {
   const form = new FormData();
   form.set("image", file);
   if (projectId) form.set("projectId", projectId);
-  return parse(await fetch("/api/uploads", { method: "POST", body: form }));
+  return parse(await fetch(`/api/uploads${options.as ? `?as=${options.as}` : ""}`, { method: "POST", body: form }));
 }
 
 export function assetUrl(id: string, options: { poster?: boolean; download?: boolean } = {}): string {

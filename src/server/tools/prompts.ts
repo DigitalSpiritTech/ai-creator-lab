@@ -147,6 +147,14 @@ export const ATHLETICWEAR: Record<Backdrop, string> = { gray: "navy", light: "ch
 
 export const CONTRAST = "The outfit must contrast clearly with the background so the silhouette reads.";
 
+/** Added whenever the person's face reference is an uploaded photo of a real person. */
+export const PHOTO_MATCH = "Match the real person's features exactly as photographed.";
+
+/** Whether the identity comes from a real person's uploaded photo rather than a generated face. */
+export interface IdentitySource {
+  photographed?: boolean;
+}
+
 const DARK_GARMENT = /\b(gr[ae]y|charcoal|black|dark)\b/i;
 
 /**
@@ -185,27 +193,30 @@ export function facePrompt(bible: Pick<CharacterBible, "visualCore">, garment: s
  * The body reference prompt, an edit of the locked face (the only reference image). Navy
  * athleticwear on deep gray by default, or charcoal on the light background.
  */
-export function bodyPrompt(bible: Pick<CharacterBible, "build">, backdrop: Backdrop = "gray"): string {
+export function bodyPrompt(bible: Pick<CharacterBible, "build">, backdrop: Backdrop = "gray", source: IdentitySource = {}): string {
   return [
     "Same person as the reference image, identical face and hair.",
+    source.photographed ? PHOTO_MATCH : "",
     `Build: ${sentence(bible.build)}`,
     `Three-quarter view full-body standing pose, body turned about thirty degrees from the camera, relaxed, arms at sides, fitted ${ATHLETICWEAR[backdrop]} athleticwear (plain fitted tee and leggings or shorts), simple trainers, head to toe inside the frame, ${BACKDROPS[backdrop]}, even soft light, photographic.`,
     CONTRAST,
     NO_TEXT,
-  ].join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /**
  * The reference sheet prompt from the character-bible skill, with the background chosen from the
  * wardrobe so the outfit contrasts with it.
  */
-export function referenceSheetPrompt(bible: Pick<CharacterBible, "visualCore">, wardrobe: string): string {
+export function referenceSheetPrompt(bible: Pick<CharacterBible, "visualCore">, wardrobe: string, source: IdentitySource = {}): string {
   return [
     `Character reference sheet of one consistent person, on ${BACKDROPS[backdropFor(wardrobe)].replace("seamless background", "seamless studio background")}, clean editorial layout in three vertical columns read left to right, identical identity, lighting, and color grading in every panel.`,
     "Column 1, largest, about a third of the width: chest-up portrait turned slightly off frontal, sharp focus on the eyes, iris color clearly visible, soft catchlights in both eyes, natural skin texture with subtle imperfections, no mirror symmetry.",
     "Column 2: full-body front view, relaxed standing pose, arms slightly away from the body, head to toe inside the frame with even margins.",
     "Column 3: full-body back view, same pose mirrored, showing hair fall, posture, and garment fit.",
-    `The person is the person in reference image 1 (face, hair, skin, eyes) with the build of reference image 2. ${sentence(bible.visualCore)} Wardrobe in every panel: ${clause(wardrobe)}. ${CONTRAST}`,
+    `The person is the person in reference image 1 (face, hair, skin, eyes) with the build of reference image 2. ${sentence(bible.visualCore)} Wardrobe in every panel: ${clause(wardrobe)}. ${CONTRAST}${source.photographed ? ` ${PHOTO_MATCH}` : ""}`,
     "Soft even studio light, large diffused key with gentle fill, neutral white balance, true-to-life skin, 85mm look, tack-sharp detail. No text, no labels, no logos, no colored rim light, no 3D render look.",
   ].join("\n");
 }
@@ -214,11 +225,14 @@ export interface StillPromptParts {
   beat: Beat;
   bible?: Pick<CharacterBible, "visualCore">;
   wardrobe?: string | null;
-  /** How the character is referenced: one sheet, or a face plus an optional body image. */
-  character?: { mode: "sheet"; image: number } | { mode: "face"; face: number; body?: number };
+  /**
+   * How the character is referenced: one sheet, or a face plus an optional body image.
+   * `photographed` marks a real person whose face reference is an uploaded photo.
+   */
+  character?: ({ mode: "sheet"; image: number } | { mode: "face"; face: number; body?: number }) & IdentitySource;
   product?: ProductLook & { image?: number };
-  /** A Library set, referenced by image number when it has one. */
-  set?: { name: string; image?: number };
+  /** A Library set, referenced by image number when it has one; `photo` marks a real place's photo. */
+  set?: { name: string; image?: number; photo?: boolean };
 }
 
 const STILL_FRAMING: Record<Beat["type"], string> = {
@@ -246,7 +260,8 @@ export function stillPrompt(parts: StillPromptParts): string {
   }
   const visual = product ? withoutProductName(beat.visual, product) : beat.visual;
   lines.push(STILL_FRAMING[beat.type], sentence(visual));
-  if (set?.image) lines.push(`Setting: the location in reference image ${set.image}, ${inline(set.name)}.`);
+  if (set?.image && set.photo) lines.push(`Setting: the place in reference image ${set.image} (${inline(set.name)}), matching its layout, furniture, and lighting.`);
+  else if (set?.image) lines.push(`Setting: the location in reference image ${set.image}, ${inline(set.name)}.`);
   else if (set) lines.push(`Setting: ${clause(set.name)}.`);
   else if (beat.setting) lines.push(`Setting: ${clause(beat.setting)}.`);
   if (product && beat.productVisible) {
@@ -264,6 +279,7 @@ export function stillPrompt(parts: StillPromptParts): string {
         ? "Preserve the person's identity, face, hair, build, and wardrobe exactly as in the sheet."
         : `Preserve the person's identity, face, and hair exactly as in reference image ${character.face}.`,
     );
+    if (character.photographed) lines.push(PHOTO_MATCH);
   }
   return lines.join(" ");
 }

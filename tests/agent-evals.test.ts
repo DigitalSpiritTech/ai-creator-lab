@@ -453,6 +453,105 @@ describe("agent evals", () => {
     assert.equal(store.jobs.listByProject(project.id).length, 0);
   });
 
+  test("a real founder and boardroom: the agent steers to photo uploads, then builds the shot from them", async (t) => {
+    const harness = setup();
+    const { project, store, now } = harness;
+    await seed(harness, "save_brief", { projectId: project.id, brief: BRIEF });
+    const founder = { ...averyBible(), backstory: "Founded the company after years of long commutes. Talks about the product the way she uses it." };
+
+    const steer = clean(
+      await runTurn(
+        harness,
+        "It's our founder, Avery Lane. I have photos of her, and of our boardroom. Can we use those?",
+        scriptedModel([
+          (params) => {
+            assert.match(params.system[0].text, /Never ask the user to paste, drop, or attach images in the chat/);
+            assert.match(params.system[0].text, /photos of a place as a Set/);
+            assert.match(latestState(params), /Next step: 4\. Character/);
+            return [toolUse("save_character_bible", { projectId: project.id, bible: founder })];
+          },
+          (params) => {
+            assert.match(latestState(params), /do not generate a face: ask them to upload a clear face photo to the face slot on the Assets tab/);
+            return say(
+              "Yes, real photos are better here. On the Assets tab, add a clear face photo to Avery's face slot and a full-body photo to her body slot, and the boardroom photos as a Set. Tell me when they're in and we'll carry on with the product.",
+            );
+          },
+        ]),
+      ),
+    );
+    usage(t, "steer to uploads", steer);
+    assert.equal(steer.proposals.length, 0, "nothing is generated for a real person");
+    assert.match(steer.text, /Assets tab/);
+    assert.doesNotMatch(steer.text, /\b(paste|attach|drop)\b/i);
+    const characterId = (steer.toolResults[0].output as { character: { id: string } }).character.id;
+
+    // What the Assets tab does: upload each photo, then lock it or build the set with the same tools.
+    const photo = async (name: string, color: string) => {
+      const bytes = await sharp({ create: { width: 48, height: 64, channels: 3, background: color } }).jpeg().toBuffer();
+      return (await importImage(store, { projectId: project.id, name, bytes }, { now: now(), newId: randomUUID })).id;
+    };
+    const face = await photo("founder-face.jpg", "#a07d62");
+    const body = await photo("founder-body.jpg", "#6d5a4a");
+    await seed(harness, "select_reference", { characterId, slot: "face", assetId: face });
+    await seed(harness, "select_reference", { characterId, slot: "body", assetId: body });
+    const boardroom = await photo("boardroom.jpg", "#5b6470");
+    await seed(harness, "create_set", { projectId: project.id, set: { name: "Our boardroom", imageAssetIds: [boardroom] } });
+    const bottle = await photo("bottle.jpg", "#2f4a3a");
+    assert.ok(loadSnapshot(store, project.id)!.uploads.face && loadSnapshot(store, project.id)!.uploads.body);
+
+    const beat: BeatInput = {
+      type: "talking",
+      purpose: "hook",
+      spokenLine: "This sits on our boardroom table all day. Still cold at six.",
+      onScreenText: "Cold 24 hours.",
+      visual: "Avery at the head of the boardroom table, the Ridgeline bottle in hand.",
+      setting: "Our boardroom",
+      productVisible: true,
+    };
+    const build = clean(
+      await runTurn(
+        harness,
+        "Photos are in. Product: Ridgeline 32 oz insulated bottle, matte dark green steel with a black cap; the photo is uploaded. Claim: keeps drinks cold 24 hours. Set it in the boardroom.",
+        scriptedModel([
+          (params) => {
+            const state = latestState(params);
+            assert.match(state, new RegExp(`Face locked from an uploaded photo \\(${face}\\)`));
+            assert.match(state, new RegExp(`Body locked from an uploaded photo \\(${body}\\)`));
+            assert.doesNotMatch(state, /Propose the face lock|exactly this prompt/, "no face or body is proposed again");
+            assert.match(state, /Our boardroom \(setId [0-9a-f-]{36}, 1 photo\)/);
+            assert.match(state, /Next step: 7\. Reference sheet/);
+            assert.match(state, /can still be generated from the photos and recommend it/);
+            return [
+              toolUse("save_product", {
+                projectId: project.id,
+                product: { name: "Ridgeline 32 oz insulated bottle", appearance: "matte dark green steel bottle with a black cap", allowedClaims: ["Keeps drinks cold 24 hours"], imageAssetIds: [bottle] },
+              }),
+              toolUse("save_script", { projectId: project.id, title: "Boardroom", beats: [beat] }, "toolu_script"),
+            ];
+          },
+          (params) => {
+            const { script } = resultJson<{ script: { id: string } }>(params.messages, "toolu_script");
+            return [toolUse("plan_shots", { projectId: project.id, scriptId: script.id }, "toolu_plan")];
+          },
+          (params) => {
+            const content = resultJson<{ id: string }>(params.messages, "toolu_plan");
+            return [toolUse("compose_still", { contentId: content.id, beatIndex: 1, count: 2 })];
+          },
+          say("The first start frame is proposed from Avery's photos, the bottle photo, and the boardroom. I'd still generate a reference sheet from her photos next, so every shot matches."),
+        ]),
+      ),
+    );
+    usage(t, "build from uploads", build);
+    assert.ok(build.toolResults.every((result) => result.ok));
+    const still = build.proposals[0];
+    assert.deepEqual(still.references.map((reference) => reference.assetId), [face, body, bottle, boardroom]);
+    assert.match(still.prompt, /The person in reference image 1 with the build of reference image 2/);
+    assert.match(still.prompt, /reference image 4/);
+    assert.match(still.prompt, /The product in reference image 3 is a matte dark green steel bottle with a black cap/);
+    assert.doesNotMatch(still.prompt, /Ridgeline/);
+    assert.equal(store.jobs.listByProject(project.id).length, 0, "only uploads and proposals so far");
+  });
+
   test(
     "a Library character whose face and body were generated in another project can make a sheet here",
     async () => {
