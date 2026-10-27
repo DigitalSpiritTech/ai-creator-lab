@@ -27,6 +27,10 @@ Cut order if behind schedule: E7 MCP server, A8 Set library item, B7 first/last 
 - [x] B6 Mock executor: deterministic labeled SVG stills and static storyboard "clips" so the whole flow runs without an account. Acceptance: acceptance smoke uses it end to end. Done in `cad037c`.
 - [x] B7 First/last-frame LTX recipe: implemented and verified live on Comfy Cloud (121 frames, both endpoints honored). Guidance: pair it with an ending still composed for the same shot; unrelated endpoints produce a dissolve.
 - [ ] B8 Serial job runner per target respecting one concurrent Cloud workflow; queue position surfaced. Acceptance: two submissions on Standard do not collide; test with a fake clock.
+- [x] B9 Uploaded photos as the starting point: a person, product or place photo imported as an upload becomes the face lock, the product card's appearance, or a Set, and the prompt layer uses photo wording for them. Verified on real credits by `scripts/e2e-photos.ts` (VERIFICATION, 22:18 row).
+- [ ] B10 Hide the mock recipes from the catalog users see by default (keep them for tests and the acceptance smoke; a `SHOW_MOCK_RECIPES=1` style switch or the test harness only). The maintainer's direction: "don't need mock stuff in a real app".
+- [ ] B11 Three-reference Qwen Image Edit sidecar (`image3` on TextEncodeQwenImageEditPlus) so a still that needs sheet, product and set stays on open weights; today a three-reference still routes to Nano Banana on the Router.
+- [ ] B12 Short pause before the automatic black-output retry. The 22:18 run's retry fired 36 s after the original into the same transient Cloud window and spent a second clip's credits; a deferred submission (admitted job, submit after about 60 s) would have avoided it.
 
 ## C. Agent (creative-prompts)
 

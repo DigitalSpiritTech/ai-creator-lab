@@ -48,11 +48,10 @@ function logRow(target: string, recipe: string, inputs: string, result: string, 
   const row = `| ${date} | spike | ${target} | ${recipe} | ${inputs} | ${result} | ${credits(before)} / ${credits(after)} / ${credits(delta)} (${delta.toFixed(2)}c) | ${(ms / 1000).toFixed(0)}s | ${notes} |\n`;
   const vPath = resolve(root, "docs/VERIFICATION.md");
   let v = readFileSync(vPath, "utf8");
-  v = v.replace(/Running total spent: .*\n/, `Running total spent: ${credits(l.spentCents)} credits (${(l.spentCents / 100).toFixed(2)} USD) of the ${credits(capCents)}-credit cap.\n`);
   const marker = "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n";
   v = v.replace(marker, marker + row);
   writeFileSync(vPath, v);
-  console.log(`spent this run: ${credits(delta)} credits (${delta.toFixed(2)}c); running total ${credits(l.spentCents)} credits`);
+  console.log(`spent this run: ${credits(delta)} credits (${delta.toFixed(2)}c); spike ledger ${credits(l.spentCents)} credits (the settled running total in VERIFICATION.md is kept by hand from the balance endpoint)`);
   const pct = l.spentCents / capCents;
   if (pct >= 0.8) console.log("NOTICE: 80 percent of the cap reached");
   else if (pct >= 0.5) console.log("NOTICE: 50 percent of the cap reached");
@@ -129,11 +128,12 @@ async function main() {
       logRow("cloud", "qwen-image-edit-2511-2ref", "face.png + product.png", `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
     } else if (step === "ltx") {
       const r = await runCloud("ltx-2.5-i2v.api.json", "9", (wf, client) => {
-        wf.setInput("22", "image", client.assets.fromFile(resolve(out, "composite-576x1024.png")));
-        wf.setInput("5", "text", prompts.clip); wf.setInput("12", "noise_seed", 5);
+        wf.setInput("22", "image", client.assets.fromFile(resolve(out, process.env.IMAGE ?? "composite-576x1024.png")));
+        wf.setInput("5", "text", process.env.PROMPT ?? prompts.clip); wf.setInput("12", "noise_seed", Number(process.env.SEED ?? "5"));
+        if (process.env.COMPRESSION) wf.setInput("23", "img_compression", Number(process.env.COMPRESSION));
       }, "clip.mp4");
       const after = await balanceCents();
-      logRow("cloud", "ltx-2.5-i2v", "composite.png", `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
+      logRow("cloud", "ltx-2.5-i2v", `${process.env.IMAGE ?? "composite-576x1024.png"} seed ${process.env.SEED ?? "5"}${process.env.COMPRESSION ? ` compression ${process.env.COMPRESSION}` : ""}`, `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
     } else if (step === "router-edit") {
       comfy.config({ credentials: apiKey });
       const b64 = (f: string) => readFileSync(resolve(out, f)).toString("base64");
