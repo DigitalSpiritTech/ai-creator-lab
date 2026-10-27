@@ -101,7 +101,7 @@ describe("registry", () => {
       "list_recipes",
       { capability: "image_edit" },
     );
-    assert.match(recipes[0].id, /^qwen-image-edit-2511-[123]ref$/);
+    assert.ok(recipes[0].openWeights && recipes[0].verified, `the first listed image edit is a verified open-weights workflow (${recipes[0].id})`);
     assert.equal(recipes[0].verified, true);
     assert.equal(recipes[0].openWeights, true);
     assert.equal(recipes.at(-1)!.kind, "mock");

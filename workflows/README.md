@@ -1,6 +1,6 @@
 # Starter workflows
 
-These are API-format ComfyUI workflows, each with a small sidecar file that tells AI Creator Lab which node inputs to fill. All three use open weights and were run on Comfy Cloud on October 26, 2026. The dates and costs come from `docs/VERIFICATION.md`.
+These are API-format ComfyUI workflows, each with a small sidecar file that tells AI Creator Lab which node inputs to fill. All of them use open weights hosted on Comfy Cloud, and each was run there on the date shown. Most were built from the official ComfyUI workflow templates (converted to API format against Cloud's node definitions, with prompt enhancers and style LoRAs switched off and the sizes, lengths and seeds exposed as slots).The dates and costs come from `docs/VERIFICATION.md`.
 
 | Workflow | Capability | Needs on Cloud | Verified |
 | --- | --- | --- | --- |
@@ -8,6 +8,18 @@ These are API-format ComfyUI workflows, each with a small sidecar file that tell
 | `qwen-image-edit-2511-2ref.api.json` | image_edit (2 references) | qwen_image_edit_2511_bf16, qwen_2.5_vl_7b_fp8_scaled, qwen_image_vae, Qwen-Image-Edit-2511-Lightning-4steps LoRA | 2026-10-26, 768x1344, about 7 credits |
 | `qwen-image-edit-2511-1ref.api.json` | image_edit (1 reference: body from a face, refine) | same as the two-reference graph | 2026-10-27, 768x1344, about 6 credits |
 | `qwen-image-edit-2511-3ref.api.json` | image_edit (3 references: sheet, product, set) | same as the two-reference graph | 2026-10-27, 768x1344, about 6 credits |
+| `qwen-image-2512-t2i.api.json` | text_to_image | qwen_image_2512_fp8_e4m3fn, qwen_2.5_vl_7b_fp8_scaled, qwen_image_vae, Qwen-Image-2512-Lightning-4steps LoRA | 2026-10-27, 992x1760, about 3 credits |
+| `flux-2-dev-t2i.api.json` | text_to_image | flux2_dev_fp8mixed, mistral_3_small_flux2_bf16, flux2-vae | 2026-10-27, 864x1536, about 12 credits (20 steps) |
+| `flux-2-dev-edit-1ref.api.json`, `-2ref`, `-3ref` | image_edit (1 to 3 references, chained ReferenceLatent) | same as FLUX.2 text to image | 2026-10-27 (one and three references), 864x1536, about 16 credits |
+| `krea-2-turbo-t2i.api.json` | text_to_image | krea2_turbo_fp8_scaled, qwen3vl_4b_fp8_scaled, qwen_image_vae | 2026-10-27, 768x1344, about 3 credits (8 steps) |
+| `krea-2-turbo-style-reference.api.json` | image_edit (1 reference: style, not identity) | Krea 2 Turbo plus the krea2_style_reference LoRA | 2026-10-27, 768x1344, about 4 credits |
+| `minimax-h3-t2i.api.json` | text_to_image | minimax_h3_fl2va_pruned_int8_convrot, qwen3vl_32b_minimax_h3_nvfp4_awq, minimax_h3_video_vae_fp16 | 2026-10-27, 768x1344, about 6 credits |
+| `wan-2.2-t2v.api.json` | text_to_video | wan2.2_t2v high and low noise 14B fp8, umt5_xxl fp8, wan_2.1_vae, lightx2v 4-step LoRAs | 2026-10-27, 720x1280, 81 frames at 16 fps, about 20 credits |
+| `wan-2.2-i2v.api.json` | image_to_video | wan2.2_i2v high and low noise 14B fp8, same encoders, lightx2v i2v 4-step LoRAs | 2026-10-27, 720x1280, 81 frames, about 22 credits |
+| `wan-2.2-flf2v.api.json` | first_last_to_video | the i2v experts with the lightx2v LoRAs | 2026-10-27, 720x1280, 81 frames, about 23 credits |
+| `minimax-h3-t2v.api.json` | text_to_video (with sound) | minimax_h3_fl2va, qwen3vl_32b_minimax_h3, video and audio VAEs, fl2v turbo 8-step LoRA | 2026-10-27, 736x1312, 124 frames at 24 fps, about 20 credits |
+| `minimax-h3-i2v.api.json` | image_to_video (with sound) | same | 2026-10-27, 736x1312, 124 frames, about 21 credits |
+| `minimax-h3-flf2v.api.json` | first_last_to_video (with sound) | same | 2026-10-27, 736x1312, 124 frames, about 23 credits |
 | `ltx-2.5-i2v.api.json` | image_to_video | ltx-2.5-22b-distilled-transformer-comfy-int8-convrot, gemma4-12b-with-proj-ltx-2.5-bf16, ltx-2.5 video and audio VAEs | 2026-10-26, 576x1024, 121 frames, 24 fps, audio, about 10 credits |
 
 Running these needs a Comfy Cloud plan with API access. Without one, use the hosted Router models, which need only credits.
@@ -79,3 +91,7 @@ Test a new workflow with a single candidate first. Cloud bills by GPU time, so a
 ## Verification
 
 All three starter workflows ran successfully on Comfy Cloud on 2026-10-26 with the model files listed above, and then ran again inside the full three-beat ad on the same day. Nothing in this folder has been verified on a local ComfyUI or a Comfy API deployment yet.
+
+## Not on Cloud yet
+
+Qwen-Image 2.1 (text to image and edit) has native nodes on Comfy Cloud but its weights were not in the Cloud library on October 27, 2026, so no workflow ships for it. Wan 2.2 S2V (a reference image plus speech audio) is built and waiting on the app's audio input support (`wan-2.2-s2v.*.pending`).

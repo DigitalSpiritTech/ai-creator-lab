@@ -21,7 +21,8 @@
     "live-flf": "node --import tsx --conditions=react-server scripts/live-flf.ts",
     "redo-clip": "node --import tsx --conditions=react-server scripts/redo-clip.ts",
     "e2e-photos": "node --import tsx --conditions=react-server scripts/e2e-photos.ts",
-    "live-premium": "node --import tsx --conditions=react-server scripts/live-premium.ts"
+    "live-premium": "node --import tsx --conditions=react-server scripts/live-premium.ts",
+    "verify-workflow": "node --import tsx --conditions=react-server scripts/verify-workflow.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

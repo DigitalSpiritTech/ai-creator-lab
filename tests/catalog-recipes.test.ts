@@ -23,7 +23,28 @@ import { loadWorkflowRecipes } from "@/server/catalog/workflows";
 
 const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
 const read = (name: string) => JSON.parse(readFileSync(join(workflowsDir, name), "utf8"));
-const NAMES = ["z-image-turbo-t2i", "qwen-image-edit-2511-1ref", "qwen-image-edit-2511-2ref", "qwen-image-edit-2511-3ref", "ltx-2.5-i2v", "ltx-2.5-flf2v"];
+const NAMES = [
+  "z-image-turbo-t2i",
+  "qwen-image-edit-2511-1ref",
+  "qwen-image-edit-2511-2ref",
+  "qwen-image-edit-2511-3ref",
+  "qwen-image-2512-t2i",
+  "flux-2-dev-t2i",
+  "flux-2-dev-edit-1ref",
+  "flux-2-dev-edit-2ref",
+  "flux-2-dev-edit-3ref",
+  "krea-2-turbo-t2i",
+  "krea-2-turbo-style-reference",
+  "minimax-h3-t2i",
+  "minimax-h3-t2v",
+  "minimax-h3-i2v",
+  "minimax-h3-flf2v",
+  "wan-2.2-t2v",
+  "wan-2.2-i2v",
+  "wan-2.2-flf2v",
+  "ltx-2.5-i2v",
+  "ltx-2.5-flf2v",
+];
 
 test("every starter sidecar parses and matches its workflow graph", () => {
   for (const name of NAMES) {
@@ -61,6 +82,9 @@ test("lengths snap to the 8n+1 rule", () => {
   assert.equal(snapLength(121, "8n+1"), 121);
   assert.equal(snapLength(100, "8n+1"), 97);
   assert.equal(snapLength(100), 100);
+  assert.equal(snapLength(80, "4n+1"), 81, "Wan 2.2 at 16 fps for 5 s");
+  assert.equal(snapLength(120, "17n+5"), 124, "MiniMax H3 at 24 fps for 5 s");
+  assert.equal(snapLength(2, "17n+5"), 5, "never below the offset");
 });
 
 test("the workflow loader builds recipes from sidecars and reports broken ones without failing", async () => {
@@ -89,11 +113,25 @@ test("starter recipes match the spike: verified defaults per MVP capability, unv
   assert.equal(new Set(recipes.map((recipe) => recipe.id)).size, recipes.length);
   const summary = Object.fromEntries(recipes.filter((recipe) => recipe.kind !== "mock").map((recipe) => [recipe.id, [recipe.kind, recipe.capability, recipe.verified]]));
   assert.deepEqual(summary, {
+    "flux-2-dev-edit-1ref": ["workflow", "image_edit", "2026-10-27"],
+    "flux-2-dev-edit-2ref": ["workflow", "image_edit", null],
+    "flux-2-dev-edit-3ref": ["workflow", "image_edit", "2026-10-27"],
+    "flux-2-dev-t2i": ["workflow", "text_to_image", "2026-10-27"],
+    "krea-2-turbo-style-reference": ["workflow", "image_edit", "2026-10-27"],
+    "krea-2-turbo-t2i": ["workflow", "text_to_image", "2026-10-27"],
     "ltx-2.5-i2v": ["workflow", "image_to_video", "2026-10-26"],
     "ltx-2.5-flf2v": ["workflow", "first_last_to_video", "2026-10-26"],
+    "minimax-h3-flf2v": ["workflow", "first_last_to_video", "2026-10-27"],
+    "minimax-h3-i2v": ["workflow", "image_to_video", "2026-10-27"],
+    "minimax-h3-t2i": ["workflow", "text_to_image", "2026-10-27"],
+    "minimax-h3-t2v": ["workflow", "text_to_video", "2026-10-27"],
+    "qwen-image-2512-t2i": ["workflow", "text_to_image", "2026-10-27"],
     "qwen-image-edit-2511-1ref": ["workflow", "image_edit", "2026-10-27"],
     "qwen-image-edit-2511-2ref": ["workflow", "image_edit", "2026-10-26"],
     "qwen-image-edit-2511-3ref": ["workflow", "image_edit", "2026-10-27"],
+    "wan-2.2-flf2v": ["workflow", "first_last_to_video", "2026-10-27"],
+    "wan-2.2-i2v": ["workflow", "image_to_video", "2026-10-27"],
+    "wan-2.2-t2v": ["workflow", "text_to_video", "2026-10-27"],
     "z-image-turbo-t2i": ["workflow", "text_to_image", "2026-10-26"],
     "router-nano-banana-2.1-edit": ["router", "image_edit", "2026-10-26"],
     "router-nano-banana-pro-edit": ["router", "image_edit", "2026-10-27"],
@@ -147,10 +185,10 @@ test("the first-and-last LTX sidecar binds both frames, both lengths, and both g
 
   const recipes = await defaultRecipes(workflowsDir, { mocks: true });
   const ranked = recipesFor(recipes, "first_last_to_video");
-  assert.deepEqual(ranked.map((recipe) => recipe.id), ["ltx-2.5-flf2v", "router-kling-3-omni-flf2v", "router-wan-3-flf2v", "mock-first-last-to-video"]);
+  assert.deepEqual(ranked.map((recipe) => recipe.id), ["ltx-2.5-flf2v", "minimax-h3-flf2v", "wan-2.2-flf2v", "router-kling-3-omni-flf2v", "router-wan-3-flf2v", "mock-first-last-to-video"]);
   const flf = ranked[0];
   assert.ok(flf.kind === "workflow" && flf.fitImages && flf.openWeights && flf.verified === "2026-10-26");
-  assert.deepEqual(DEFAULT_RECIPE_IDS.first_last_to_video, { primary: "ltx-2.5-flf2v", hosted: "router-wan-3-flf2v", mock: "mock-first-last-to-video" });
+  assert.deepEqual(DEFAULT_RECIPE_IDS.first_last_to_video, { primary: "ltx-2.5-flf2v", hosted: "router-kling-3-omni-flf2v", mock: "mock-first-last-to-video" });
 });
 
 test("mock recipes stay out of the catalog unless MOCK_RECIPES=1 or the caller asks for them", async () => {

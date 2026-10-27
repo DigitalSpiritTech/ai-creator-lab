@@ -78,7 +78,7 @@ export function pickRecipe(
     return recipe;
   }
   const starter = DEFAULT_RECIPE_IDS[capability];
-  for (const id of [...others, starter?.primary]) {
+  for (const id of [...others, starter?.primary, ...(starter?.siblings ?? [])]) {
     const recipe = byId(id);
     if (runnable(recipe)) return recipe;
   }

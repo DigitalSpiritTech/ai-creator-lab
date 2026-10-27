@@ -1,0 +1,55 @@
+{
+  "workflow": "wan-2.2-t2v.api.json",
+  "capability": "text_to_video",
+  "openWeights": true,
+  "outputNode": "1",
+  "slots": {
+    "prompt": {
+      "node": "10",
+      "input": "text"
+    },
+    "width": {
+      "node": "15",
+      "input": "width"
+    },
+    "height": {
+      "node": "15",
+      "input": "height"
+    },
+    "length": {
+      "node": "15",
+      "input": "length"
+    },
+    "seed": {
+      "node": "11",
+      "input": "noise_seed"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        720,
+        1280
+      ],
+      [
+        1280,
+        720
+      ],
+      [
+        480,
+        832
+      ],
+      [
+        832,
+        480
+      ]
+    ],
+    "multipleOf": 16,
+    "length": {
+      "default": 81,
+      "rule": "4n+1"
+    },
+    "fps": 16
+  },
+  "notes": "Wan 2.2 14B text to video (high and low noise fp8 experts) with the lightx2v 4-step LoRAs, CFG 1, 16 fps, from the official template."
+}

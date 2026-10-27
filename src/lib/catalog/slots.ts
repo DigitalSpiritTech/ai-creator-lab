@@ -116,8 +116,11 @@ export function applySlots(target: SlotTarget, sidecar: SlotSidecar, values: Rec
   }
 }
 
-/** Snaps a frame count to LTX's 8n+1 rule. */
+/** Snaps a frame count to a model's rule such as LTX's 8n+1, Wan's 4n+1 or MiniMax H3's 17n+5. */
 export function snapLength(frames: number, rule?: string): number {
-  if (rule !== "8n+1") return Math.max(1, Math.round(frames));
-  return Math.max(1, Math.round((frames - 1) / 8) * 8 + 1);
+  const match = rule?.match(/^(\d+)n\+(\d+)$/);
+  if (!match) return Math.max(1, Math.round(frames));
+  const k = Number(match[1]);
+  const c = Number(match[2]);
+  return Math.max(c, Math.round((frames - c) / k) * k + c);
 }

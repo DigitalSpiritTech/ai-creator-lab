@@ -82,7 +82,7 @@ Everything lives in one folder: `.data` inside the project folder by default, or
 
 ## Starter workflows and adding your own
 
-Three open-weights workflows ship in `workflows/`, each with a small sidecar file that tells the app which node inputs to fill (prompt, images, size, length, seed). To see what they need on Comfy Cloud, how to open one in ComfyUI, and how to add your own, read [workflows/README.md](workflows/README.md).
+Twenty open-weights workflows ship in `workflows/` (Z-Image, Qwen-Image 2512, FLUX.2 dev, Krea 2 Turbo and MiniMax H3 for stills; Qwen Image Edit 2511 and FLUX.2 dev with one to three references and the Krea 2 style reference for edits; LTX 2.5, Wan 2.2 and MiniMax H3 for text, image and first-and-last-frame video), each with a small sidecar file that tells the app which node inputs to fill (prompt, images, size, length, seed). To see what they need on Comfy Cloud, how to open one in ComfyUI, and how to add your own, read [workflows/README.md](workflows/README.md).
 
 ## Troubleshooting
 

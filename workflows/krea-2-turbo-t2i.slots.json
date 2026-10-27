@@ -1,0 +1,46 @@
+{
+  "workflow": "krea-2-turbo-t2i.api.json",
+  "capability": "text_to_image",
+  "openWeights": true,
+  "outputNode": "1",
+  "slots": {
+    "prompt": {
+      "node": "2",
+      "input": "text"
+    },
+    "width": {
+      "node": "3",
+      "input": "width"
+    },
+    "height": {
+      "node": "3",
+      "input": "height"
+    },
+    "seed": {
+      "node": "4",
+      "input": "seed"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        768,
+        1344
+      ],
+      [
+        1344,
+        768
+      ],
+      [
+        1024,
+        1024
+      ],
+      [
+        896,
+        1120
+      ]
+    ],
+    "multipleOf": 16
+  },
+  "notes": "Krea 2 Turbo (fp8) with the Qwen3-VL 4B text encoder, 8 steps, CFG 1, from the official template with the prompt enhancer and style LoRA off."
+}

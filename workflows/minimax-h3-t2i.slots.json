@@ -1,0 +1,46 @@
+{
+  "workflow": "minimax-h3-t2i.api.json",
+  "capability": "text_to_image",
+  "openWeights": true,
+  "outputNode": "1",
+  "slots": {
+    "prompt": {
+      "node": "3",
+      "input": "text"
+    },
+    "width": {
+      "node": "6",
+      "input": "width"
+    },
+    "height": {
+      "node": "6",
+      "input": "height"
+    },
+    "seed": {
+      "node": "8",
+      "input": "noise_seed"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        768,
+        1344
+      ],
+      [
+        1344,
+        768
+      ],
+      [
+        1024,
+        1024
+      ],
+      [
+        896,
+        1120
+      ]
+    ],
+    "multipleOf": 32
+  },
+  "notes": "MiniMax H3 (the first-last video model) used as a still generator, 30 steps, from the official template."
+}

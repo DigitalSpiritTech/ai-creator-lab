@@ -1,0 +1,66 @@
+{
+  "workflow": "wan-2.2-flf2v.api.json",
+  "capability": "first_last_to_video",
+  "openWeights": true,
+  "maxReferences": 2,
+  "outputNode": "12",
+  "slots": {
+    "prompt": {
+      "node": "11",
+      "input": "text"
+    },
+    "width": {
+      "node": "8",
+      "input": "width"
+    },
+    "height": {
+      "node": "8",
+      "input": "height"
+    },
+    "length": {
+      "node": "8",
+      "input": "length"
+    },
+    "seed": {
+      "node": "15",
+      "input": "noise_seed"
+    },
+    "image1": {
+      "node": "13",
+      "input": "image",
+      "kind": "image"
+    },
+    "image2": {
+      "node": "14",
+      "input": "image",
+      "kind": "image"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        720,
+        1280
+      ],
+      [
+        1280,
+        720
+      ],
+      [
+        480,
+        832
+      ],
+      [
+        832,
+        480
+      ]
+    ],
+    "multipleOf": 16,
+    "length": {
+      "default": 81,
+      "rule": "4n+1"
+    },
+    "fps": 16
+  },
+  "notes": "Wan 2.2 14B first and last frame to video on the i2v experts with the lightx2v 4-step LoRAs added, CFG 1, 16 fps, from the official template. Both frames are center-cropped and scaled to the output size."
+}

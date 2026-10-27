@@ -1,0 +1,70 @@
+{
+  "workflow": "flux-2-dev-edit-2ref.api.json",
+  "capability": "image_edit",
+  "openWeights": true,
+  "maxReferences": 2,
+  "outputNode": "3",
+  "slots": {
+    "prompt": {
+      "node": "9",
+      "input": "text"
+    },
+    "image1": {
+      "node": "1",
+      "input": "image",
+      "kind": "image"
+    },
+    "image2": {
+      "node": "18",
+      "input": "image",
+      "kind": "image"
+    },
+    "width": [
+      {
+        "node": "15",
+        "input": "width"
+      },
+      {
+        "node": "4",
+        "input": "width"
+      }
+    ],
+    "height": [
+      {
+        "node": "15",
+        "input": "height"
+      },
+      {
+        "node": "4",
+        "input": "height"
+      }
+    ],
+    "seed": {
+      "node": "11",
+      "input": "noise_seed"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        864,
+        1536
+      ],
+      [
+        1536,
+        864
+      ],
+      [
+        1024,
+        1024
+      ],
+      [
+        1024,
+        1280
+      ]
+    ],
+    "multipleOf": 16,
+    "megapixelsPerReference": 1.0
+  },
+  "notes": "FLUX.2 dev (fp8 mixed) image edit with 2 reference images (each scaled to 1 MP, VAE-encoded, chained through ReferenceLatent), 20 steps, guidance 4, output size set by the app. From the official FLUX.2 dev edit template."
+}

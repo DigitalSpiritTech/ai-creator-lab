@@ -37,6 +37,116 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
     ceilingUsd: 0.1,
     defaults: { width: 768, height: 1344 },
   },
+  "flux-2-dev-t2i": {
+    title: "FLUX.2 dev text to image on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 12 credits at 864x1536 (20 steps).",
+    ceilingUsd: 0.12,
+    defaults: { width: 864, height: 1536 },
+  },
+  "flux-2-dev-edit-1ref": {
+    title: "FLUX.2 dev edit, one reference, on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 16 credits at 864x1536.",
+    ceilingUsd: 0.12,
+    defaults: { width: 864, height: 1536 },
+  },
+  "flux-2-dev-edit-2ref": {
+    title: "FLUX.2 dev edit, two references, on Comfy Cloud",
+    verified: null,
+    costHint: "Expected about 17 credits at 864x1536 (one and three references measured).",
+    ceilingUsd: 0.12,
+    defaults: { width: 864, height: 1536 },
+  },
+  "flux-2-dev-edit-3ref": {
+    title: "FLUX.2 dev edit, three references, on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 17 credits at 864x1536.",
+    ceilingUsd: 0.12,
+    defaults: { width: 864, height: 1536 },
+  },
+  "krea-2-turbo-t2i": {
+    title: "Krea 2 Turbo text to image on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 3 credits at 768x1344 (8 steps).",
+    ceilingUsd: 0.06,
+    defaults: { width: 768, height: 1344 },
+  },
+  "krea-2-turbo-style-reference": {
+    title: "Krea 2 Turbo style reference on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 4 credits at 768x1344 (8 steps).",
+    ceilingUsd: 0.06,
+    defaults: { width: 768, height: 1344 },
+  },
+  "qwen-image-2512-t2i": {
+    title: "Qwen-Image 2512 text to image on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 3 credits at 992x1760 (Lightning 4 steps).",
+    ceilingUsd: 0.08,
+    defaults: { width: 992, height: 1760 },
+  },
+  "minimax-h3-t2i": {
+    title: "MiniMax H3 text to image on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 6 credits at 768x1344 (30 steps).",
+    ceilingUsd: 0.1,
+    defaults: { width: 768, height: 1344 },
+  },
+  "wan-2.2-t2v": {
+    title: "Wan 2.2 14B text to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 20 credits for 81 frames at 720x1280 (about 2.5 min).",
+    ceilingUsd: 0.3,
+    defaults: { width: 720, height: 1280, length: 81 },
+  },
+  "wan-2.2-i2v": {
+    title: "Wan 2.2 14B image to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 22 credits for 81 frames at 720x1280 (about 100 s).",
+    ceilingUsd: 0.3,
+    fitImages: true,
+    defaults: { width: 720, height: 1280, length: 81 },
+  },
+  "wan-2.2-flf2v": {
+    title: "Wan 2.2 14B first and last frame to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 23 credits for 81 frames at 720x1280 (about 2 min).",
+    ceilingUsd: 0.3,
+    fitImages: true,
+    defaults: { width: 720, height: 1280, length: 81 },
+  },
+  "wan-2.2-s2v": {
+    title: "Wan 2.2 S2V 14B speech to video on Comfy Cloud",
+    verified: null,
+    costHint: "Not yet measured; expected 20 to 40 credits for 77 frames at 480x832.",
+    ceilingUsd: 0.25,
+    fitImages: true,
+    defaults: { width: 480, height: 832, length: 77 },
+  },
+  "minimax-h3-t2v": {
+    title: "MiniMax H3 text to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 20 credits for 124 frames at 736x1312 with sound.",
+    ceilingUsd: 0.25,
+    defaults: { width: 736, height: 1312, length: 124 },
+  },
+  "minimax-h3-i2v": {
+    title: "MiniMax H3 image to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 21 credits for 124 frames at 736x1312 with sound (about 90 s).",
+    ceilingUsd: 0.25,
+    fitImages: true,
+    defaults: { width: 736, height: 1312, length: 124 },
+  },
+  "minimax-h3-flf2v": {
+    title: "MiniMax H3 first and last frame to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 23 credits for 124 frames at 736x1312 with sound (about 100 s).",
+    ceilingUsd: 0.25,
+    fitImages: true,
+    defaults: { width: 736, height: 1312, length: 124 },
+  },
   "ltx-2.5-i2v": {
     title: "LTX 2.5 image to video on Comfy Cloud",
     verified: "2026-10-26",
@@ -293,13 +403,16 @@ export const MOCK_RECIPES: MockRecipe[] = MOCK_CAPABILITIES.map((capability) =>
   }),
 );
 
-/** The default recipe per MVP capability and the hosted alternative, by recipe id. */
-export const DEFAULT_RECIPE_IDS: Partial<Record<Capability, { primary: string; hosted?: string; mock: string }>> = {
+/**
+ * The default recipe per MVP capability, its siblings (the same family at other reference counts,
+ * tried next), the hosted alternative, and the mock, by recipe id.
+ */
+export const DEFAULT_RECIPE_IDS: Partial<Record<Capability, { primary: string; siblings?: string[]; hosted?: string; mock: string }>> = {
   text_to_image: { primary: "z-image-turbo-t2i", mock: "mock-text-to-image" },
-  image_edit: { primary: "qwen-image-edit-2511-2ref", hosted: "router-nano-banana-2.1-edit", mock: "mock-image-edit" },
-  image_to_video: { primary: "ltx-2.5-i2v", hosted: "router-wan-3-i2v", mock: "mock-image-to-video" },
-  first_last_to_video: { primary: "ltx-2.5-flf2v", hosted: "router-wan-3-flf2v", mock: "mock-first-last-to-video" },
-  text_to_video: { primary: "router-ltx-2.5-fast", mock: "mock-text-to-video" },
+  image_edit: { primary: "qwen-image-edit-2511-2ref", siblings: ["qwen-image-edit-2511-1ref", "qwen-image-edit-2511-3ref"], hosted: "router-nano-banana-2.1-edit", mock: "mock-image-edit" },
+  image_to_video: { primary: "ltx-2.5-i2v", hosted: "router-kling-3-omni-i2v", mock: "mock-image-to-video" },
+  first_last_to_video: { primary: "ltx-2.5-flf2v", hosted: "router-kling-3-omni-flf2v", mock: "mock-first-last-to-video" },
+  text_to_video: { primary: "wan-2.2-t2v", hosted: "router-ltx-2.5-fast", mock: "mock-text-to-video" },
 };
 
 /**

@@ -1,0 +1,66 @@
+{
+  "workflow": "wan-2.2-s2v.api.json",
+  "capability": "image_to_video",
+  "openWeights": true,
+  "maxReferences": 1,
+  "outputNode": "16",
+  "slots": {
+    "prompt": {
+      "node": "7",
+      "input": "text"
+    },
+    "image1": {
+      "node": "13",
+      "input": "image",
+      "kind": "image"
+    },
+    "audio1": {
+      "node": "12",
+      "input": "audio",
+      "kind": "audio"
+    },
+    "width": {
+      "node": "5",
+      "input": "width"
+    },
+    "height": {
+      "node": "5",
+      "input": "height"
+    },
+    "length": {
+      "node": "5",
+      "input": "length"
+    },
+    "seed": {
+      "node": "11",
+      "input": "seed"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        480,
+        832
+      ],
+      [
+        832,
+        480
+      ],
+      [
+        720,
+        1280
+      ],
+      [
+        1280,
+        720
+      ]
+    ],
+    "multipleOf": 16,
+    "length": {
+      "default": 77,
+      "rule": "4n+1"
+    },
+    "fps": 16
+  },
+  "notes": "Wan 2.2 S2V 14B: a reference image plus a speech or sound file drives the clip (lip sync and gesture follow the audio), one 77-frame chunk at 16 fps with the lightx2v 4-step LoRA, uni_pc, CFG 1. Audio beyond the clip length is cut. From the official S2V template without the extension chain."
+}

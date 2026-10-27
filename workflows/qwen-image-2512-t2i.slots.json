@@ -1,0 +1,46 @@
+{
+  "workflow": "qwen-image-2512-t2i.api.json",
+  "capability": "text_to_image",
+  "openWeights": true,
+  "outputNode": "1",
+  "slots": {
+    "prompt": {
+      "node": "6",
+      "input": "text"
+    },
+    "width": {
+      "node": "9",
+      "input": "width"
+    },
+    "height": {
+      "node": "9",
+      "input": "height"
+    },
+    "seed": {
+      "node": "10",
+      "input": "seed"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        992,
+        1760
+      ],
+      [
+        1760,
+        992
+      ],
+      [
+        1328,
+        1328
+      ],
+      [
+        1136,
+        1424
+      ]
+    ],
+    "multipleOf": 16
+  },
+  "notes": "Qwen-Image 2512 (fp8) with the Lightning 4-step LoRA, CFG 1, from the official template."
+}

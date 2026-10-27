@@ -1,0 +1,61 @@
+{
+  "workflow": "wan-2.2-i2v.api.json",
+  "capability": "image_to_video",
+  "openWeights": true,
+  "maxReferences": 1,
+  "outputNode": "2",
+  "slots": {
+    "prompt": {
+      "node": "8",
+      "input": "text"
+    },
+    "width": {
+      "node": "3",
+      "input": "width"
+    },
+    "height": {
+      "node": "3",
+      "input": "height"
+    },
+    "length": {
+      "node": "3",
+      "input": "length"
+    },
+    "seed": {
+      "node": "15",
+      "input": "noise_seed"
+    },
+    "image1": {
+      "node": "1",
+      "input": "image",
+      "kind": "image"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        720,
+        1280
+      ],
+      [
+        1280,
+        720
+      ],
+      [
+        480,
+        832
+      ],
+      [
+        832,
+        480
+      ]
+    ],
+    "multipleOf": 16,
+    "length": {
+      "default": 81,
+      "rule": "4n+1"
+    },
+    "fps": 16
+  },
+  "notes": "Wan 2.2 14B image to video (high and low noise fp8 experts) with the lightx2v 4-step LoRAs, CFG 1, 16 fps, from the official template. The start image is center-cropped and scaled to the output size."
+}

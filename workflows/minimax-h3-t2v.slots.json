@@ -1,0 +1,55 @@
+{
+  "workflow": "minimax-h3-t2v.api.json",
+  "capability": "text_to_video",
+  "openWeights": true,
+  "outputNode": "1",
+  "slots": {
+    "prompt": {
+      "node": "14",
+      "input": "prompt"
+    },
+    "width": {
+      "node": "14",
+      "input": "width"
+    },
+    "height": {
+      "node": "14",
+      "input": "height"
+    },
+    "length": {
+      "node": "14",
+      "input": "length"
+    },
+    "seed": {
+      "node": "12",
+      "input": "noise_seed"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        736,
+        1312
+      ],
+      [
+        1312,
+        736
+      ],
+      [
+        1024,
+        1024
+      ],
+      [
+        928,
+        1152
+      ]
+    ],
+    "multipleOf": 32,
+    "length": {
+      "default": 124,
+      "rule": "17n+5"
+    },
+    "fps": 24
+  },
+  "notes": "MiniMax H3 text to video with sound (first-last model, turbo 8-step LoRA, res_multistep), 24 fps, 17n+5 frames, from the official template."
+}

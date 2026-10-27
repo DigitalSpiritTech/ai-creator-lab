@@ -1,0 +1,58 @@
+{
+  "workflow": "flux-2-dev-t2i.api.json",
+  "capability": "text_to_image",
+  "openWeights": true,
+  "outputNode": "1",
+  "slots": {
+    "prompt": {
+      "node": "12",
+      "input": "text"
+    },
+    "width": [
+      {
+        "node": "10",
+        "input": "width"
+      },
+      {
+        "node": "9",
+        "input": "width"
+      }
+    ],
+    "height": [
+      {
+        "node": "10",
+        "input": "height"
+      },
+      {
+        "node": "9",
+        "input": "height"
+      }
+    ],
+    "seed": {
+      "node": "11",
+      "input": "noise_seed"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        864,
+        1536
+      ],
+      [
+        1536,
+        864
+      ],
+      [
+        1024,
+        1024
+      ],
+      [
+        1024,
+        1280
+      ]
+    ],
+    "multipleOf": 16
+  },
+  "notes": "FLUX.2 dev (fp8 mixed) with the Mistral 3 Small text encoder, 20 steps, guidance 4, from the official text-to-image template with the prompt enhancer and style LoRA off."
+}
