@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AssetKind, AssetMime } from "@/lib/domain/asset";
-import type { CharacterBibleFields } from "@/lib/domain/library";
+import type { CharacterBibleFields, ProductFields } from "@/lib/domain/library";
 import { createJob, advanceJob, type GenerationTarget, type Job, type JobInput } from "@/lib/domain/job";
 import { MOCK_RECIPES } from "@/server/catalog/defaults";
 import { createProject, type Project } from "@/lib/domain/project";
@@ -69,6 +69,20 @@ export function averyBible(): CharacterBibleFields {
     boundaries: ["No claims about health outcomes", "No competitor names"],
     visualCore:
       "Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings.",
+  };
+}
+
+/** How the invented Ridgeline bottle looks; image prompts use this, never the name. */
+export const RIDGELINE_APPEARANCE = "a matte dark green 32 oz insulated steel bottle with a black screw cap";
+
+/** The invented Ridgeline product card from docs/PRODUCT.md. */
+export function ridgelineProduct(imageAssetIds: string[] = []): ProductFields {
+  return {
+    name: "Ridgeline 32 oz insulated bottle",
+    appearance: RIDGELINE_APPEARANCE,
+    link: "https://example.com/ridgeline",
+    allowedClaims: ["Keeps drinks cold 24 hours", "Fits a car cup holder", "Dishwasher safe"],
+    imageAssetIds,
   };
 }
 

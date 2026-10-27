@@ -176,7 +176,7 @@ export const composeStill = defineTool({
     }
     if (product) {
       const photo = product.imageAssetIds.find((id) => store.assets.get(id)?.state.state === "active");
-      parts.product = { name: product.name, image: photo ? add(photo) : undefined };
+      parts.product = { name: product.name, appearance: product.appearance || undefined, image: photo ? add(photo) : undefined };
     }
     const set = setForBeat(sets, beat.setting);
     if (set) {
@@ -260,7 +260,7 @@ export const generateClip = defineTool({
         const cast = projectCast(store, content.projectId);
         return clipPrompt(beat, {
           wardrobe: beat.type === "talking" ? cast.character?.link.wardrobe : undefined,
-          product: cast.product ? { name: cast.product.name } : undefined,
+          product: cast.product ? { name: cast.product.name, appearance: cast.product.appearance || undefined } : undefined,
         });
       })(),
       references: [{ role: "image1", assetId: shot.still.assetId }],

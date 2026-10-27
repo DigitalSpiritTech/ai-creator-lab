@@ -41,9 +41,10 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: face and body are locked and the user chose "olive utility jacket over a white tee".',
   ].join(" "),
   save_product: [
-    "Create or update (pass productId) the Library product card: name, link, allowedClaims, imageAssetIds. With projectId it is linked to this project. Only claims saved here may appear in a script.",
+    "Create or update (pass productId) the Library product card: name, appearance, link, allowedClaims, imageAssetIds. With projectId it is linked to this project. Only claims saved here may appear in a script.",
+    "Always fill appearance (shape, color, material, cap or lid, size cues, no brand text) from what the user said, or ask them one question for it first: stills and clips describe the product by appearance only, never by name.",
     "Save claims in the user's words; never add one they did not give.",
-    'Example: "keeps drinks cold 24 hours, fits a cup holder, dishwasher safe" becomes three allowedClaims.',
+    'Example: "keeps drinks cold 24 hours, fits a cup holder, dishwasher safe" becomes three allowedClaims, and "dark green steel bottle, black cap" becomes the appearance.',
   ].join(" "),
   save_script: [
     "Save a 15 to 30 second script as ordered beats (talking, broll, textcard), or a new version (pass scriptId and baseVersion). Talking lines are at most 15 words; on-screen text at most two lines of six words.",

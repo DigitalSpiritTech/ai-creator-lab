@@ -78,6 +78,8 @@ const itemBase = {
 
 const productFields = {
   name: text(120),
+  /** How the product looks (shape, color, material, cap, size cues, no brand text); image prompts use this instead of the name. */
+  appearance: optionalText(300),
   link: z.url({ protocol: /^https?$/ }).max(2000).nullable().default(null),
   allowedClaims: z.array(text(200)).max(12).default([]),
   imageAssetIds: z.array(IdSchema).max(12).default([]),

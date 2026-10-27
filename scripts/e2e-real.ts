@@ -106,7 +106,7 @@ async function main() {
     if (!s.products.length) {
       const productProposal = await tool(context, "propose_candidates", { projectId: pid, capability: "text_to_image", prompt: "Product photograph of a matte dark green 32 oz insulated steel water bottle with a black screw cap, standing upright on a light wooden kitchen counter by a window, soft morning light, light condensation on the steel, plain uncluttered background, no text, no logo.", count: 1, aspectRatio: "1:1", target: { kind: "loose" } });
       const productImages = await generate(context, productProposal, "product");
-      await tool(context, "save_product", { projectId: pid, product: { name: "Ridgeline 32 oz insulated bottle", link: "https://example.com/ridgeline", allowedClaims: ["keeps drinks cold 24 hours", "fits a car cup holder", "dishwasher safe"], imageAssetIds: [productImages[0]] } });
+      await tool(context, "save_product", { projectId: pid, product: { name: "Ridgeline 32 oz insulated bottle", appearance: "a matte dark green 32 oz insulated steel bottle with a black screw cap", link: "https://example.com/ridgeline", allowedClaims: ["keeps drinks cold 24 hours", "fits a car cup holder", "dishwasher safe"], imageAssetIds: [productImages[0]] } });
       s = await state();
     }
     log("product", s.products[0].id);

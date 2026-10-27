@@ -10,7 +10,7 @@ import type { CharacterItem, ProjectLink, SetItem } from "@/lib/domain/library";
 import type { GenerationProposal } from "@/lib/domain/job";
 import { importImage } from "@/server/media/images";
 import { type ToolContext, callTool, createGenerationContext } from "@/server/tools";
-import { averyBible, clock, generateAssets, ridgelineBeats, seedProject, tempStore } from "./support/domain-fixtures";
+import { averyBible, clock, generateAssets, ridgelineBeats, ridgelineProduct, seedProject, tempStore } from "./support/domain-fixtures";
 
 const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
 const cleanups: (() => void)[] = [];
@@ -130,7 +130,7 @@ describe("prompt wiring", () => {
     const sheets = await generateAssets(store, now, { projectId: project.id, target: { kind: "reference_sheet", characterId } });
     await ok(tools, "approve", { kind: "sheet", assetId: sheets.assetIds[0], projectId: project.id, characterId });
     const bottle = await photo(context, "#357");
-    await ok(tools, "save_product", { projectId: project.id, product: { name: "Ridgeline 32 oz insulated bottle", imageAssetIds: [bottle.id] } });
+    await ok(tools, "save_product", { projectId: project.id, product: ridgelineProduct([bottle.id]) });
     const kitchen = await photo(context, "#eee");
     await ok(tools, "create_set", { projectId: project.id, set: { name: "Bright kitchen counter by a window", imageAssetIds: [kitchen.id] } });
     await ok(tools, "create_set", { projectId: project.id, set: { name: "A car interior" } });
@@ -146,7 +146,7 @@ describe("prompt wiring", () => {
         "Mid-sentence, talking to a phone camera held at arm's length, relaxed natural expression, mouth slightly open as if speaking. " +
         "Avery at a kitchen counter, bottle open, condensation. " +
         "Setting: the location in reference image 3, bright kitchen counter by a window. " +
-        "The product in reference image 2 is a 32 oz insulated bottle, clearly visible, true to its shape, color, and materials, no text, lettering, or logo on the product. " +
+        "The product in reference image 2 is a matte dark green 32 oz insulated steel bottle with a black screw cap, clearly visible, true to its shape, color, and materials, no text, lettering, or logo on the product. " +
         "Only the objects described; no additional phones or props, and no bottles beyond those described. " +
         "Vertical 9:16 phone photo, natural light, candid UGC look. No text, captions, logos, or watermarks in the image. " +
         "Preserve the person's identity, face, hair, build, and wardrobe exactly as in the sheet.",
@@ -159,10 +159,27 @@ describe("prompt wiring", () => {
       clip.prompt,
       "Avery at a kitchen counter, bottle open, condensation, speaking to the camera with an easy smile, small natural head movement, static phone camera. " +
         "Wearing Olive utility jacket over a white tee. " +
-        "The product is a 32 oz insulated bottle, no text, lettering, or logo on the product. " +
+        "The product is a matte dark green 32 oz insulated steel bottle with a black screw cap, no text, lettering, or logo on the product. " +
         "Quiet ambient sound of a bright kitchen counter by a window. " +
         'The person says, "Twenty-four hours later it was still cold. I checked." ' +
         "No text on screen. The person's face and clothing stay consistent.",
     );
+  });
+});
+
+describe("product appearance", () => {
+  test("a product saved before appearance existed still reads, with an empty appearance and the name fallback", async () => {
+    const context = setup();
+    const { store, tools, project } = context;
+    const { product } = await ok<{ product: { id: string; appearance: string } }>(tools, "save_product", { projectId: project.id, product: ridgelineProduct() });
+    assert.equal(product.appearance, "a matte dark green 32 oz insulated steel bottle with a black screw cap");
+    store.database.prepare("UPDATE library_items SET data = json_remove(data, '$.appearance') WHERE id = ?").run(product.id);
+    const legacy = store.library.getRequired(product.id);
+    assert.equal(legacy.kind === "product" && legacy.appearance, "");
+    const script = await ok<{ script: { id: string } }>(tools, "save_script", { projectId: project.id, title: "Dishwasher", beats: [ridgelineBeats()[3]] });
+    const content = await ok<{ id: string }>(tools, "plan_shots", { projectId: project.id, scriptId: script.script.id });
+    const still = await ok<GenerationProposal>(tools, "compose_still", { contentId: content.id, beatIndex: 1, count: 1 });
+    assert.match(still.prompt, /The product is a 32 oz insulated bottle, clearly visible/);
+    assert.doesNotMatch(still.prompt, /Ridgeline/);
   });
 });

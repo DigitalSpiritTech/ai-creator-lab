@@ -5,7 +5,7 @@ import sharp from "sharp";
 import { fileURLToPath } from "node:url";
 import { importImage } from "@/server/media/images";
 import { TOOLS, type ToolContext, callTool, createGenerationContext, toolsToJsonSchema } from "@/server/tools";
-import { averyBible, clock, generateAssets, ridgelineBeats, seedProject, tempStore } from "./support/domain-fixtures";
+import { averyBible, clock, generateAssets, ridgelineBeats, ridgelineProduct, seedProject, tempStore } from "./support/domain-fixtures";
 
 const ROSTER = [
   "get_project_state",
@@ -304,7 +304,7 @@ describe("store-backed tools", () => {
 
     const jpeg = await sharp({ create: { width: 32, height: 32, channels: 3, background: "#235" } }).jpeg().toBuffer();
     const photo = await importImage(store, { projectId: null, name: "ridgeline.jpg", bytes: jpeg }, { now: now(), newId: randomUUID });
-    await ok(tools, "save_product", { projectId: project.id, product: { name: "Ridgeline 32 oz insulated bottle", imageAssetIds: [photo.id] } });
+    await ok(tools, "save_product", { projectId: project.id, product: ridgelineProduct([photo.id]) });
     const script = await ok<{ script: { id: string } }>(tools, "save_script", { projectId: project.id, title: "Cup holder", beats: ridgelineBeats().slice(0, 1) });
     const content = await ok<{ id: string }>(tools, "plan_shots", { projectId: project.id, scriptId: script.script.id });
 
@@ -316,7 +316,7 @@ describe("store-backed tools", () => {
     assert.equal(stillProposal.capability, "image_edit");
     assert.deepEqual(stillProposal.references.map((reference) => reference.assetId), [sheetId, photo.id]);
     assert.match(stillProposal.prompt, /character reference sheet, reference image 1/);
-    assert.match(stillProposal.prompt, /reference image 2 is a 32 oz insulated bottle, clearly visible, .*no text, lettering, or logo on the product\./);
+    assert.match(stillProposal.prompt, /reference image 2 is a matte dark green 32 oz insulated steel bottle with a black screw cap, clearly visible, .*no text, lettering, or logo on the product\./);
     assert.doesNotMatch(stillProposal.prompt, /Ridgeline/);
     assert.deepEqual(stillProposal.target, { kind: "shot", contentId: content.id, beatIndex: 1, slot: "still" });
     const stills = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: stillProposal, wait: true });
