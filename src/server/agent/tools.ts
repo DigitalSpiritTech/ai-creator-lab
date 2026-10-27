@@ -36,9 +36,24 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     "Lock a character's face or body reference to the candidate the user picked, bump the bible version, and archive the other candidates for that slot. The face must be locked before the body.",
     'Example: the user says "the second face, that\'s her", so pass slot face and that asset id.',
   ].join(" "),
+  generate_face_candidates: [
+    `Propose the face lock for a linked character from its bible with the standard face prompt (count 4 by default). ${PROPOSAL_NOTE}`,
+    "Prefer it over propose_candidates for the face lock; the prompt and target are built for you.",
+    "Example: the bible is saved and no face is locked, so call it with the projectId and characterId.",
+  ].join(" "),
+  generate_body_reference: [
+    `Propose full-body candidates for a linked character from its locked face with the standard athleticwear prompt (count 2 by default). ${PROPOSAL_NOTE}`,
+    "Prefer it over propose_candidates for the body reference; the prompt, reference, and target are built for you.",
+    "Example: the face is locked and no body is, so call it with the projectId and characterId.",
+  ].join(" "),
   generate_reference_sheet: [
     `Propose this project's character reference sheet from the locked face and body in the project's wardrobe (pass wardrobe to record it first). ${PROPOSAL_NOTE}`,
     'Example: face and body are locked and the user chose "olive utility jacket over a white tee".',
+  ].join(" "),
+  generate_product_images: [
+    `Propose product photo candidates for a linked product from its appearance line, never its name (count 2 by default; an optional setting says where it stands). ${PROPOSAL_NOTE}`,
+    "The user approves one on the product card in the workspace, which adds it to the card's images.",
+    'Example: the card has "dark green steel bottle, black cap" as appearance and no photo, so call it with the projectId and productId.',
   ].join(" "),
   save_product: [
     "Create or update (pass productId) the Library product card: name, appearance, link, allowedClaims, imageAssetIds. With projectId it is linked to this project. Only claims saved here may appear in a script.",

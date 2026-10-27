@@ -265,7 +265,7 @@ export function ScriptTab() {
                   <Input value={beat.setting} onChange={(event) => update(index, { setting: event.target.value })} placeholder="Setting" aria-label={`Beat ${index + 1} setting`} className="h-7 text-xs" />
                 </td>
                 <td className="p-2">
-                  <Input type="number" min={1} max={10} step={0.5} value={beat.durationSeconds} onChange={(event) => update(index, { durationSeconds: Number(event.target.value) })} aria-label={`Beat ${index + 1} length in seconds`} className="h-7 w-16 text-xs" />
+                  <Input type="number" min={1} max={15} step={0.5} value={beat.durationSeconds} onChange={(event) => update(index, { durationSeconds: Number(event.target.value) })} aria-label={`Beat ${index + 1} length in seconds`} className="h-7 w-16 text-xs" />
                 </td>
                 <td className="p-2">
                   <div className="flex flex-col gap-1">

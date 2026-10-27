@@ -22,7 +22,7 @@ import { assembleAd as assembleExport } from "@/server/assembly";
 import { defaultRecipes, recipesFor } from "@/server/catalog/defaults";
 import { runToCompletion, startGeneration } from "@/server/executors/run";
 import type { Store } from "@/server/store";
-import { clipPrompt, referenceSheetPrompt, refinePrompt, stillPrompt, type StillPromptParts } from "@/server/tools/prompts";
+import { BODY_REFERENCE, FACE_LOCK, bodyPrompt, clipPrompt, facePrompt, productPhotoPrompt, referenceSheetPrompt, refinePrompt, stillPrompt, type StillPromptParts } from "@/server/tools/prompts";
 import { buildProposal, candidateRequestId, nearestAspect, proposalRequest, runDeps } from "@/server/tools/proposals";
 import { defineTool } from "@/server/tools/registry";
 import { referenceableIn } from "@/server/tools/shared";
@@ -96,6 +96,106 @@ export const proposeCandidates = defineTool({
       aspectRatio: input.aspectRatio,
       durationSeconds: input.durationSeconds,
     }),
+});
+
+export const generateFaceCandidates = defineTool({
+  name: "generate_face_candidates",
+  description:
+    "Propose face-lock candidates for a character linked to this project from its bible alone (text to image, the standard face prompt). The same proposal the chat builds, as one click from the workspace.",
+  input: z
+    .object({
+      projectId: IdSchema,
+      characterId: IdSchema,
+      recipeId: RecipeIdSchema.optional(),
+      count: z.number().int().min(1).max(4).default(FACE_LOCK.count),
+    })
+    .strict(),
+  output: GenerationProposalSchema,
+  run: async (context, input) => {
+    const { store } = context;
+    const link = store.library.getLink(input.projectId, input.characterId);
+    if (!link || link.kind !== "character") fail("not_found", "Link this character to the project first.");
+    const item = store.library.getRequired(input.characterId);
+    if (item.kind !== "character") fail("invalid", "Choose a character from the Library.");
+    return buildProposal(context, {
+      projectId: input.projectId,
+      capability: FACE_LOCK.capability,
+      recipeId: input.recipeId,
+      prompt: facePrompt(item.bible),
+      references: [],
+      count: input.count,
+      target: { kind: "character_reference", characterId: item.id, slot: "face" },
+      aspectRatio: FACE_LOCK.aspectRatio,
+    });
+  },
+});
+
+export const generateBodyReference = defineTool({
+  name: "generate_body_reference",
+  description:
+    "Propose full-body reference candidates for a character from its locked face (image edit with one reference, the standard athleticwear prompt). Needs the face locked first.",
+  input: z
+    .object({
+      projectId: IdSchema,
+      characterId: IdSchema,
+      recipeId: RecipeIdSchema.optional(),
+      count: z.number().int().min(1).max(4).default(BODY_REFERENCE.count),
+    })
+    .strict(),
+  output: GenerationProposalSchema,
+  run: async (context, input) => {
+    const { store } = context;
+    const link = store.library.getLink(input.projectId, input.characterId);
+    if (!link || link.kind !== "character") fail("not_found", "Link this character to the project first.");
+    const item = store.library.getRequired(input.characterId);
+    if (item.kind !== "character") fail("invalid", "Choose a character from the Library.");
+    const { faceAssetId } = item.bible.references;
+    if (!faceAssetId) fail("invalid", "Lock the face before making a body reference.");
+    return buildProposal(context, {
+      projectId: input.projectId,
+      capability: BODY_REFERENCE.capability,
+      recipeId: input.recipeId,
+      prompt: bodyPrompt(item.bible, "gray", { photographed: isPhoto(store, faceAssetId) }),
+      references: [{ role: "image1", assetId: faceAssetId }],
+      count: input.count,
+      target: { kind: "character_reference", characterId: item.id, slot: "body" },
+      aspectRatio: BODY_REFERENCE.aspectRatio,
+    });
+  },
+});
+
+export const generateProductImages = defineTool({
+  name: "generate_product_images",
+  description:
+    "Propose product photo candidates for a product linked to this project from its appearance line (text to image, no brand name in the prompt). Approving one adds it to the product card's images. The appearance line must be filled in first.",
+  input: z
+    .object({
+      projectId: IdSchema,
+      productId: IdSchema,
+      setting: text(200).optional().describe("Where the product stands, for example 'a light wooden kitchen counter by a window'."),
+      recipeId: RecipeIdSchema.optional(),
+      count: z.number().int().min(1).max(4).default(2),
+    })
+    .strict(),
+  output: GenerationProposalSchema,
+  run: async (context, input) => {
+    const { store } = context;
+    const link = store.library.getLink(input.projectId, input.productId);
+    if (!link || link.kind !== "product") fail("not_found", "Link this product to the project first.");
+    const item = store.library.getRequired(input.productId);
+    if (item.kind !== "product") fail("invalid", "Choose a product from the Library.");
+    if (!item.appearance?.trim()) fail("invalid", "Describe the product's appearance on its card first (color, material, shape, cap or lid); the prompt is built from it, never from the name.");
+    return buildProposal(context, {
+      projectId: input.projectId,
+      capability: "text_to_image",
+      recipeId: input.recipeId,
+      prompt: productPhotoPrompt(item, input.setting),
+      references: [],
+      count: input.count,
+      target: { kind: "product_image", productId: item.id },
+      aspectRatio: "1:1",
+    });
+  },
 });
 
 export const generateReferenceSheet = defineTool({

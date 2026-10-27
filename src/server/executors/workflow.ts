@@ -257,6 +257,15 @@ export interface WorkflowExecutorOptions {
   staleSubmitMs?: number;
 }
 
+/**
+ * A video ceiling stated for the default frame count, scaled to the frames asked for: a 10 s LTX clip
+ * reserves twice the 5 s ceiling. Image recipes and recipes with no length keep the ceiling as stated.
+ */
+export function scaleByLength(ceilingUsd: number, length: SlotValue | undefined, defaultLength: number | undefined): number {
+  if (typeof length !== "number" || !defaultLength || length === defaultLength) return ceilingUsd;
+  return Math.round(ceilingUsd * (length / defaultLength) * 100) / 100;
+}
+
 export class WorkflowExecutor implements Executor {
   readonly kind = "workflow" as const;
   private readonly jobs: JobStorePort;
@@ -279,9 +288,10 @@ export class WorkflowExecutor implements Executor {
   async estimate(request: GenerationRequest): Promise<EstimateOutcome> {
     try {
       const recipe = this.recipeOf(request);
-      planWorkflow(recipe, absoluteInput(request.input, this.mediaRoot), await this.loadGraph(recipe), 0);
+      const plan = planWorkflow(recipe, absoluteInput(request.input, this.mediaRoot), await this.loadGraph(recipe), 0);
       if (recipe.ceilingUsd === undefined) return { kind: "unquoted", ceilingUsd: null, note: recipe.costHint };
-      return { kind: "quoted", usd: recipe.ceilingUsd, credits: usdToCredits(recipe.ceilingUsd), source: "hint", note: recipe.costHint };
+      const usd = scaleByLength(recipe.ceilingUsd, plan.values.length, recipe.defaults.length ?? recipe.sidecar.limits.length?.default);
+      return { kind: "quoted", usd, credits: usdToCredits(usd), source: "hint", note: recipe.costHint };
     } catch (cause) {
       return { kind: "rejected", error: toJobError(cause) };
     }

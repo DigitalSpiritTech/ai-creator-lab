@@ -11,7 +11,7 @@ import type { Project } from "@/lib/domain/project";
 import type { Script } from "@/lib/domain/script";
 import type { Store } from "@/server/store";
 import { checklistText } from "@/server/agent/prompts/checklists";
-import { BACKDROP_NAMES, BODY_REFERENCE, FACE_LOCK, backdropFor, bodyPrompt, facePrompt, productPhotoPrompt } from "@/server/tools/prompts";
+import { BACKDROP_NAMES, BODY_REFERENCE, FACE_LOCK, backdropFor, bodyPrompt, facePrompt } from "@/server/tools/prompts";
 
 export interface ProjectSnapshot {
   project: Project;
@@ -228,7 +228,7 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
       guidance: [
         library.length ? `The Library has ${library.map((entry) => `${entry.name} (productId ${entry.id})`).join("; ")}; offer to reuse it with save_product (productId, projectId, its fields unchanged).` : "",
         "Ask for the product name, the link, and the exact claims they are allowed to make, then save_product with projectId. Product photos are uploaded in the workspace.",
-        `No photo? Ask what it looks like (color, material, shape, cap or lid), then propose one: propose_candidates with capability "text_to_image", count 2, aspectRatio "1:1", and this prompt with <appearance> replaced by their description, never the product's name:\n${productPhotoPrompt({ name: "", appearance: "<appearance>" })}\nOnce they pick one, add it to the card's imageAssetIds with save_product.`,
+        `No photo? Ask what it looks like (color, material, shape, cap or lid), save it as the card's appearance with save_product, then call generate_product_images with projectId and productId (count 2). The user approves one on the product card in the workspace, which adds it to the card's images.`,
       ]
         .filter(Boolean)
         .join("\n"),

@@ -29,9 +29,11 @@ Cut order if behind schedule: E7 MCP server, A8 Set library item, B7 first/last 
 - [ ] B8 Serial job runner per target respecting one concurrent Cloud workflow; queue position surfaced. Acceptance: two submissions on Standard do not collide; test with a fake clock.
 - [x] B9 Uploaded photos as the starting point: a person, product or place photo imported as an upload becomes the face lock, the product card's appearance, or a Set, and the prompt layer uses photo wording for them. Verified on real credits by `scripts/e2e-photos.ts` (VERIFICATION, 22:18 row).
 - [x] B10 Mock recipes hidden from the catalog a real install lists; `MOCK_RECIPES=1` lists them, the test suite and the acceptance smoke set it themselves. The maintainer's direction: "don't need mock stuff in a real app".
-- [ ] B11 Three-reference Qwen Image Edit sidecar (`image3` on TextEncodeQwenImageEditPlus) so a still that needs sheet, product and set stays on open weights; today a three-reference still routes to Nano Banana on the Router.
+- [x] B11 One- and three-reference Qwen Image Edit graphs (`qwen-image-edit-2511-1ref`, `-3ref`) derived from the verified two-reference graph, so a body from a locked face and a still from sheet, product and set stay on open weights. Recipe choice prefers an open-weights workflow that takes the step's reference count before any hosted model. Live verification of both graphs pending (VERIFICATION).
 - [ ] B12 Short pause before the automatic black-output retry. The 22:18 run's retry fired 36 s after the original into the same transient Cloud window and spent a second clip's credits; a deferred submission (admitted job, submit after about 60 s) would have avoided it.
 - [x] B13 Premium hosted recipes beside the open-weights set: Nano Banana Pro (edit, verified; from text, unverified) and Kling 3.0 Omni (image to video, verified; first and last frame, unverified) on Comfy Router, with the Router ceiling scaled by clip length. The assistant passes a recipeId when the user names a model; Settings defaults and the Manual panel cover the rest.
+- [x] B15 Per-beat clip length: beats take 1 to 15 s in the Script tab and from the assistant; LTX snaps any length to 8n+1 frames, Kling takes whole seconds 3 to 15, Wan 5; the reservation scales with the length (workflow and Router). Lengths beyond 5 s are not yet verified live.
+- [ ] B14 Router cost capture for Kling: Router returns no credits figure for long-polled models, so the ledger settles those at the ceiling (0.80 USD) while the balance shows the real 0.70; capture from the balance delta or a Router cost field when one appears.
 
 ## C. Agent (creative-prompts)
 
@@ -58,6 +60,11 @@ Cut order if behind schedule: E7 MCP server, A8 Set library item, B7 first/last 
 - [x] D8 Library pages: Characters (bible, face, body, wardrobe), Products, Sets; link to project; archive. Project view shows the character's reference sheet for this project with its inspection checklist and approve action. Done in `516b21a`.
 - [x] D9 Assets and Archive pages with filters; delete-everywhere confirmation listing affected items. Done in `516b21a`.
 - [x] D10 Manual mode: pick capability, recipe, prompt, references, generate, without chat. Done in `516b21a`.
+
+- [x] D8 One-click next steps in the workspace (maintainer feedback, October 27): Generate face candidates, Make body reference, Make reference sheet, Generate photos on a product card, Compose stills and Make clip are buttons that build the same proposal the chat would; the one that is the next step uses the primary (green) style, the rest are outlined. The chat stays for refinements.
+- [x] D9 Progress where the result lands: every running job shows a placeholder tile in the grid it will fill (face, body, sheet, product photo, still, clip, loose), with the recipe and status, and a failed job shows its error there for a few minutes.
+- [x] D10 Loose assets can be promoted: "Use as" on an Other-assets card sets it as a character's face or body or a product's photo. A loose image as a set photo is still missing (sets have no update tool yet).
+- [ ] D11 "Use as set photo" for loose and generated images (needs an update_set tool), and a "Generate set images" button so a place can be generated from a description like a product can.
 
 ## E. Docs, demo, release (docs-writer, qa-reviewer)
 

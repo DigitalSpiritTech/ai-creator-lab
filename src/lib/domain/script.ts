@@ -19,7 +19,8 @@ const beatFields = {
   visual: text(400),
   setting: optionalText(200),
   productVisible: z.boolean().default(false),
-  durationSeconds: z.number().positive().max(10).default(5),
+  /** Seconds, 1 to 15; each video recipe states what it accepts (LTX any length, Kling whole seconds 3 to 15, Wan 5). */
+  durationSeconds: z.number().positive().max(15).default(5),
   notes: optionalText(500),
 };
 

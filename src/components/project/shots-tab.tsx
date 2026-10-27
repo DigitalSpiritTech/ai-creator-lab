@@ -9,7 +9,7 @@ import { Clapperboard, ImagePlus } from "lucide-react";
 import { useState } from "react";
 import { CandidateGrid } from "@/components/cards/candidate-grid";
 import { AssetMedia } from "@/components/media/asset-media";
-import { useProject } from "@/components/project/project-context";
+import { pendingTiles, useProject } from "@/components/project/project-context";
 import { EmptyState, Notice } from "@/components/shell/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,10 +76,13 @@ function ShotRow({
   beat?: { type: string; purpose: string; spokenLine: string; visual: string; onScreenText: string };
   assets: Map<string, Asset>;
 }) {
-  const { projectId, propose, notify } = useProject();
+  const { projectId, view, jobs, propose, notify } = useProject();
   const [busy, setBusy] = useState(false);
   const stills = slotAssets(shot.still, assets);
   const clips = slotAssets(shot.clip, assets);
+  const title = (id: string) => view.recipes[id] ?? id;
+  const stillPending = pendingTiles(jobs, (target) => target.kind === "shot" && target.contentId === contentId && target.beatIndex === shot.beatIndex && target.slot === "still", title);
+  const clipPending = pendingTiles(jobs, (target) => target.kind === "shot" && target.contentId === contentId && target.beatIndex === shot.beatIndex && target.slot === "clip", title);
   const approvedStill = shot.still.state === "approved" ? shot.still.assetId : null;
   const approvedClip = shot.clip.state === "approved" ? shot.clip.assetId : null;
 
@@ -116,11 +119,17 @@ function ShotRow({
           {shot.brokenAssetIds.length ? <p className="mt-1 text-xs text-destructive">An approved file was deleted; choose again.</p> : null}
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => void ask("compose_still")}>
-            <ImagePlus /> {stills.length ? "More stills" : "Compose stills"}
+          <Button size="sm" variant={!approvedStill && !stills.length && !stillPending.length ? "default" : "outline"} disabled={busy} onClick={() => void ask("compose_still")}>
+            <ImagePlus /> {stills.length || stillPending.length ? "More stills" : "Compose stills"}
           </Button>
-          <Button size="sm" variant="outline" disabled={busy || !approvedStill} onClick={() => void ask("generate_clip")} title={approvedStill ? undefined : "Approve a still first"}>
-            <Clapperboard /> {clips.length ? "Another clip" : "Make clip"}
+          <Button
+            size="sm"
+            variant={approvedStill && !approvedClip && !clips.length && !clipPending.length ? "default" : "outline"}
+            disabled={busy || !approvedStill}
+            onClick={() => void ask("generate_clip")}
+            title={approvedStill ? undefined : "Approve a still first"}
+          >
+            <Clapperboard /> {clips.length || clipPending.length ? "Another clip" : "Make clip"}
           </Button>
         </div>
       </div>
@@ -128,19 +137,19 @@ function ShotRow({
         <ApprovedSlot label="Approved still" asset={approvedStill ? assets.get(approvedStill) : undefined} />
         <ApprovedSlot label="Approved clip" asset={approvedClip ? assets.get(approvedClip) : undefined} />
         <div className="min-w-0 space-y-3">
-          {stills.length ? (
+          {stills.length || stillPending.length ? (
             <div>
               <div className="mb-1 text-xs text-muted-foreground">{slotStatus(shot.still, "still")}</div>
-              <CandidateGrid assets={stills} approvedId={approvedStill} onApprove={(asset) => approve("still", asset)} className="lg:grid-cols-3" />
+              <CandidateGrid assets={stills} pending={stillPending} approvedId={approvedStill} onApprove={(asset) => approve("still", asset)} className="lg:grid-cols-3" />
             </div>
           ) : null}
-          {clips.length ? (
+          {clips.length || clipPending.length ? (
             <div>
               <div className="mb-1 text-xs text-muted-foreground">{slotStatus(shot.clip, "clip")}</div>
-              <CandidateGrid assets={clips} approvedId={approvedClip} onApprove={(asset) => approve("clip", asset)} className="lg:grid-cols-3" />
+              <CandidateGrid assets={clips} pending={clipPending} approvedId={approvedClip} onApprove={(asset) => approve("clip", asset)} className="lg:grid-cols-3" />
             </div>
           ) : null}
-          {!stills.length && !clips.length ? <p className="text-xs text-muted-foreground">No candidates yet.</p> : null}
+          {!stills.length && !clips.length && !stillPending.length && !clipPending.length ? <p className="text-xs text-muted-foreground">No candidates yet.</p> : null}
         </div>
       </div>
     </div>

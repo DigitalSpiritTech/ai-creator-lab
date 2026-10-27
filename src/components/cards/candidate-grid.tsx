@@ -6,10 +6,10 @@
  */
 "use client";
 
-import { Archive, Check, Maximize2, Wand2 } from "lucide-react";
+import { AlertTriangle, Archive, Check, Loader2, Maximize2, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { AssetMedia } from "@/components/media/asset-media";
-import { useProject } from "@/components/project/project-context";
+import { type PendingTile, useProject } from "@/components/project/project-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -25,16 +25,21 @@ export interface CandidateGridProps {
   onApprove?: (asset: Asset) => Promise<void>;
   /** Shown under the full-size view, for example the reference sheet checklist. */
   inspection?: React.ReactNode;
+  /** Jobs still running (or just failed) for this grid: one placeholder tile each, where the result will land. */
+  pending?: PendingTile[];
+  /** Extra controls under a card, for example "Use as" on a loose asset. */
+  extra?: (asset: Asset) => React.ReactNode;
   className?: string;
 }
 
-export function CandidateGrid({ assets, approvedId, approveLabel = "Approve", onApprove, inspection, className }: CandidateGridProps) {
+export function CandidateGrid({ assets, approvedId, approveLabel = "Approve", onApprove, inspection, pending = [], extra, className }: CandidateGridProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Asset | null>(null);
-  if (assets.length === 0) return null;
+  if (assets.length === 0 && pending.length === 0) return null;
   return (
     <>
       <div className={cn("grid grid-cols-2 gap-3 lg:grid-cols-4", className)}>
+        {pending.map((tile) => <PendingCard key={tile.id} tile={tile} />)}
         {assets.map((asset) => (
           <CandidateCard
             key={asset.id}
@@ -45,6 +50,7 @@ export function CandidateGrid({ assets, approvedId, approveLabel = "Approve", on
             onView={() => setViewing(asset)}
             approveLabel={approveLabel}
             onApprove={onApprove}
+            extra={extra?.(asset)}
           />
         ))}
       </div>
@@ -62,6 +68,27 @@ export function CandidateGrid({ assets, approvedId, approveLabel = "Approve", on
   );
 }
 
+/** Where a candidate will appear: a spinner and the recipe while the job runs, the error when it failed. */
+function PendingCard({ tile }: { tile: PendingTile }) {
+  return (
+    <div
+      className={cn("flex flex-col overflow-hidden rounded-xl border bg-card text-xs", tile.failed ? "border-destructive/50" : "border-dashed")}
+      data-testid="pending-card"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex aspect-[9/16] max-h-64 w-full flex-col items-center justify-center gap-2 bg-muted/60 p-3 text-center">
+        {tile.failed ? <AlertTriangle className="size-5 text-destructive" aria-hidden /> : <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />}
+        <span className={cn("font-medium", tile.failed && "text-destructive")}>{tile.failed ? "Failed" : tile.status}</span>
+        <span className="line-clamp-4 text-muted-foreground">{tile.failed ?? "The result lands here."}</span>
+      </div>
+      <div className="p-2">
+        <span className="truncate text-muted-foreground" title={tile.label}>{tile.label}</span>
+      </div>
+    </div>
+  );
+}
+
 function CandidateCard({
   asset,
   approved,
@@ -70,6 +97,7 @@ function CandidateCard({
   onView,
   approveLabel,
   onApprove,
+  extra,
 }: {
   asset: Asset;
   approved: boolean;
@@ -78,6 +106,7 @@ function CandidateCard({
   onView: () => void;
   approveLabel: string;
   onApprove?: (asset: Asset) => Promise<void>;
+  extra?: React.ReactNode;
 }) {
   const { refresh, propose, notify } = useProject();
   const [busy, setBusy] = useState<string | null>(null);
@@ -160,6 +189,7 @@ function CandidateCard({
             <Button size="xs" type="submit" disabled={busy !== null || !instruction.trim()}>Propose</Button>
           </form>
         ) : null}
+        {extra}
       </div>
     </div>
   );

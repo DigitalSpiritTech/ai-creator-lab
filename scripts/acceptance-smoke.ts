@@ -172,18 +172,34 @@ async function runFlow(client: Client) {
   check(face.archivedAssetIds.length === 3, "the other three faces went to the Archive");
   step(client, "face locked from four candidates");
 
+  // The one-click workspace path: body from the locked face, then the sheet from both.
+  const bodyProposal = await client.tool<GenerationProposal>("generate_body_reference", { projectId, characterId, recipeId: "mock-image-edit" }, projectId);
+  check(bodyProposal.references.length === 1 && bodyProposal.count === 2, "the body proposal uses the locked face as its one reference, two candidates");
+  const bodies = await client.submit(projectId, bodyProposal);
+  await client.tool("select_reference", { characterId, slot: "body", assetId: bodies[0] }, projectId);
+  const sheetProposal = await client.tool<GenerationProposal>("generate_reference_sheet", { projectId, characterId, recipeId: "mock-image-edit", count: 1 }, projectId);
+  const sheets = await client.submit(projectId, sheetProposal);
+  await client.tool("approve", { kind: "sheet", assetId: sheets[0], projectId, characterId }, projectId);
+  step(client, "body and reference sheet from the workspace buttons");
+
   const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: "#2a4d6e" } }).png().toBuffer();
   const photo = await client.upload("ridgeline.png", png);
-  await client.tool("save_product", {
+  const savedProduct = await client.tool<{ product: { id: string; revision: number } }>("save_product", {
     projectId,
     product: {
       name: "Ridgeline 32 oz insulated bottle",
+      appearance: "a matte dark green steel bottle with a black screw cap",
       link: "https://example.com/ridgeline",
       allowedClaims: ["Keeps drinks cold 24 hours", "Fits a car cup holder", "Dishwasher safe"],
       imageAssetIds: [photo.id],
     },
   }, projectId);
-  step(client, "product saved");
+  const productProposal = await client.tool<GenerationProposal>("generate_product_images", { projectId, productId: savedProduct.product.id, recipeId: "mock-text-to-image", count: 1 }, projectId);
+  check(!productProposal.prompt.includes("Ridgeline"), "the product prompt never carries the product's name");
+  const productImages = await client.submit(projectId, productProposal);
+  const afterProduct = await client.tool<{ assets: { id: string }[] }>("get_project_state", { projectId }, projectId);
+  check(afterProduct.assets.some((asset) => asset.id === productImages[0]), "the product photo candidate is in the project");
+  step(client, "product saved with a generated photo candidate");
 
   const script = await client.tool<{ script: { id: string } }>("save_script", { projectId, title: "Cup holder", beats: BEATS }, projectId);
   const content = await client.tool<{ id: string; shots: unknown[] }>("plan_shots", { projectId, scriptId: script.script.id }, projectId);

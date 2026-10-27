@@ -74,8 +74,9 @@ export function ProjectView({ projectId }: { projectId: string }) {
         },
         submitted: jobs.kick,
         notify: (tone, text) => setItems((current) => [...current, { kind: "notice", id: localId("notice"), tone, text }]),
+        jobs: { unfinished: jobs.unfinished, recent: jobs.recent },
       },
-    [projectId, view, refresh, jobs.kick],
+    [projectId, view, refresh, jobs.kick, jobs.unfinished, jobs.recent],
   );
 
   if (!context) {

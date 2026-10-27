@@ -23,7 +23,7 @@ import { loadWorkflowRecipes } from "@/server/catalog/workflows";
 
 const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
 const read = (name: string) => JSON.parse(readFileSync(join(workflowsDir, name), "utf8"));
-const NAMES = ["z-image-turbo-t2i", "qwen-image-edit-2511-2ref", "ltx-2.5-i2v", "ltx-2.5-flf2v"];
+const NAMES = ["z-image-turbo-t2i", "qwen-image-edit-2511-1ref", "qwen-image-edit-2511-2ref", "qwen-image-edit-2511-3ref", "ltx-2.5-i2v", "ltx-2.5-flf2v"];
 
 test("every starter sidecar parses and matches its workflow graph", () => {
   for (const name of NAMES) {
@@ -91,7 +91,9 @@ test("starter recipes match the spike: verified defaults per MVP capability, unv
   assert.deepEqual(summary, {
     "ltx-2.5-i2v": ["workflow", "image_to_video", "2026-10-26"],
     "ltx-2.5-flf2v": ["workflow", "first_last_to_video", "2026-10-26"],
+    "qwen-image-edit-2511-1ref": ["workflow", "image_edit", null],
     "qwen-image-edit-2511-2ref": ["workflow", "image_edit", "2026-10-26"],
+    "qwen-image-edit-2511-3ref": ["workflow", "image_edit", null],
     "z-image-turbo-t2i": ["workflow", "text_to_image", "2026-10-26"],
     "router-nano-banana-2.1-edit": ["router", "image_edit", "2026-10-26"],
     "router-nano-banana-pro-edit": ["router", "image_edit", "2026-10-27"],

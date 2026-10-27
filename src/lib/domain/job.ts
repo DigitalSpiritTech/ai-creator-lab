@@ -17,6 +17,8 @@ export type ExecutorKind = z.infer<typeof ExecutorKindSchema>;
 export const GenerationTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("character_reference"), characterId: IdSchema, slot: z.enum(["face", "body"]) }).strict(),
   z.object({ kind: z.literal("reference_sheet"), characterId: IdSchema }).strict(),
+  /** Product photo candidates; an approved one is added to the product card's images. */
+  z.object({ kind: z.literal("product_image"), productId: IdSchema }).strict(),
   z
     .object({ kind: z.literal("shot"), contentId: IdSchema, beatIndex: z.number().int().positive(), slot: SlotKindSchema })
     .strict(),

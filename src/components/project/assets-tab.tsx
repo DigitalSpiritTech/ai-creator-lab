@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { Link2, Sparkles } from "lucide-react";
+import { ImagePlus, Link2, Sparkles, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CandidateGrid } from "@/components/cards/candidate-grid";
@@ -16,7 +16,7 @@ import { PhotoUpload } from "@/components/references/photo-upload";
 import { ReferenceSlot } from "@/components/references/reference-slot";
 import { approveOwnSheet } from "@/lib/client/references";
 import { AssetThumb } from "@/components/media/asset-media";
-import { useProject } from "@/components/project/project-context";
+import { pendingTiles, useProject } from "@/components/project/project-context";
 import { SheetChecklist, sheetChecklist } from "@/components/project/sheet-checklist";
 import { EmptyState } from "@/components/shell/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -31,13 +31,14 @@ import type { ProductItem } from "@/lib/domain/library";
 type CharacterLink = Extract<ProjectLink, { kind: "character" }>;
 
 export function AssetsTab() {
-  const { view } = useProject();
+  const { view, jobs } = useProject();
   const used = new Set<string>();
   for (const asset of view.assets) {
     const target = view.targets[asset.id];
     if (target && target.kind !== "loose") used.add(asset.id);
   }
   const others = view.assets.filter((asset) => !used.has(asset.id));
+  const loosePending = pendingTiles(jobs, (target) => target.kind === "loose", (id) => view.recipes[id] ?? id);
   return (
     <div className="space-y-8">
       <section className="space-y-4">
@@ -67,14 +68,18 @@ export function AssetsTab() {
       <SetsSection />
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">Other assets</h2>
-        {others.length ? <CandidateGrid assets={others} /> : <p className="text-xs text-muted-foreground">Nothing else here yet.</p>}
+        {others.length || loosePending.length ? (
+          <CandidateGrid assets={others} pending={loosePending} extra={(asset) => <UseAs asset={asset} />} />
+        ) : (
+          <p className="text-xs text-muted-foreground">Nothing else here yet. Generations from the Manual panel land here.</p>
+        )}
       </section>
     </div>
   );
 }
 
 function CharacterSection({ item, link }: { item: CharacterItem; link: CharacterLink }) {
-  const { projectId, view, propose, notify, refresh } = useProject();
+  const { projectId, view, jobs, propose, notify, refresh } = useProject();
   const [ownChecked, setOwnChecked] = useState<boolean[]>([]);
   const [wardrobe, setWardrobe] = useState(link.wardrobe ?? item.bible.wardrobeDefaults[0] ?? "");
   const [busy, setBusy] = useState(false);
@@ -89,14 +94,19 @@ function CharacterSection({ item, link }: { item: CharacterItem; link: Character
   const bodies = byTarget((target) => target.kind === "character_reference" && target.characterId === item.id && target.slot === "body");
   const sheets = byTarget((target) => target.kind === "reference_sheet" && target.characterId === item.id);
   const references = item.bible.references;
+  const title = (id: string) => view.recipes[id] ?? id;
+  const facePending = pendingTiles(jobs, (target) => target.kind === "character_reference" && target.characterId === item.id && target.slot === "face", title);
+  const bodyPending = pendingTiles(jobs, (target) => target.kind === "character_reference" && target.characterId === item.id && target.slot === "body", title);
+  const sheetPending = pendingTiles(jobs, (target) => target.kind === "reference_sheet" && target.characterId === item.id, title);
+  const faceNext = !references.faceAssetId && faces.length === 0 && facePending.length === 0;
+  const bodyNext = !!references.faceAssetId && !references.bodyAssetId && bodies.length === 0 && bodyPending.length === 0;
+  const sheetNext = !!references.faceAssetId && !!references.bodyAssetId && !link.sheetAssetId && sheets.length === 0 && sheetPending.length === 0;
 
-  async function makeSheet() {
+  async function ask(tool: "generate_face_candidates" | "generate_body_reference" | "generate_reference_sheet") {
     setBusy(true);
     try {
-      propose(
-        await callTool<GenerationProposal>("generate_reference_sheet", { projectId, characterId: item.id, wardrobe: wardrobe.trim() || undefined }, projectId),
-        "workspace",
-      );
+      const input = tool === "generate_reference_sheet" ? { projectId, characterId: item.id, wardrobe: wardrobe.trim() || undefined } : { projectId, characterId: item.id };
+      propose(await callTool<GenerationProposal>(tool, input, projectId), "workspace");
     } catch (cause) {
       notify("error", errorMessage(cause));
     } finally {
@@ -125,22 +135,42 @@ function CharacterSection({ item, link }: { item: CharacterItem; link: Character
           {item.brokenAssetIds.length || link.brokenAssetIds.length ? <p className="mt-1 text-destructive">A reference was deleted; lock a new one.</p> : null}
         </div>
       </div>
-      {faces.length ? (
+      <div className="flex flex-wrap gap-2">
+        {!references.faceAssetId ? (
+          <Button size="sm" variant={faceNext ? "default" : "outline"} disabled={busy} onClick={() => void ask("generate_face_candidates")}>
+            <UserRound /> {faces.length || facePending.length ? "More face candidates" : "Generate face candidates"}
+          </Button>
+        ) : null}
+        {!references.bodyAssetId ? (
+          <Button
+            size="sm"
+            variant={bodyNext ? "default" : "outline"}
+            disabled={busy || !references.faceAssetId}
+            onClick={() => void ask("generate_body_reference")}
+            title={references.faceAssetId ? undefined : "Lock the face first"}
+          >
+            <ImagePlus /> {bodies.length || bodyPending.length ? "More body candidates" : "Make body reference"}
+          </Button>
+        ) : null}
+      </div>
+      {faces.length || facePending.length ? (
         <div>
           <h3 className="mb-2 text-xs font-medium">Face candidates</h3>
           <CandidateGrid
             assets={faces}
+            pending={facePending}
             approvedId={references.faceAssetId}
             approveLabel="Lock face"
             onApprove={async (asset) => void (await callTool("select_reference", { characterId: item.id, slot: "face", assetId: asset.id }, projectId))}
           />
         </div>
       ) : null}
-      {bodies.length ? (
+      {bodies.length || bodyPending.length ? (
         <div>
           <h3 className="mb-2 text-xs font-medium">Body candidates</h3>
           <CandidateGrid
             assets={bodies}
+            pending={bodyPending}
             approvedId={references.bodyAssetId}
             approveLabel="Lock body"
             onApprove={async (asset) => void (await callTool("select_reference", { characterId: item.id, slot: "body", assetId: asset.id }, projectId))}
@@ -155,8 +185,14 @@ function CharacterSection({ item, link }: { item: CharacterItem; link: Character
             {item.bible.wardrobeDefaults.map((entry) => <NativeSelectOption key={entry} value={entry}>{entry}</NativeSelectOption>)}
           </NativeSelect>
           <Input value={wardrobe} onChange={(event) => setWardrobe(event.target.value)} className="h-7 max-w-sm text-xs" aria-label="Wardrobe" maxLength={300} />
-          <Button size="sm" variant="outline" disabled={busy || !references.faceAssetId || !references.bodyAssetId} onClick={() => void makeSheet()} title={references.faceAssetId && references.bodyAssetId ? undefined : "Lock the face and body first"}>
-            <Sparkles /> Make reference sheet
+          <Button
+            size="sm"
+            variant={sheetNext ? "default" : "outline"}
+            disabled={busy || !references.faceAssetId || !references.bodyAssetId}
+            onClick={() => void ask("generate_reference_sheet")}
+            title={references.faceAssetId && references.bodyAssetId ? undefined : "Lock the face and body first"}
+          >
+            <Sparkles /> {sheets.length || sheetPending.length ? "Another sheet" : "Make reference sheet"}
           </Button>
           {link.sheetAssetId ? <Badge className="bg-emerald-600 text-white">Sheet approved</Badge> : null}
         </div>
@@ -182,11 +218,12 @@ function CharacterSection({ item, link }: { item: CharacterItem; link: Character
             <p className="text-[11px] text-muted-foreground">Check your sheet against every item before uploading; it is approved for this project as soon as it uploads.</p>
           </div>
         </div>
-        {sheets.length ? (
+        {sheets.length || sheetPending.length ? (
           <>
             <SheetChecklist items={checklist} checked={checked} onChange={setChecked} />
             <CandidateGrid
               assets={sheets}
+              pending={sheetPending}
               approvedId={link.sheetAssetId}
               approveLabel="Approve sheet"
               className="lg:grid-cols-2"
@@ -247,8 +284,27 @@ function LinkFromLibrary({ kind }: { kind: "character" | "product" }) {
 }
 
 function ProductCard({ product }: { product: ProductItem }) {
-  const { refresh } = useProject();
+  const { projectId, view, jobs, refresh, propose, notify } = useProject();
   const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const candidates = view.assets.filter((asset) => {
+    const target = view.targets[asset.id];
+    return !!target && target.kind === "product_image" && target.productId === product.id && !product.imageAssetIds.includes(asset.id);
+  });
+  const pending = pendingTiles(jobs, (target) => target.kind === "product_image" && target.productId === product.id, (id) => view.recipes[id] ?? id);
+  const photosNext = product.imageAssetIds.length === 0 && candidates.length === 0 && pending.length === 0 && !!product.appearance?.trim();
+
+  async function generate() {
+    setBusy(true);
+    try {
+      propose(await callTool<GenerationProposal>("generate_product_images", { projectId, productId: product.id }, projectId), "workspace");
+    } catch (cause) {
+      notify("error", errorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-3 rounded-lg border p-3 text-xs">
       <div className="flex gap-3">
@@ -256,14 +312,39 @@ function ProductCard({ product }: { product: ProductItem }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <Link href={`/library/${product.id}`} className="font-medium hover:underline">{product.name}</Link>
-            <Button size="xs" variant="ghost" onClick={() => setEditing((open) => !open)} aria-expanded={editing}>{editing ? "Close" : "Edit"}</Button>
+            <div className="flex gap-1">
+              <Button
+                size="xs"
+                variant={photosNext ? "default" : "outline"}
+                disabled={busy || !product.appearance?.trim()}
+                onClick={() => void generate()}
+                title={product.appearance?.trim() ? undefined : "Describe the product's appearance first (Edit)"}
+              >
+                <ImagePlus /> {product.imageAssetIds.length || candidates.length || pending.length ? "More photos" : "Generate photos"}
+              </Button>
+              <Button size="xs" variant="ghost" onClick={() => setEditing((open) => !open)} aria-expanded={editing}>{editing ? "Close" : "Edit"}</Button>
+            </div>
           </div>
-          <p className="mt-1 text-muted-foreground">{product.appearance || "No appearance yet. Stills need it to show the product."}</p>
+          <p className="mt-1 text-muted-foreground">{product.appearance || "No appearance yet. Stills need it to show the product, and Generate photos is built from it."}</p>
           <ul className="mt-1 list-disc pl-4 text-muted-foreground">
             {product.allowedClaims.map((claim) => <li key={claim}>{claim}</li>)}
           </ul>
         </div>
       </div>
+      {candidates.length || pending.length ? (
+        <div>
+          <h3 className="mb-2 font-medium">Product photo candidates</h3>
+          <CandidateGrid
+            assets={candidates}
+            pending={pending}
+            approveLabel="Use as product photo"
+            className="lg:grid-cols-3"
+            onApprove={async (asset) => {
+              await callTool("save_product", { productId: product.id, revision: product.revision, projectId, product: { ...productFields(product), imageAssetIds: [...product.imageAssetIds, asset.id] } }, projectId);
+            }}
+          />
+        </div>
+      ) : null}
       {editing ? (
         <ProductForm
           key={product.revision}
@@ -300,5 +381,54 @@ function SetsSection() {
       ) : null}
       <SetList sets={view.sets} />
     </section>
+  );
+}
+
+/** Turns a loose generated or uploaded image into a character's face or body, or a product's photo. */
+function UseAs({ asset }: { asset: Asset }) {
+  const { projectId, view, refresh, notify } = useProject();
+  const [choice, setChoice] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (asset.kind !== "image") return null;
+  const options: { value: string; label: string; apply: () => Promise<unknown> }[] = [];
+  for (const { item } of view.characters) {
+    options.push({ value: `face:${item.id}`, label: `Face of ${item.bible.name}`, apply: () => callTool("select_reference", { characterId: item.id, slot: "face", assetId: asset.id, archiveSiblings: false }, projectId) });
+    if (item.bible.references.faceAssetId) {
+      options.push({ value: `body:${item.id}`, label: `Body of ${item.bible.name}`, apply: () => callTool("select_reference", { characterId: item.id, slot: "body", assetId: asset.id, archiveSiblings: false }, projectId) });
+    }
+  }
+  for (const product of view.products) {
+    if (product.imageAssetIds.includes(asset.id)) continue;
+    options.push({
+      value: `product:${product.id}`,
+      label: `Photo of ${product.name}`,
+      apply: () => callTool("save_product", { productId: product.id, revision: product.revision, projectId, product: { ...productFields(product), imageAssetIds: [...product.imageAssetIds, asset.id] } }, projectId),
+    });
+  }
+  if (!options.length) return null;
+
+  async function apply() {
+    const option = options.find((entry) => entry.value === choice);
+    if (!option) return;
+    setBusy(true);
+    try {
+      await option.apply();
+      setChoice("");
+      await refresh();
+    } catch (cause) {
+      notify("error", errorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex gap-1">
+      <NativeSelect size="sm" value={choice} onChange={(event) => setChoice(event.target.value)} aria-label="Use this image as" className="h-7 min-w-0 flex-1 text-xs">
+        <NativeSelectOption value="">Use as…</NativeSelectOption>
+        {options.map((option) => <NativeSelectOption key={option.value} value={option.value}>{option.label}</NativeSelectOption>)}
+      </NativeSelect>
+      <Button size="xs" variant="outline" disabled={busy || !choice} onClick={() => void apply()}>Set</Button>
+    </div>
   );
 }

@@ -46,6 +46,8 @@ export function describeTarget(target: GenerationTarget): string {
       return target.slot === "face" ? "Face reference" : "Body reference";
     case "reference_sheet":
       return "Reference sheet";
+    case "product_image":
+      return "Product photo";
     case "shot":
       return `Beat ${target.beatIndex} ${target.slot}`;
     case "loose":

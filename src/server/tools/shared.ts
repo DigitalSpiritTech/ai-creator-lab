@@ -27,7 +27,7 @@ export function jobSiblings(store: Store, asset: Asset): string[] {
   const source = store.jobs.get(asset.provenance.jobId);
   const target = source?.request.target;
   const jobIds = new Set([asset.provenance.jobId]);
-  if (source && target && (target.kind === "character_reference" || target.kind === "reference_sheet")) {
+  if (source && target && (target.kind === "character_reference" || target.kind === "reference_sheet" || target.kind === "product_image")) {
     const key = JSON.stringify(target);
     for (const job of store.jobs.listByProject(source.projectId)) {
       if (JSON.stringify(job.request.target) === key) jobIds.add(job.id);

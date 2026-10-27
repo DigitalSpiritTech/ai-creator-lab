@@ -94,6 +94,14 @@ function placeImages(body: Record<string, unknown>, field: ImageField, images: P
   setPath(body, field.path, [...(Array.isArray(existing) ? existing : []), ...items]);
 }
 
+/** "whole seconds from 3 to 15" for a consecutive list, otherwise the list itself. */
+export function describeDurations(durations: number[]): string {
+  const sorted = [...durations].sort((a, b) => a - b);
+  const consecutive = sorted.length > 2 && sorted.every((value, index) => Number.isInteger(value) && (index === 0 || value === sorted[index - 1] + 1));
+  if (consecutive) return `whole seconds from ${sorted[0]} to ${sorted[sorted.length - 1]}`;
+  return `${sorted.join(", ")} seconds`;
+}
+
 /** Builds the native body for one request. Images must already be read and encoded. */
 export function buildRouterBody(recipe: RouterRecipe, input: GenerationInput, images: PreparedImage[]): Record<string, unknown> {
   const map = recipe.fieldMap;
@@ -104,7 +112,7 @@ export function buildRouterBody(recipe: RouterRecipe, input: GenerationInput, im
   }
   const duration = input.durationSeconds ?? recipe.defaults.durationSeconds;
   if (duration !== undefined && recipe.limits.durations && !recipe.limits.durations.includes(duration)) {
-    throw invalid(`${recipe.title} makes clips of ${recipe.limits.durations.join(", ")} seconds.`);
+    throw invalid(`${recipe.title} makes clips of ${describeDurations(recipe.limits.durations)}; this beat is ${duration} s.`);
   }
   if (!map.images && images.length) throw invalid(`${recipe.title} does not take reference images.`);
   assign(body, map.prompt, input.prompt, "prompt");

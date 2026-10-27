@@ -78,11 +78,18 @@ export function pickRecipe(
     return recipe;
   }
   const starter = DEFAULT_RECIPE_IDS[capability];
-  for (const id of [...others, starter?.primary, starter?.hosted]) {
+  for (const id of [...others, starter?.primary]) {
     const recipe = byId(id);
     if (runnable(recipe)) return recipe;
   }
-  const ranked = recipes.filter(runnable).sort((a, b) => Number(a.kind === "mock") - Number(b.kind === "mock") || Number(!a.verified) - Number(!b.verified));
+  // Open weights first: a sibling workflow that takes this many references (the one-, two- and
+  // three-reference Qwen graphs) comes before the hosted alternative.
+  const rank = (recipe: Recipe) => Number(recipe.kind === "mock") * 4 + Number(!recipe.openWeights) * 2 + Number(!recipe.verified);
+  const ranked = recipes.filter(runnable).sort((a, b) => rank(a) - rank(b));
+  const openWeights = ranked.find((recipe) => recipe.openWeights && recipe.kind !== "mock");
+  if (openWeights) return openWeights;
+  const hosted = byId(starter?.hosted);
+  if (runnable(hosted)) return hosted;
   if (ranked[0]) return ranked[0];
   return fail("invalid", `No configured recipe can do ${capability.replaceAll("_", " ")} with ${references} reference image${references === 1 ? "" : "s"}.`);
 }
