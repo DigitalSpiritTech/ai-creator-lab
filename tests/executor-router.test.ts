@@ -121,7 +121,7 @@ test("submit records the request id and credits, then retrieve downloads and ver
     const repository = new MemoryJobStore();
     const recipe = routerRecipe("router-nano-banana-2.1-edit");
     const face = await png(join(directory, "face.png"), 64, 64);
-    const output = await sharp({ create: { width: 768, height: 1376, channels: 3, background: "#ddeeff" } }).png().toBuffer();
+    const output = await sharp({ create: { width: 768, height: 1376, channels: 3, background: "#000", noise: { type: "gaussian", mean: 128, sigma: 40 } } }).png().toBuffer();
     const gets: string[] = [];
     const models = fakeModels(() => json(results.gemini_file, { requestId: "d52907a3-4341-4c26-9bc6-c77bd36eac54", creditsUsed: "12.5" }));
     const executor = new RouterExecutor({ jobs: repository, models, mediaPorts: cdn(output, gets), schemaFor: async () => nanoSchema });

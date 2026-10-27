@@ -101,7 +101,7 @@ describe("run orchestration", () => {
 
   test("an uncertain Router submit resolves on the next poll and commits under the same key", async () => {
     const recipe = ROUTER_RECIPES.find((entry) => entry.id === "router-nano-banana-2.1-edit")!;
-    const output = await sharp({ create: { width: 768, height: 1376, channels: 3, background: "#ddeeff" } }).png().toBuffer();
+    const output = await sharp({ create: { width: 768, height: 1376, channels: 3, background: "#000", noise: { type: "gaussian", mean: 128, sigma: 40 } } }).png().toBuffer();
     const calls: string[] = [];
     const models: RouterModelsPort = {
       async run(_model, _body, options) {

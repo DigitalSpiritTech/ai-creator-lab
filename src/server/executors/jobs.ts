@@ -63,8 +63,8 @@ export function transition(port: JobStorePort, job: Job, update: JobUpdate, now:
 }
 
 /** Marks a job failed with a typed error. */
-export function failJob(port: JobStorePort, job: Job, error: JobError, now: number): Job {
-  return transition(port, job, { status: "failed", error, notice: null }, now);
+export function failJob(port: JobStorePort, job: Job, error: JobError, now: number, notice: string | null = null): Job {
+  return transition(port, job, { status: "failed", error, notice }, now);
 }
 
 /**

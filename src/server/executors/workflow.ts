@@ -49,7 +49,7 @@ import {
   save,
   toJobError,
 } from "@/server/executors/jobs";
-import { commitOutput, outputLocation, tempBeside, type OutputExpectation } from "@/server/executors/media";
+import { commitOutput, EMPTY_OUTPUT_NOTICE, isEmptyOutput, outputLocation, tempBeside, type OutputExpectation } from "@/server/executors/media";
 import type {
   CancelOutcome,
   EstimateOutcome,
@@ -516,6 +516,7 @@ export class WorkflowExecutor implements Executor {
 
   private retrieveFailed(job: Job, error: JobError): RetrieveOutcome {
     const current = loadJob(this.jobs, job.id);
+    if (isEmptyOutput(error)) return { kind: "failed", job: failJob(this.jobs, current, error, this.now(), EMPTY_OUTPUT_NOTICE), error };
     if (error.retryable) {
       const saved = this.save(current, { status: "retrieving", notice: error.message });
       return { kind: "retry", job: saved, retryAfterMs: this.nextDelay(job.id), error };

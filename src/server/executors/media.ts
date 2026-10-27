@@ -103,6 +103,69 @@ export async function probeVideo(path: string): Promise<VideoInfo> {
   return { codec: video.codec_name, width: video.width, height: video.height, frames, fps, durationSeconds, hasAudio: !!audio };
 }
 
+export const EMPTY_OUTPUT_CODE = "empty_output";
+export const EMPTY_OUTPUT_MESSAGE = "The model returned a black or empty output";
+export const EMPTY_OUTPUT_NOTICE =
+  "The model returned a black or empty output; the credits for it were spent. One automatic retry with a new seed follows when the recipe takes a seed and the allowance permits.";
+
+/** Mean luma below this (full range, 0 to 255) counts as black. */
+const BLACK_LUMA = 4;
+/** A frame whose luma spans no more than this is flat. */
+const FLAT_RANGE = 4;
+
+export interface LumaSample {
+  avg: number;
+  min: number;
+  max: number;
+}
+
+/**
+ * Luma statistics (full range) from ffmpeg `signalstats`: five frames spread across a video, or the
+ * single frame of an image.
+ */
+export async function sampleLuma(path: string, frames?: number): Promise<LumaSample[]> {
+  const step = frames && frames > 1 ? Math.max(1, Math.ceil(frames / 5)) : 1;
+  const filters = [...(frames && frames > 1 ? [`select=not(mod(n\\,${step}))`] : []), "scale=out_range=full", "format=yuvj444p", "signalstats", "metadata=print"];
+  const { stderr } = await execute(ffmpegPath(), ["-nostdin", "-hide_banner", "-nostats", "-v", "info", "-i", path, "-vf", filters.join(","), "-an", "-f", "null", "-"], {
+    timeout: 120_000,
+    maxBuffer: 8_000_000,
+  });
+  const samples: LumaSample[] = [];
+  let current: Partial<LumaSample> = {};
+  for (const match of stderr.matchAll(/lavfi\.signalstats\.(YMIN|YAVG|YMAX)=([\d.]+)/g)) {
+    const key = match[1] === "YMIN" ? "min" : match[1] === "YAVG" ? "avg" : "max";
+    current[key] = Number(match[2]);
+    if (current.min !== undefined && current.avg !== undefined && current.max !== undefined) {
+      samples.push(current as LumaSample);
+      current = {};
+    }
+  }
+  if (!samples.length) throw new Error("No luma statistics.");
+  return samples.slice(0, 5);
+}
+
+/** Black (mean luma under 4) or blank (every sample flat and identical). */
+export function looksEmpty(samples: LumaSample[]): boolean {
+  const mean = samples.reduce((sum, sample) => sum + sample.avg, 0) / samples.length;
+  if (mean < BLACK_LUMA) return true;
+  const flat = samples.every((sample) => sample.max - sample.min <= FLAT_RANGE);
+  const averages = samples.map((sample) => sample.avg);
+  return flat && Math.max(...averages) - Math.min(...averages) <= 1;
+}
+
+/** Fails a black or blank output as a provider failure; the run may retry it once with a new seed. */
+export async function assertNotEmpty(path: string, frames?: number): Promise<void> {
+  const samples = await sampleLuma(path, frames).catch(() => {
+    throw new ExecutorFailure(jobError("provider", "The output's pixels could not be read. Check that ffmpeg is installed.", true));
+  });
+  if (looksEmpty(samples)) throw new ExecutorFailure(jobError("provider", EMPTY_OUTPUT_MESSAGE, true, EMPTY_OUTPUT_CODE));
+}
+
+/** Whether a failure is the black-or-empty verdict, which is final for the job even though it is retryable. */
+export function isEmptyOutput(error: { providerCode?: string }): boolean {
+  return error.providerCode === EMPTY_OUTPUT_CODE;
+}
+
 /** What a finished output must look like; unset fields are not checked. */
 export interface OutputExpectation {
   media: "image" | "video";
@@ -127,6 +190,7 @@ export async function commitOutput(temporary: string, absolute: string, relative
         throw new ExecutorFailure(jobError("provider", "The image output could not be decoded.", true));
       });
       assertSize(info.width, info.height, expected);
+      await assertNotEmpty(temporary);
       output = { relativePath: relative, mime: info.mime, width: info.width, height: info.height, sha256: sha256(bytes) };
     } else {
       const info = await probeVideo(temporary).catch(() => {
@@ -140,6 +204,7 @@ export async function commitOutput(temporary: string, absolute: string, relative
       if (expected.fps !== undefined && Math.abs(info.fps - expected.fps) > 0.05) {
         throw new ExecutorFailure(jobError("provider", `The video plays at ${info.fps.toFixed(2)} fps; ${expected.fps} was requested.`, false));
       }
+      await assertNotEmpty(temporary, info.frames);
       output = {
         relativePath: relative,
         mime: "video/mp4",

@@ -18,7 +18,8 @@
     "mcp": "node --import tsx scripts/mcp.ts",
     "live-check": "node --import tsx --conditions=react-server scripts/live-check.ts",
     "e2e-real": "node --import tsx --conditions=react-server scripts/e2e-real.ts",
-    "live-flf": "node --import tsx --conditions=react-server scripts/live-flf.ts"
+    "live-flf": "node --import tsx --conditions=react-server scripts/live-flf.ts",
+    "redo-clip": "node --import tsx --conditions=react-server scripts/redo-clip.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

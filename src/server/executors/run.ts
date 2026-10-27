@@ -5,7 +5,7 @@
  * `advanceGeneration`, and a serial per-target runner (B8) can wrap these functions unchanged.
  * @packageDocumentation
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Recipe } from "@/lib/catalog";
 import type { Asset } from "@/lib/domain/asset";
@@ -22,6 +22,7 @@ import { effectiveAllowanceUsd } from "@/lib/domain/workspace";
 import { type AllowanceState, checkAllowance, readAllowanceUsd, settleUsd } from "@/server/executors/allowance";
 import type { ExecutorSet } from "@/server/executors/index";
 import { claimForSubmit, failJob, jobError, patchJob, toJobError } from "@/server/executors/jobs";
+import { isEmptyOutput } from "@/server/executors/media";
 import type { Executor, PollOutcome, RetrieveDestination, RetrieveOutcome, SubmitOutcome } from "@/server/executors/types";
 import { type StagedOutput, commitJobOutputs } from "@/server/media/commit";
 import { resolveMediaPath } from "@/server/media/paths";
@@ -60,7 +61,8 @@ export type StartOutcome =
 
 export type StepOutcome =
   | { kind: "completed"; job: Job; assets: Asset[] }
-  | { kind: "failed"; job: Job; error: JobError }
+  /** `retry` is the one automatic re-run started after a black or empty output, when there is one. */
+  | { kind: "failed"; job: Job; error: JobError; retry?: Job }
   | { kind: "waiting"; job: Job; retryAfterMs: number; queuePosition: number | null; uncertain: boolean };
 
 const MEDIA_FOLDER = "media";
@@ -175,7 +177,69 @@ export async function startGeneration(
   }
 }
 
-async function commitRetrieved(deps: RunDeps, job: Job): Promise<StepOutcome> {
+/**
+ * The request id of the one automatic retry after a black or empty output: `<requestId>:retry1`,
+ * hashed into the UUID form request ids take, so it is stable across restarts.
+ */
+export function retryRequestId(requestId: string): string {
+  const hex = createHash("sha256").update(`${requestId}:retry1`).digest("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+export function retryNotice(originalJobId: string): string {
+  return `Automatic retry with a new seed after job ${originalJobId} returned a black or empty output.`;
+}
+
+function hasSeedSlot(recipe: Recipe): boolean {
+  if (recipe.kind === "workflow") return !!recipe.sidecar.slots.seed;
+  if (recipe.kind === "router") return !!recipe.fieldMap.seed;
+  return false;
+}
+
+/** The job this one automatically retries, if it is a retry. */
+function retriedFrom(deps: RunDeps, job: Job): Job | undefined {
+  return deps.store.jobs.listByProject(job.projectId).find((other) => other.id !== job.id && retryRequestId(other.requestId) === job.requestId);
+}
+
+/** A seed derived from the retry request id that differs from the one the failed run used. */
+function retrySeed(requestId: string, previous: number | undefined): number {
+  const seed = Number.parseInt(requestId.replaceAll("-", "").slice(0, 8), 16) % 2_147_483_647;
+  return seed === previous ? (seed + 1) % 2_147_483_647 : seed;
+}
+
+/**
+ * Starts the one automatic retry for a job that failed with a black or empty output, when the recipe
+ * takes a seed, the job is not itself a retry, and the allowance still permits the run. Idempotent:
+ * the derived request id maps a repeat call to the same retry job.
+ */
+export async function retryEmptyOutput(deps: RunDeps, failed: Job): Promise<Job | undefined> {
+  if (failed.status !== "failed" || !isEmptyOutput(failed.error)) return undefined;
+  const recipe = failed.request.recipe;
+  if (!hasSeedSlot(recipe) || retriedFrom(deps, failed)) return undefined;
+  const requestId = retryRequestId(failed.requestId);
+  const existing = deps.store.jobs.getByRequest(requestId);
+  if (existing) return existing;
+  const outcome = await startGeneration(
+    deps,
+    {
+      requestId,
+      projectId: failed.projectId,
+      recipe,
+      input: { ...failed.request.input, seed: retrySeed(requestId, failed.request.input.seed) },
+      inputs: failed.request.inputs,
+      target: failed.request.target,
+    },
+    // The user already accepted this recipe's reservation once; the allowance cap is still checked.
+    { confirmUnquoted: true },
+  );
+  if (outcome.kind !== "started" && outcome.kind !== "existing" && !(outcome.kind === "failed" && outcome.job)) return undefined;
+  const job = outcome.kind === "failed" ? outcome.job! : outcome.job;
+  return patchJob(deps.store.jobs, job, { notice: retryNotice(failed.id) }, clock(deps));
+}
+
+async function commitRetrieved(deps: RunDeps, staged: Job): Promise<StepOutcome> {
+  const original = staged.notice === null ? retriedFrom(deps, staged) : undefined;
+  const job = original ? patchJob(deps.store.jobs, staged, { notice: retryNotice(original.id) }, clock(deps)) : staged;
   const outputs: StagedOutput[] = [];
   for (const file of job.retrieved) {
     let posterPath: string | undefined;
@@ -210,6 +274,13 @@ function waiting(outcome: Extract<PollOutcome, { kind: "pending" | "uncertain" }
   return { kind: "waiting", job: outcome.job, retryAfterMs, queuePosition, uncertain: outcome.kind === "uncertain" };
 }
 
+/** A failed step, starting (or finding) the automatic retry when the failure was a black or empty output. */
+async function failedStep(deps: RunDeps, job: Job): Promise<StepOutcome> {
+  if (job.status !== "failed") return { kind: "failed", job: deps.store.jobs.getRequired(job.id), error: jobError("provider", "This job failed.") };
+  const retry = isEmptyOutput(job.error) ? await retryEmptyOutput(deps, job) : undefined;
+  return retry ? { kind: "failed", job, error: job.error, retry } : { kind: "failed", job, error: job.error };
+}
+
 /**
  * Moves one job forward by one step: submit an admitted job, poll, retrieve, or commit.
  * Safe to call repeatedly and after a restart; it reads everything it needs from the stored job.
@@ -217,7 +288,7 @@ function waiting(outcome: Extract<PollOutcome, { kind: "pending" | "uncertain" }
 export async function advanceGeneration(deps: RunDeps, jobId: string): Promise<StepOutcome> {
   const job = deps.store.jobs.getRequired(jobId);
   if (job.status === "completed") return { kind: "completed", job, assets: deps.store.assets.list({ jobId, state: "any" }) };
-  if (job.status === "failed") return { kind: "failed", job, error: job.error };
+  if (job.status === "failed") return failedStep(deps, job);
   const executor = executorFor(deps, job);
   if (!executor) {
     return { kind: "waiting", job, retryAfterMs: 60_000, queuePosition: null, uncertain: false };
@@ -236,7 +307,7 @@ export async function advanceGeneration(deps: RunDeps, jobId: string): Promise<S
   if (polled.kind === "failed") return { kind: "failed", job: polled.job, error: polled.error };
   if (polled.kind === "pending" || polled.kind === "uncertain") return waiting(polled);
   const retrieved = await executor.retrieve(jobId, { root: deps.store.dataDir, folder: MEDIA_FOLDER });
-  if (retrieved.kind === "failed") return { kind: "failed", job: retrieved.job, error: retrieved.error };
+  if (retrieved.kind === "failed") return failedStep(deps, retrieved.job);
   if (retrieved.kind === "retry" || retrieved.kind === "not_ready") return waiting(retrieved);
   return commitRetrieved(deps, retrieved.job);
 }
@@ -245,8 +316,16 @@ export async function advanceGeneration(deps: RunDeps, jobId: string): Promise<S
 export async function runToCompletion(deps: RunDeps, jobId: string, options: { timeoutMs?: number } = {}): Promise<StepOutcome> {
   const sleep = deps.sleep ?? ((ms: number) => delay(ms));
   const deadline = clock(deps) + (options.timeoutMs ?? 30 * 60_000);
+  let current = jobId;
+  let followed = false;
   while (true) {
-    const step = await advanceGeneration(deps, jobId);
+    const step = await advanceGeneration(deps, current);
+    if (step.kind === "failed" && step.retry && !followed) {
+      // Follow the one automatic retry; a failed retry is final.
+      current = step.retry.id;
+      followed = true;
+      continue;
+    }
     if (step.kind !== "waiting" || clock(deps) + step.retryAfterMs > deadline) return step;
     await sleep(step.retryAfterMs);
   }

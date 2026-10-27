@@ -128,7 +128,7 @@ function request(jobs: MemoryJobStore, recipeValue: Recipe, input: Partial<Gener
 }
 
 async function png(path: string, width: number, height: number): Promise<string> {
-  await sharp({ create: { width, height, channels: 3, background: "#5a7d6c" } }).png().toFile(path);
+  await sharp({ create: { width, height, channels: 3, background: "#000", noise: { type: "gaussian", mean: 128, sigma: 40 } } }).png().toFile(path);
   return path;
 }
 
@@ -279,7 +279,7 @@ test("LTX fits the start frame to 576x1024, binds length on both nodes, and veri
     const start = await png(join(directory, "start.png"), 1000, 800);
     const clip = join(directory, "clip.mp4");
     await run(process.env.FFMPEG_PATH || "ffmpeg", [
-      "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=576x1024:r=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+      "-nostdin", "-v", "error", "-f", "lavfi", "-i", "testsrc=s=576x1024:r=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
       "-frames:v", "121", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", clip,
     ]);
     const fake = new FakeCloud(jobs.ltx.id, jobs.ltx.states, "9", [{ source: clip, type: "video", contentType: "video/mp4" }]);
@@ -323,7 +323,7 @@ test("LTX first-and-last fits both frames to one canvas, binds each to its loade
     const last = await png(join(directory, "end.png"), 700, 1200);
     const clip = join(directory, "clip.mp4");
     await run(process.env.FFMPEG_PATH || "ffmpeg", [
-      "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=c=green:s=576x1024:r=24", "-f", "lavfi", "-i", "sine=frequency=330:sample_rate=48000",
+      "-nostdin", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=576x1024:r=24", "-f", "lavfi", "-i", "sine=frequency=330:sample_rate=48000",
       "-frames:v", "121", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", clip,
     ]);
     const fake = new FakeCloud(jobs.ltx.id, jobs.ltx.states, "9", [{ source: clip, type: "video", contentType: "video/mp4" }]);

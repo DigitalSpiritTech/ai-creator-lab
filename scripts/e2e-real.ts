@@ -61,13 +61,13 @@ async function main() {
     const existing = process.env.PROJECT_ID;
     const project = existing
       ? store.projects.getRequired(existing)
-      : store.projects.create({ id: randomUUID(), appId: "ugc-creator", name: "Ridgeline e2e", brief: null, revision: 0, createdAt: now, updatedAt: now });
+      : store.projects.create({ id: randomUUID(), appId: "ugc-creator", name: "Ridgeline e2e v2", brief: null, revision: 0, createdAt: now, updatedAt: now });
     const pid = project.id;
     console.log("PROJECT_ID=" + pid);
     const state = async () => tool<State>(context, "get_project_state", { projectId: pid });
     let s = await state();
     const bible = averyBible();
-    const wardrobe = "plain fitted gray tee and dark jeans";
+    const wardrobe = "olive utility jacket over a white tee, dark jeans";
 
     if (!s.characters.length) {
       await tool(context, "save_brief", { projectId: pid, brief: { productSummary: "Ridgeline 32 oz insulated bottle, affiliate", audience: "Commuters who drink water in the car", platforms: ["TikTok", "Instagram Reels"], tone: "friend recommending something" } });

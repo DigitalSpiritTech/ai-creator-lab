@@ -20,7 +20,7 @@ import {
   save,
   toJobError,
 } from "@/server/executors/jobs";
-import { commitOutput, outputLocation, tempBeside, type OutputExpectation } from "@/server/executors/media";
+import { commitOutput, EMPTY_OUTPUT_NOTICE, isEmptyOutput, outputLocation, tempBeside, type OutputExpectation } from "@/server/executors/media";
 import { buildRouterBody, prepareImages } from "@/server/executors/router-body";
 import { downloadMedia, productionMediaPorts, type MediaPorts } from "@/server/executors/router-download";
 import { extractRouterMedia, routerFamily, type RouterMedia } from "@/server/executors/router-output";
@@ -240,7 +240,7 @@ export class RouterExecutor implements Executor {
       return { kind: "completed", job: saved, metrics: null };
     } catch (cause) {
       const error = toJobError(cause, "The output could not be saved. Retrieval will retry without generating again.");
-      if (error.retryable && this.now() - job.createdAt > RETENTION_MS) {
+      if (error.retryable && !isEmptyOutput(error) && this.now() - job.createdAt > RETENTION_MS) {
         return this.retrieveFailed(job, jobError("provider", "Router's 24-hour output retention has passed; this output can no longer be downloaded.", false, "expired"));
       }
       return this.retrieveFailed(job, error);
@@ -361,6 +361,7 @@ export class RouterExecutor implements Executor {
 
   private retrieveFailed(job: Job, error: JobError): RetrieveOutcome {
     const current = loadJob(this.jobs, job.id);
+    if (isEmptyOutput(error)) return { kind: "failed", job: failJob(this.jobs, current, error, this.now(), EMPTY_OUTPUT_NOTICE), error };
     if (error.retryable) {
       const saved = this.save(current, { status: "retrieving", notice: error.message });
       return { kind: "retry", job: saved, retryAfterMs: this.delay(job.id), error };
