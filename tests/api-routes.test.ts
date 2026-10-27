@@ -58,6 +58,7 @@ async function loadRoutes() {
 before(async () => {
   process.env.STUDIO_DATA_DIR = dataDir;
   for (const name of ["COMFY_API_KEY", "ANTHROPIC_API_KEY", "LLM_MODEL", "GENERATION_ALLOWANCE_USD", "COMFY_BASE_URL"]) delete process.env[name];
+  process.env.MOCK_RECIPES = "1";
   routes = await loadRoutes();
 });
 

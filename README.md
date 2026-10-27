@@ -33,7 +33,7 @@ Open Settings in the left rail.
 - Paid generation is off until you turn it on. Two numbers have to be above zero, and the lower one is the cap that applies:
   1. The operator cap, `GENERATION_ALLOWANCE_USD` in a file named `.env.local` in the project folder. Copy `.env.example` to `.env.local`, set the variable to the dollar amount you are willing to spend in total, and restart the app.
   2. Your allowance in Settings (USD). Settings shows the amount in force, what has been spent, and what is reserved by jobs in flight.
-- With the allowance at zero, nothing paid runs. Mock recipes (credit-free, labeled as mock) still work, so you can click through the whole flow first.
+- With the allowance at zero, nothing paid runs. Proposals still show you the quote, so you can walk the flow up to the gate before spending anything.
 
 ## Your first ad in ten minutes
 

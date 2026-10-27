@@ -205,7 +205,7 @@ export function SettingsForm() {
           <Stat label="Operator cap (.env.local)" value={formatUsd(view.allowance.operatorUsd)} />
         </div>
         <p className="text-xs text-muted-foreground">
-          Paid runs stop at the lower of your allowance and the operator cap. A cap of zero keeps paid generation off; mock recipes still run.
+          Paid runs stop at the lower of your allowance and the operator cap. A cap of zero keeps paid generation off.
         </p>
         <form
           className="flex items-center gap-2"

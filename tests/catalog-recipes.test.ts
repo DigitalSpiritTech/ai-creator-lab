@@ -84,7 +84,7 @@ test("the workflow loader builds recipes from sidecars and reports broken ones w
 });
 
 test("starter recipes match the spike: verified defaults per MVP capability, unverified alternatives labeled", async () => {
-  const recipes = await defaultRecipes(workflowsDir);
+  const recipes = await defaultRecipes(workflowsDir, { mocks: true });
   for (const recipe of recipes) RecipeSchema.parse(recipe);
   assert.equal(new Set(recipes.map((recipe) => recipe.id)).size, recipes.length);
   const summary = Object.fromEntries(recipes.filter((recipe) => recipe.kind !== "mock").map((recipe) => [recipe.id, [recipe.kind, recipe.capability, recipe.verified]]));
@@ -139,10 +139,27 @@ test("the first-and-last LTX sidecar binds both frames, both lengths, and both g
     ["27", "strength", 0.6],
   ]);
 
-  const recipes = await defaultRecipes(workflowsDir);
+  const recipes = await defaultRecipes(workflowsDir, { mocks: true });
   const ranked = recipesFor(recipes, "first_last_to_video");
   assert.deepEqual(ranked.map((recipe) => recipe.id), ["ltx-2.5-flf2v", "router-wan-3-flf2v", "mock-first-last-to-video"]);
   const flf = ranked[0];
   assert.ok(flf.kind === "workflow" && flf.fitImages && flf.openWeights && flf.verified === null);
   assert.deepEqual(DEFAULT_RECIPE_IDS.first_last_to_video, { primary: "ltx-2.5-flf2v", hosted: "router-wan-3-flf2v", mock: "mock-first-last-to-video" });
+});
+
+test("mock recipes stay out of the catalog unless MOCK_RECIPES=1 or the caller asks for them", async () => {
+  const previous = process.env.MOCK_RECIPES;
+  try {
+    delete process.env.MOCK_RECIPES;
+    const hidden = await defaultRecipes(workflowsDir);
+    assert.equal(hidden.filter((recipe) => recipe.kind === "mock").length, 0);
+    assert.ok(hidden.some((recipe) => recipe.id === "ltx-2.5-i2v"));
+    process.env.MOCK_RECIPES = "1";
+    const listed = await defaultRecipes(workflowsDir);
+    assert.equal(listed.filter((recipe) => recipe.kind === "mock").length, 5);
+    assert.equal((await defaultRecipes(workflowsDir, { mocks: true })).filter((recipe) => recipe.kind === "mock").length, 5);
+  } finally {
+    if (previous === undefined) delete process.env.MOCK_RECIPES;
+    else process.env.MOCK_RECIPES = previous;
+  }
 });

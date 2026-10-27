@@ -30,6 +30,8 @@ import { type Store, openStore } from "@/server/store";
 import { type ToolContext, callTool, createGenerationContext, createToolContext } from "@/server/tools";
 
 const ROOT = resolve(process.cwd());
+// The smoke runs on the mock recipes, which real installs hide.
+process.env.MOCK_RECIPES = "1";
 const PLACEHOLDER_KEY = "acceptance-smoke-placeholder";
 
 interface Client {
@@ -320,6 +322,7 @@ async function httpClient(): Promise<Client> {
         COMFY_API_KEY: PLACEHOLDER_KEY,
         ANTHROPIC_API_KEY: PLACEHOLDER_KEY,
         GENERATION_ALLOWANCE_USD: "0",
+        MOCK_RECIPES: "1",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

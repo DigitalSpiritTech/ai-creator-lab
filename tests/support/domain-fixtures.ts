@@ -10,6 +10,9 @@ import type { AssetKind, AssetMime } from "@/lib/domain/asset";
 import type { CharacterBibleFields, ProductFields } from "@/lib/domain/library";
 import { createJob, advanceJob, type GenerationTarget, type Job, type JobInput } from "@/lib/domain/job";
 import { MOCK_RECIPES } from "@/server/catalog/defaults";
+
+// The mock recipes are hidden from real installs; the test suite opts in.
+process.env.MOCK_RECIPES = "1";
 import { createProject, type Project } from "@/lib/domain/project";
 import type { BeatInput } from "@/lib/domain/script";
 import { commitJobOutputs } from "@/server/media/commit";

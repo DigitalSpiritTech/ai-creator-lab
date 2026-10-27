@@ -192,10 +192,22 @@ export const DEFAULT_RECIPE_IDS: Partial<Record<Capability, { primary: string; h
   text_to_video: { primary: "router-ltx-2.5-fast", mock: "mock-text-to-video" },
 };
 
-/** Every starter recipe: the workflow sidecars on disk, the curated Router recipes, and the mocks. */
-export async function defaultRecipes(workflowsDir: string = resolve(process.cwd(), "workflows")): Promise<Recipe[]> {
+/**
+ * Whether the mock recipes are listed. They exist for tests and the acceptance smoke, not for
+ * creators, so a real install hides them unless `MOCK_RECIPES=1` is set.
+ */
+export function mockRecipesEnabled(): boolean {
+  return process.env.MOCK_RECIPES === "1";
+}
+
+/**
+ * Every starter recipe: the workflow sidecars on disk and the curated Router recipes, plus the
+ * mocks when `options.mocks` (default: {@link mockRecipesEnabled}) allows them.
+ */
+export async function defaultRecipes(workflowsDir: string = resolve(process.cwd(), "workflows"), options: { mocks?: boolean } = {}): Promise<Recipe[]> {
   const { recipes } = await loadWorkflowRecipes(workflowsDir, WORKFLOW_META);
-  return [...recipes, ...ROUTER_RECIPES, ...MOCK_RECIPES];
+  const mocks = options.mocks ?? mockRecipesEnabled();
+  return [...recipes, ...ROUTER_RECIPES, ...(mocks ? MOCK_RECIPES : [])];
 }
 
 /** Recipes for a capability: verified first, then unverified, mocks last. */
