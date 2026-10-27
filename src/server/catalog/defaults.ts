@@ -18,8 +18,8 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
   },
   "qwen-image-edit-2511-1ref": {
     title: "Qwen Image Edit 2511, one reference, on Comfy Cloud",
-    verified: null,
-    costHint: "Expected about 6 credits at 768x1344; not yet measured.",
+    verified: "2026-10-27",
+    costHint: "About 6 credits at 768x1344.",
     ceilingUsd: 0.07,
     defaults: { width: 768, height: 1344 },
   },
@@ -32,8 +32,8 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
   },
   "qwen-image-edit-2511-3ref": {
     title: "Qwen Image Edit 2511, three references, on Comfy Cloud",
-    verified: null,
-    costHint: "Expected about 8 credits at 768x1344; not yet measured.",
+    verified: "2026-10-27",
+    costHint: "About 6 credits at 768x1344.",
     ceilingUsd: 0.1,
     defaults: { width: 768, height: 1344 },
   },

@@ -91,9 +91,9 @@ test("starter recipes match the spike: verified defaults per MVP capability, unv
   assert.deepEqual(summary, {
     "ltx-2.5-i2v": ["workflow", "image_to_video", "2026-10-26"],
     "ltx-2.5-flf2v": ["workflow", "first_last_to_video", "2026-10-26"],
-    "qwen-image-edit-2511-1ref": ["workflow", "image_edit", null],
+    "qwen-image-edit-2511-1ref": ["workflow", "image_edit", "2026-10-27"],
     "qwen-image-edit-2511-2ref": ["workflow", "image_edit", "2026-10-26"],
-    "qwen-image-edit-2511-3ref": ["workflow", "image_edit", null],
+    "qwen-image-edit-2511-3ref": ["workflow", "image_edit", "2026-10-27"],
     "z-image-turbo-t2i": ["workflow", "text_to_image", "2026-10-26"],
     "router-nano-banana-2.1-edit": ["router", "image_edit", "2026-10-26"],
     "router-nano-banana-pro-edit": ["router", "image_edit", "2026-10-27"],

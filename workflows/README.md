@@ -6,8 +6,8 @@ These are API-format ComfyUI workflows, each with a small sidecar file that tell
 | --- | --- | --- | --- |
 | `z-image-turbo-t2i.api.json` | text_to_image | z_image_turbo_bf16, qwen_3_4b, ae.safetensors (all in the Cloud library) | 2026-10-26, 1024x1024, about 2 to 3 credits |
 | `qwen-image-edit-2511-2ref.api.json` | image_edit (2 references) | qwen_image_edit_2511_bf16, qwen_2.5_vl_7b_fp8_scaled, qwen_image_vae, Qwen-Image-Edit-2511-Lightning-4steps LoRA | 2026-10-26, 768x1344, about 7 credits |
-| `qwen-image-edit-2511-1ref.api.json` | image_edit (1 reference: body from a face, refine) | same as the two-reference graph | derived from it; not yet run |
-| `qwen-image-edit-2511-3ref.api.json` | image_edit (3 references: sheet, product, set) | same as the two-reference graph | derived from it; not yet run |
+| `qwen-image-edit-2511-1ref.api.json` | image_edit (1 reference: body from a face, refine) | same as the two-reference graph | 2026-10-27, 768x1344, about 6 credits |
+| `qwen-image-edit-2511-3ref.api.json` | image_edit (3 references: sheet, product, set) | same as the two-reference graph | 2026-10-27, 768x1344, about 6 credits |
 | `ltx-2.5-i2v.api.json` | image_to_video | ltx-2.5-22b-distilled-transformer-comfy-int8-convrot, gemma4-12b-with-proj-ltx-2.5-bf16, ltx-2.5 video and audio VAEs | 2026-10-26, 576x1024, 121 frames, 24 fps, audio, about 10 credits |
 
 Running these needs a Comfy Cloud plan with API access. Without one, use the hosted Router models, which need only credits.

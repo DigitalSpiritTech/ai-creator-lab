@@ -126,6 +126,24 @@ async function main() {
       }, "composite.png");
       const after = await balanceCents();
       logRow("cloud", "qwen-image-edit-2511-2ref", "face.png + product.png", `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
+    } else if (step === "edit1") {
+      const r = await runCloud("qwen-image-edit-2511-1ref.api.json", "9", (wf, client) => {
+        wf.setInput("20", "image", client.assets.fromFile(resolve(out, "face.png")));
+        wf.setInput("4", "prompt", "Same person as the reference image, identical face and hair. Three-quarter view full-body standing pose, body turned about thirty degrees from the camera, relaxed, arms at sides, fitted navy athleticwear (plain fitted tee and leggings), simple trainers, head to toe inside the frame, deep neutral gray background, even soft light, photographic. The outfit must contrast clearly with the background so the silhouette reads. No text, captions, logos, or watermarks in the image.");
+        wf.setInput("8", "seed", 3);
+      }, "body1.png");
+      const after = await balanceCents();
+      logRow("cloud", "qwen-image-edit-2511-1ref", "face.png (one reference)", `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
+    } else if (step === "edit3") {
+      const r = await runCloud("qwen-image-edit-2511-3ref.api.json", "9", (wf, client) => {
+        wf.setInput("20", "image", client.assets.fromFile(resolve(out, "face.png")));
+        wf.setInput("21", "image", client.assets.fromFile(resolve(out, "product.png")));
+        wf.setInput("22", "image", client.assets.fromFile(resolve(out, "boardroom.png")));
+        wf.setInput("4", "prompt", "The woman from image 1 standing at the head of the boardroom table in the place from image 3, matching its layout, furniture, and lighting, holding the water bottle from image 2 in her right hand near her chest, looking at the camera mid-sentence with an easy smile. Vertical 9:16 phone framing from the waist up. Preserve the woman's identity, face, hair, freckles, and earrings exactly. Preserve the bottle's dark green color, black cap, and shape exactly. No text.");
+        wf.setInput("8", "seed", 3);
+      }, "composite3.png");
+      const after = await balanceCents();
+      logRow("cloud", "qwen-image-edit-2511-3ref", "face.png, product.png, boardroom.png (three references)", `${r.path.replace(root + "/", "")} ${probe(r.path)}`, before, after, r.ms, `job ${r.jobId}`);
     } else if (step === "ltx") {
       const r = await runCloud("ltx-2.5-i2v.api.json", "9", (wf, client) => {
         wf.setInput("22", "image", client.assets.fromFile(resolve(out, process.env.IMAGE ?? "composite-576x1024.png")));
