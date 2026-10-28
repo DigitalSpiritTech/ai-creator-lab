@@ -37,6 +37,8 @@ export const DUCK_GAIN = 0.35;
 export const VOICE_LEAD_SECONDS = 0.15;
 /** A take that runs past its segment is sped up by at most this much before it is trimmed. */
 export const VOICE_MAX_TEMPO = 1.2;
+/** Takes are leveled to this integrated loudness (LUFS) so every voice-over sits where the talking clips do. */
+export const VOICE_LOUDNESS = -20;
 const VOICE_FADE_SECONDS = 0.1;
 
 /**
@@ -131,6 +133,7 @@ function audioChain(index: number, input: number, segment: Segment): string {
   const fadeStart = Math.max(0, segmentSeconds - VOICE_FADE_SECONDS).toFixed(3);
   const take = [
     `[${input + 1}:a:0]asetpts=PTS-STARTPTS`,
+    `loudnorm=I=${VOICE_LOUDNESS}:TP=-1.5:LRA=11`,
     `aresample=${AUDIO_RATE}`,
     "aformat=sample_fmts=fltp:channel_layouts=stereo",
     ...(tempo > 1 ? [`atempo=${tempo.toFixed(2)}`] : []),
@@ -206,7 +209,7 @@ export function planAssembly(
   const summary = [
     `${segments.length} segment${segments.length === 1 ? "" : "s"} (${segments.map((segment) => `${segment.source} ${segment.frames}f${segment.voice ? " +voice" : ""}`).join(", ")})`,
     `video: scale to fit, pad ${EXPORT_WIDTH}x${EXPORT_HEIGHT}, setsar=1, fps=${EXPORT_FPS}${captioned ? ", drawtext captions" : ""}`,
-    options.mute ? "audio: none (muted)" : `audio: aresample ${AUDIO_RATE} Hz stereo, anullsrc for silent clips${voiced ? `, ${voiced} voice-over${voiced === 1 ? "" : "s"} mixed over the clip at ${DUCK_GAIN} gain` : ""}`,
+    options.mute ? "audio: none (muted)" : `audio: aresample ${AUDIO_RATE} Hz stereo, anullsrc for silent clips${voiced ? `, ${voiced} voice-over${voiced === 1 ? "" : "s"} leveled to ${VOICE_LOUDNESS} LUFS and mixed over the clip at ${DUCK_GAIN} gain` : ""}`,
     `join: concat filter n=${segments.length}:v=1:a=${audio}`,
     `encode: libx264 crf ${EXPORT_CRF} yuv420p +faststart${options.mute ? "" : `, aac ${AUDIO_BITRATE}`}`,
   ].join("; ");

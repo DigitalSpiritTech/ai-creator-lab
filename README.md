@@ -47,11 +47,12 @@ The example below uses an invented creator, Avery Lane, and an invented product,
 6. Body reference. From the locked face, the assistant proposes 3/4 full-body references in neutral athleticwear. Approve one.
 7. Reference sheet. For this project the assistant generates one landscape sheet from the approved face and body: a large portrait plus full-body front and back in the project's wardrobe, on a neutral grey background. Check it at full size against the checklist, then approve. Every still in the project uses it.
 8. Product. Upload product photos, paste your link, and list the claims you may make. For the Ridgeline bottle: keeps drinks cold 24 hours, fits a car cup holder, dishwasher safe. It is saved to the Library as a Product.
-9. Script. The assistant writes a 15 to 30 second script with a hook, problem, reveal, proof, and call to action. Beats alternate talking and b-roll; each has a spoken line, on-screen text, a visual, and a length. Edit in place; the script is versioned.
+9. Script. The assistant writes a 15 to 30 second script with a hook, problem, reveal, proof, and call to action. Beats alternate talking and b-roll; each has a line, on-screen text, a visual, and a length sized to the line (about 2.5 words per second). Talking beats say their line on camera; b-roll beats carry theirs as a voice-over, so the creator keeps talking over the footage. Edit in place; the script is versioned.
 10. Shots. For each beat the assistant composes a start frame from the sheet, the product, and the setting (a bright kitchen counter by a window, a car interior, a gym bench). Approve one per beat, or give a text instruction to refine one that is close.
-11. Clips. Each approved frame becomes a five-second LTX clip with synchronized audio; talking beats carry the spoken line. Approve one per beat.
-12. Assemble. On the Export tab, put the clips in order and press Export 1080 x 1920. You get an MP4 with the on-screen text burned in as captions. Download it. It is also saved as an asset with its full source record.
-13. Next piece. Start another ad in the same project, or a new project with the same character and a fresh sheet if the wardrobe changes.
+11. Clips. Each approved frame becomes an LTX clip at the beat's length with synchronized audio; talking beats carry the spoken line, b-roll has ambient sound only. Approve one per beat.
+12. Voice-overs. Each b-roll line is read in the creator's own voice: the app lifts a voice sample from the first approved talking clip (or you upload a recording on the character's Voice slot) and clones it with Chatterbox Turbo or Qwen3-TTS on Comfy Cloud, a few credits a line. Approve a take per beat.
+13. Assemble. On the Export tab, put the clips in order and press Export 1080 x 1920. You get an MP4 with the on-screen text burned in as captions and the voice-overs mixed over their beats. Download it. It is also saved as an asset with its full source record.
+14. Next piece. Start another ad in the same project, or a new project with the same character and a fresh sheet if the wardrobe changes.
 
 Any step can also be done by hand without the chat: pick a recipe, write a prompt, generate, approve.
 
@@ -82,7 +83,7 @@ Everything lives in one folder: `.data` inside the project folder by default, or
 
 ## Starter workflows and adding your own
 
-Twenty open-weights workflows ship in `workflows/` (Z-Image, Qwen-Image 2512, FLUX.2 dev, Krea 2 Turbo and MiniMax H3 for stills; Qwen Image Edit 2511 and FLUX.2 dev with one to three references and the Krea 2 style reference for edits; LTX 2.5, Wan 2.2 and MiniMax H3 for text, image and first-and-last-frame video), each with a small sidecar file that tells the app which node inputs to fill (prompt, images, size, length, seed). To see what they need on Comfy Cloud, how to open one in ComfyUI, and how to add your own, read [workflows/README.md](workflows/README.md).
+Twenty-two open-weights workflows ship in `workflows/` (Z-Image, Qwen-Image 2512, FLUX.2 dev, Krea 2 Turbo and MiniMax H3 for stills; Qwen Image Edit 2511 and FLUX.2 dev with one to three references and the Krea 2 style reference for edits; LTX 2.5, Wan 2.2 and MiniMax H3 for text, image and first-and-last-frame video; Chatterbox Turbo and Qwen3-TTS for voice-overs cloned from a voice sample), each with a small sidecar file that tells the app which node inputs to fill (prompt, images, a voice sample, size, length, seed). To see what they need on Comfy Cloud, how to open one in ComfyUI, and how to add your own, read [workflows/README.md](workflows/README.md).
 
 ## Troubleshooting
 

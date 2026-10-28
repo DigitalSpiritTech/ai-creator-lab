@@ -188,7 +188,7 @@ describe("assembly", () => {
     const { export: record, asset } = await assemble(tools, { contentId: content.id });
     assert.equal(record.status, "completed");
     assert.deepEqual(record.sources.map((source) => source.voice?.assetId ?? null), [take.id, longTake.id, null]);
-    assert.match(record.status === "completed" ? record.filterSummary : "", /2 voice-overs mixed over the clip at 0.35 gain/);
+    assert.match(record.status === "completed" ? record.filterSummary : "", /2 voice-overs leveled to -20 LUFS and mixed over the clip at 0.35 gain/);
     const path = resolveMediaPath(store.dataDir, asset!.relativePath);
     const info = await probeVideo(path);
     assert.ok(Math.abs(info.durationSeconds - 5) <= 0.1, `${info.durationSeconds} s`);

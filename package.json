@@ -22,7 +22,8 @@
     "redo-clip": "node --import tsx --conditions=react-server scripts/redo-clip.ts",
     "e2e-photos": "node --import tsx --conditions=react-server scripts/e2e-photos.ts",
     "live-premium": "node --import tsx --conditions=react-server scripts/live-premium.ts",
-    "verify-workflow": "node --import tsx --conditions=react-server scripts/verify-workflow.ts"
+    "verify-workflow": "node --import tsx --conditions=react-server scripts/verify-workflow.ts",
+    "e2e-voice": "node --import tsx --conditions=react-server scripts/e2e-voice.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

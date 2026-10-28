@@ -21,6 +21,8 @@ These are API-format ComfyUI workflows, each with a small sidecar file that tell
 | `minimax-h3-i2v.api.json` | image_to_video (with sound) | same | 2026-10-27, 736x1312, 124 frames, about 21 credits |
 | `minimax-h3-flf2v.api.json` | first_last_to_video (with sound) | same | 2026-10-27, 736x1312, 124 frames, about 23 credits |
 | `ltx-2.5-i2v.api.json` | image_to_video | ltx-2.5-22b-distilled-transformer-comfy-int8-convrot, gemma4-12b-with-proj-ltx-2.5-bf16, ltx-2.5 video and audio VAEs | 2026-10-26, 576x1024, 121 frames, 24 fps, audio, about 10 credits |
+| `chatterbox-turbo-tts.api.json` | text_to_speech (voice clone) | the FL_ChatterboxTurboTTS custom node, model downloaded on first run | 2026-10-28, a 13-word line in 4.0 s, FLAC 24 kHz mono, about 4 credits |
+| `qwen3-tts-voice-clone.api.json` | text_to_speech (voice clone) | the FB_Qwen3TTSVoiceClone custom node, 1.7B model | 2026-10-28, the same line in 4.0 s, about 2 credits |
 
 Running these needs a Comfy Cloud plan with API access. Without one, use the hosted Router models, which need only credits.
 
@@ -67,10 +69,10 @@ For every workflow `name.api.json` there is a `name.slots.json` next to it. The 
 What each field means:
 
 - `workflow`: the API-format file this sidecar belongs to.
-- `capability`: what the workflow can do for a step. The starter set uses `text_to_image`, `image_edit`, and `image_to_video`.
+- `capability`: what the workflow can do for a step. The starter set uses `text_to_image`, `image_edit`, `image_to_video`, `first_last_to_video`, `text_to_video`, and `text_to_speech`.
 - `openWeights`: true when the models are open weights.
 - `outputNode`: the id of the node whose output is the finished image or video.
-- `slots`: the values the app fills in. Each slot names a node id and an input name on that node. Common slots are `prompt`, `width`, `height`, `seed`, and for edits and video the input images (`image`, `image1`, `image2`). Image slots carry `"kind": "image"`. A slot can also be a list when one value must be written to several nodes; the video workflow does this for `length`, which sets the frame count in two places. Video also has `imageStrength`.
+- `slots`: the values the app fills in. Each slot names a node id and an input name on that node. Common slots are `prompt`, `width`, `height`, `seed`, and for edits and video the input images (`image`, `image1`, `image2`). Image slots carry `"kind": "image"`; a voice sample for a text-to-speech workflow is a slot with `"kind": "audio"` on a `LoadAudio` node (the voice-clone sidecars call it `voice`, and Qwen3-TTS also takes `refText`, the words in the sample). A slot can also be a list when one value must be written to several nodes; the video workflow does this for `length`, which sets the frame count in two places. Video also has `imageStrength`.
 - `limits`: the sizes the workflow is known to handle, and rules such as `multipleOf`. The edit workflow also records `maxReferences` and the video workflow a frame count rule (8n+1) and the frame rate.
 - `notes`: free text shown with the recipe.
 

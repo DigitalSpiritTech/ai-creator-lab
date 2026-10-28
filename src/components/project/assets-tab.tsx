@@ -295,7 +295,7 @@ function VoiceSlot({ character }: { character: CharacterItem }) {
           title={talkingClipApproved ? "Lift the voice from the first approved talking clip" : "Approve a talking clip first"}
           onClick={() => void run(() => callTool("extract_voice_sample", { projectId, characterId: character.id }, projectId))}
         >
-          <Mic /> {voice ? "Take it from the approved clip again" : "Take it from the approved clip"}
+          <Mic /> {voice?.provenance.source === "derived" ? "Take it from the approved clip again" : "Take it from the approved clip"}
         </Button>
       </div>
     </div>
