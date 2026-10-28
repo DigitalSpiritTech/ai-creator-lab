@@ -16,11 +16,11 @@ export interface ToolActivity {
   output?: unknown;
 }
 
-export function ToolCard({ activity }: { activity: ToolActivity }) {
+export function ToolCard({ activity, plain = false }: { activity: ToolActivity; plain?: boolean }) {
   const Icon = activity.status === "running" ? Loader2 : activity.status === "ok" ? CheckCircle2 : XCircle;
   const summary = summarizeTool(activity.name, activity.input, activity.output, activity.status);
   return (
-    <details className="rounded-lg border bg-muted/30 px-2.5 py-1.5 text-xs" data-testid="tool-card">
+    <details className={plain ? "px-2.5 py-1.5 text-xs" : "rounded-lg border bg-muted/30 px-2.5 py-1.5 text-xs"} data-testid="tool-card">
       <summary className="flex cursor-pointer list-none items-center gap-2">
         <Wrench className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
         <span className="min-w-0 truncate">

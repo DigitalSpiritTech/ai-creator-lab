@@ -9,6 +9,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProposalCard } from "@/components/cards/proposal-card";
 import { ToolCard } from "@/components/cards/tool-card";
+import { ToolSteps } from "@/components/cards/tool-steps";
+import { groupSteps } from "@/components/project/chat-panel";
 import { summarizeTool } from "@/lib/client/tool-summary";
 import { shotStatus, slotStatus } from "@/components/project/shots-tab";
 import { sheetChecklist } from "@/components/project/sheet-checklist";
@@ -175,6 +177,31 @@ describe("cards", () => {
     assert.deepEqual(summarizeTool("approve", { kind: "voice", beatIndex: 2 }, {}, "ok"), { title: "Approved the voice for beat 2", detail: "" });
     assert.deepEqual(summarizeTool("some_new_tool", {}, {}, "ok"), { title: "Some new tool", detail: "" });
     assert.deepEqual(summarizeTool("save_brief", {}, { code: "invalid", message: "Tone is required." }, "error"), { title: "Save brief failed", detail: "Tone is required." });
+  });
+
+  test("a turn's tool calls fold into one steps line that names the running step, then counts the steps", () => {
+    const items: ChatItem[] = [
+      { kind: "user", id: "u", text: "Save the brief" },
+      { kind: "tool", id: "t1", activity: { id: "1", name: "get_project_state", input: {}, status: "ok", output: {} } },
+      { kind: "tool", id: "t2", activity: { id: "2", name: "save_brief", input: {}, status: "ok", output: {} } },
+      { kind: "assistant", id: "a", text: "Saved." },
+      { kind: "tool", id: "t3", activity: { id: "3", name: "compose_still", input: { beatIndex: 2 }, status: "running" } },
+    ];
+    const grouped = groupSteps(items);
+    assert.deepEqual(grouped.map((item) => item.kind), ["user", "steps", "assistant", "steps"]);
+    const first = grouped[1];
+    assert.ok(first.kind === "steps" && first.activities.length === 2);
+    const done = renderToStaticMarkup(createElement(ToolSteps, { activities: first.kind === "steps" ? first.activities : [] }));
+    assert.match(done, /2 steps/);
+    assert.match(done, /Read the project · Saved the brief/);
+    assert.match(done, /aria-label="done"/);
+    const last = grouped[3];
+    const running = renderToStaticMarkup(createElement(ToolSteps, { activities: last.kind === "steps" ? last.activities : [] }));
+    assert.match(running, /Compose still…/);
+    assert.match(running, /aria-label="running"/);
+    const failed = renderToStaticMarkup(createElement(ToolSteps, { activities: [{ id: "4", name: "save_script", input: {}, status: "error", output: { message: "A 20-word line needs about 8 s." } }] }));
+    assert.match(failed, /1 step, 1 failed/);
+    assert.match(failed, /A 20-word line needs about 8 s\./);
   });
 });
 

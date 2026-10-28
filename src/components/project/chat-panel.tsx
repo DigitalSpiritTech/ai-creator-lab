@@ -8,7 +8,8 @@
 import { Loader2, SendHorizonal, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ProposalCard } from "@/components/cards/proposal-card";
-import { ToolCard } from "@/components/cards/tool-card";
+import type { ToolActivity } from "@/components/cards/tool-card";
+import { ToolSteps } from "@/components/cards/tool-steps";
 import { type ChatItem, localId, useProject } from "@/components/project/project-context";
 import { Notice } from "@/components/shell/page-header";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/client/api";
 import { applyAgentEvent, parseAgentEvent } from "@/lib/client/chat";
 import { readSse } from "@/lib/client/sse";
+
+type RenderItem = Exclude<ChatItem, { kind: "tool" }> | { kind: "steps"; id: string; activities: ToolActivity[] };
+
+/** Folds each run of consecutive tool calls into one steps block, so a turn's work reads as a line, not a stack of cards. */
+export function groupSteps(items: ChatItem[]): RenderItem[] {
+  const grouped: RenderItem[] = [];
+  for (const item of items) {
+    if (item.kind !== "tool") {
+      grouped.push(item);
+      continue;
+    }
+    const last = grouped.at(-1);
+    if (last && last.kind === "steps") last.activities = [...last.activities, item.activity];
+    else grouped.push({ kind: "steps", id: `steps-${item.id}`, activities: [item.activity] });
+  }
+  return grouped;
+}
 
 export function ChatPanel({ items, setItems }: { items: ChatItem[]; setItems: React.Dispatch<React.SetStateAction<ChatItem[]>> }) {
   const { projectId, view, refresh, submitted } = useProject();
@@ -81,7 +99,7 @@ export function ChatPanel({ items, setItems }: { items: ChatItem[]; setItems: Re
             commuters, for TikTok, warm and direct like Avery Lane.”
           </div>
         ) : null}
-        {items.map((item) => {
+        {groupSteps(items).map((item) => {
           switch (item.kind) {
             case "user":
               return (
@@ -95,8 +113,8 @@ export function ChatPanel({ items, setItems }: { items: ChatItem[]; setItems: Re
                   {item.text}
                 </div>
               );
-            case "tool":
-              return <ToolCard key={item.id} activity={item.activity} />;
+            case "steps":
+              return <ToolSteps key={item.id} activities={item.activities} />;
             case "proposal":
               return (
                 <ProposalCard
