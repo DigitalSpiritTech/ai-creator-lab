@@ -9,6 +9,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProposalCard } from "@/components/cards/proposal-card";
 import { ToolCard } from "@/components/cards/tool-card";
+import { summarizeTool } from "@/lib/client/tool-summary";
 import { shotStatus, slotStatus } from "@/components/project/shots-tab";
 import { sheetChecklist } from "@/components/project/sheet-checklist";
 import { assetQuery } from "@/components/assets/asset-browser";
@@ -104,6 +105,7 @@ describe("transcript", () => {
 describe("format", () => {
   test("cost lines multiply the per-run estimate by the count", () => {
     assert.equal(describeEstimate({ kind: "quoted", usd: 0.05, credits: 10.5, note: "" }, 4), "About $0.20 (42 credits)");
+    assert.equal(describeEstimate({ kind: "quoted", usd: 0.05, credits: 10.5, source: "hint", note: "About 6 credits." }, 4), "Up to $0.20 (42 credits) reserved");
     assert.equal(describeEstimate({ kind: "free", usd: 0, credits: 0, note: "" }, 4), "Free (mock run)");
     assert.equal(describeEstimate({ kind: "unquoted", usd: 0.5, credits: null, note: "" }, 2), "Up to $1.00 reserved (no live price)");
     assert.equal(describeEstimate({ kind: "rejected", usd: null, credits: null, note: "x" }, 1), "Cannot run");
@@ -150,9 +152,29 @@ describe("cards", () => {
     assert.doesNotMatch(rejected, /Auto-approved/);
   });
 
-  test("tool card names the tool", () => {
+  test("tool card says what the call did in plain words and keeps the JSON behind a second toggle", () => {
     const html = renderToStaticMarkup(createElement(ToolCard, { activity: { id: "t", name: "save_brief", input: {}, status: "ok" } }));
-    assert.match(html, /Save brief/);
+    assert.match(html, /Saved the brief/);
+    assert.match(html, /Raw input and output/);
+    const running = renderToStaticMarkup(createElement(ToolCard, { activity: { id: "t", name: "compose_still", input: { beatIndex: 6 }, status: "running" } }));
+    assert.match(running, /Compose still…/);
+    const proposal = {
+      recipeTitle: "Qwen Image Edit 2511, one reference, on Comfy Cloud",
+      count: 4,
+      estimate: { kind: "quoted", usd: 0.07, credits: 14.8, source: "hint", note: "About 6 credits at 768x1344." },
+    };
+    assert.deepEqual(summarizeTool("compose_still", { contentId: "c", beatIndex: 6 }, proposal, "ok"), {
+      title: "Proposed a still for beat 6",
+      detail: "Qwen Image Edit 2511, one reference, on Comfy Cloud · 4 candidates · up to 59 credits",
+    });
+    assert.deepEqual(summarizeTool("generate_clip", { contentId: "c", beatIndex: 1, mode: "speech" }, { recipeTitle: "Wan 2.2 S2V", count: 1, estimate: { kind: "free" } }, "ok"), {
+      title: "Proposed a lip-synced clip for beat 1",
+      detail: "Wan 2.2 S2V · 1 candidate · free",
+    });
+    assert.deepEqual(summarizeTool("save_script", { beats: [1, 2, 3] }, { script: { version: 2 } }, "ok"), { title: "Saved the script (version 2), 3 beats", detail: "" });
+    assert.deepEqual(summarizeTool("approve", { kind: "voice", beatIndex: 2 }, {}, "ok"), { title: "Approved the voice for beat 2", detail: "" });
+    assert.deepEqual(summarizeTool("some_new_tool", {}, {}, "ok"), { title: "Some new tool", detail: "" });
+    assert.deepEqual(summarizeTool("save_brief", {}, { code: "invalid", message: "Tone is required." }, "error"), { title: "Save brief failed", detail: "Tone is required." });
   });
 });
 

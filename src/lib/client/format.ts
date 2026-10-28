@@ -33,7 +33,8 @@ export function describeEstimate(estimate: EstimateSummary, count: number): stri
     case "quoted": {
       const usd = (estimate.usd ?? 0) * count;
       const credits = estimate.credits === null ? "" : ` (${Math.round(estimate.credits * count)} credits)`;
-      return `About ${formatUsd(usd)}${credits}`;
+      // A hint is the recipe's ceiling: reserved against the allowance and settled when the run reports its cost.
+      return estimate.source === "hint" ? `Up to ${formatUsd(usd)}${credits} reserved` : `About ${formatUsd(usd)}${credits}`;
     }
     case "unquoted":
       return estimate.usd === null ? "No live price" : `Up to ${formatUsd(estimate.usd * count)} reserved (no live price)`;

@@ -285,6 +285,8 @@ export const EstimateSummarySchema = z
     kind: z.enum(["free", "quoted", "unquoted", "rejected"]),
     usd: z.number().nonnegative().nullable(),
     credits: z.number().nonnegative().nullable(),
+    /** `live` is the provider's quote; `hint` is the recipe's ceiling, reserved until the run settles. */
+    source: z.enum(["live", "hint"]).optional(),
     note: z.string().max(600),
   })
   .strict();

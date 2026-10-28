@@ -132,7 +132,7 @@ export function summarizeEstimate(estimate: EstimateOutcome): EstimateSummary {
     case "free":
       return { kind: "free", usd: 0, credits: 0, note: estimate.note };
     case "quoted":
-      return { kind: "quoted", usd: estimate.usd, credits: estimate.credits, note: estimate.note };
+      return { kind: "quoted", usd: estimate.usd, credits: estimate.credits, source: estimate.source, note: estimate.note };
     case "unquoted":
       return { kind: "unquoted", usd: estimate.ceilingUsd, credits: null, note: estimate.note };
     case "rejected":
