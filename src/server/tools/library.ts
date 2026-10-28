@@ -83,11 +83,11 @@ export const saveCharacterBible = defineTool({
 export const selectReference = defineTool({
   name: "select_reference",
   description:
-    "Lock a character's face or body reference to one image, bump the bible version, and archive the other candidates from the same generation with the reason 'not selected'. The face must be locked before the body.",
+    "Lock a character's face or body reference to one image, or its voice reference to one audio recording, bump the bible version, and archive the other candidates from the same generation with the reason 'not selected'. The face must be locked before the body. Every voice-over is cloned from the voice reference.",
   input: z
     .object({
       characterId: IdSchema,
-      slot: z.enum(["face", "body"]),
+      slot: z.enum(["face", "body", "voice"]),
       assetId: IdSchema,
       archiveSiblings: z.boolean().default(true),
     })
@@ -97,7 +97,7 @@ export const selectReference = defineTool({
     store.transaction(() => {
       const time = now();
       const current = requireCharacter(store, input.characterId);
-      const asset = requireActiveAsset(store, input.assetId, ["image"]);
+      const asset = requireActiveAsset(store, input.assetId, input.slot === "voice" ? ["audio"] : ["image"]);
       const character = store.library.update(setCharacterReference(current, input.slot, asset, time)) as CharacterItem;
       const archivedAssetIds = input.archiveSiblings ? archiveUnselected(store, jobSiblings(store, asset), time) : [];
       return { character, archivedAssetIds };

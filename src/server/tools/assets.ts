@@ -15,7 +15,7 @@ import { archiveUnselected, jobSiblings, requireActiveAsset } from "@/server/too
 
 const ApproveInputSchema = z
   .object({
-    kind: z.enum(["still", "clip", "sheet"]).describe("still or clip for a beat's shot; sheet for a project's character reference sheet."),
+    kind: z.enum(["still", "clip", "voice", "sheet"]).describe("still, clip, or voice (a voice-over take) for a beat's shot; sheet for a project's character reference sheet."),
     assetId: IdSchema,
     contentId: IdSchema.optional().describe("Required for still and clip."),
     beatIndex: z.number().int().positive().optional().describe("Required for still and clip; beats start at 1."),
@@ -34,7 +34,7 @@ const ApproveInputSchema = z
 export const approve = defineTool({
   name: "approve",
   description:
-    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), or a project's character reference sheet (needs a wardrobe). The other candidates are archived with the reason 'not selected' unless archiveSiblings is false.",
+    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), a beat's voice-over take, or a project's character reference sheet (needs a wardrobe). The other candidates are archived with the reason 'not selected' unless archiveSiblings is false.",
   input: ApproveInputSchema,
   output: z.object({
     content: ContentPieceSchema.nullable(),
@@ -53,7 +53,7 @@ export const approve = defineTool({
         const archivedAssetIds = input.archiveSiblings ? archiveUnselected(store, jobSiblings(store, asset), time) : [];
         return { content: null, link: saved, archivedAssetIds };
       }
-      const kinds = input.kind === "still" ? (["image"] as const) : (["video", "storyboard"] as const);
+      const kinds = input.kind === "still" ? (["image"] as const) : input.kind === "voice" ? (["audio"] as const) : (["video", "storyboard"] as const);
       const asset = requireActiveAsset(store, input.assetId, [...kinds]);
       const content = store.content.getRequired(input.contentId!);
       const result = approveCandidate(content, input.beatIndex!, input.kind, asset.id, time);

@@ -10,7 +10,8 @@ export const SlotBindingSchema = z
   .object({
     node: z.string().min(1).max(64),
     input: z.string().min(1).max(128),
-    kind: z.enum(["text", "number", "image"]).optional(),
+    /** `image` and `audio` slots take a file the executor uploads; the others take a value. */
+    kind: z.enum(["text", "number", "image", "audio"]).optional(),
   })
   .strict();
 export type SlotBinding = z.infer<typeof SlotBindingSchema>;
@@ -70,6 +71,13 @@ export function imageSlotNames(sidecar: SlotSidecar): string[] {
     .map(([name]) => name);
 }
 
+/** Slots that take an uploaded audio file (a voice sample for text to speech). */
+export function audioSlotNames(sidecar: SlotSidecar): string[] {
+  return Object.entries(sidecar.slots)
+    .filter(([, slot]) => slotBindings(slot).some((binding) => binding.kind === "audio"))
+    .map(([name]) => name);
+}
+
 /**
  * Checks that every slot names a node and input that exist in the graph and that the output node exists.
  * Returns human-readable problems; an empty list means the sidecar matches.
@@ -86,6 +94,8 @@ export function sidecarProblems(sidecar: SlotSidecar, graph: WorkflowGraph): str
         problems.push(`Slot ${name}: node ${binding.node} has no input ${binding.input}.`);
       } else if (binding.kind === "image" && node.class_type !== "LoadImage") {
         problems.push(`Slot ${name}: image slots must bind a LoadImage node, not ${node.class_type}.`);
+      } else if (binding.kind === "audio" && node.class_type !== "LoadAudio") {
+        problems.push(`Slot ${name}: audio slots must bind a LoadAudio node, not ${node.class_type}.`);
       }
     }
   }
@@ -110,7 +120,7 @@ export function applySlots(target: SlotTarget, sidecar: SlotSidecar, values: Rec
     const slot = sidecar.slots[name];
     if (!slot) throw new Error(`The workflow has no slot named ${name}.`);
     for (const binding of slotBindings(slot)) {
-      if (binding.kind !== "image" && typeof value === "object") throw new Error(`Slot ${name} takes a plain value.`);
+      if (binding.kind !== "image" && binding.kind !== "audio" && typeof value === "object") throw new Error(`Slot ${name} takes a plain value.`);
       target.setInput(binding.node, binding.input, value);
     }
   }

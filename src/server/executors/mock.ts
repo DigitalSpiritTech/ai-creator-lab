@@ -27,6 +27,7 @@ import type {
   PollOutcome,
   RetrieveDestination,
   RetrieveOutcome,
+  RetrievedFile,
   SubmitOutcome,
 } from "@/server/executors/types";
 
@@ -102,6 +103,41 @@ export function renderMockSvg(job: Pick<Job, "id" | "capability" | "request">): 
   ].join("\n");
 }
 
+const MOCK_SAMPLE_RATE = 16_000;
+
+/**
+ * A labeled placeholder for speech: a soft two-tone hum as long as the text would take to say
+ * (2.5 words per second, at least one second), as 16-bit mono WAV. Audible, so the silence check
+ * passes, and obviously not a voice.
+ */
+export function renderMockWav(text: string): { bytes: Buffer; durationSeconds: number } {
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const durationSeconds = Math.max(1, Math.round((words / 2.5) * 10) / 10);
+  const samples = Math.round(durationSeconds * MOCK_SAMPLE_RATE);
+  const data = Buffer.alloc(samples * 2);
+  for (let index = 0; index < samples; index++) {
+    const t = index / MOCK_SAMPLE_RATE;
+    const envelope = Math.min(1, t * 8, (durationSeconds - t) * 8) * (0.6 + 0.4 * Math.sin(2 * Math.PI * 3 * t));
+    const tone = Math.sin(2 * Math.PI * 196 * t) * 0.6 + Math.sin(2 * Math.PI * 294 * t) * 0.3;
+    data.writeInt16LE(Math.round(tone * envelope * 0.35 * 32767), index * 2);
+  }
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + data.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(MOCK_SAMPLE_RATE, 24);
+  header.writeUInt32LE(MOCK_SAMPLE_RATE * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(data.length, 40);
+  return { bytes: Buffer.concat([header, data]), durationSeconds };
+}
+
 export class MockExecutor implements Executor {
   readonly kind = "mock" as const;
   private readonly jobs: JobStorePort;
@@ -157,18 +193,22 @@ export class MockExecutor implements Executor {
       const error = jobError("provider", failure.reason);
       return { kind: "failed", job: failJob(this.jobs, job, error, this.now()), error };
     }
-    const svg = Buffer.from(renderMockSvg(job), "utf8");
+    const speech = capabilityMedia(job.capability) === "audio";
+    const wav = speech ? renderMockWav(job.request.input.prompt) : undefined;
+    const bytes = wav ? wav.bytes : Buffer.from(renderMockSvg(job), "utf8");
     const { width, height } = mockDimensions(job.request.input);
-    const { absolute, relative } = outputLocation(destination, `${job.id}-0.svg`);
+    const { absolute, relative } = outputLocation(destination, `${job.id}-0.${wav ? "wav" : "svg"}`);
     await mkdir(dirname(absolute), { recursive: true });
     const temporary = `${absolute}.tmp`;
     try {
-      await writeFile(temporary, svg);
+      await writeFile(temporary, bytes);
       await rename(temporary, absolute);
     } finally {
       await rm(temporary, { force: true });
     }
-    const output = { relativePath: relative, mime: "image/svg+xml" as const, width, height, sha256: sha256(svg) };
+    const output: RetrievedFile = wav
+      ? { relativePath: relative, mime: "audio/wav", width: 0, height: 0, sha256: sha256(bytes), audio: { durationSeconds: wav.durationSeconds, codec: "pcm_s16le" } }
+      : { relativePath: relative, mime: "image/svg+xml", width, height, sha256: sha256(bytes) };
     const saved = patchJob(this.jobs, job, { retrieved: [output], creditsUsed: 0, notice: null }, this.now());
     return { kind: "completed", job: saved, metrics: null };
   }

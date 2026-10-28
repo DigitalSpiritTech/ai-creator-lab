@@ -1,0 +1,31 @@
+{
+  "workflow": "qwen3-tts-voice-clone.api.json",
+  "capability": "text_to_speech",
+  "openWeights": true,
+  "outputNode": "3",
+  "slots": {
+    "prompt": {
+      "node": "2",
+      "input": "target_text"
+    },
+    "voice": {
+      "node": "1",
+      "input": "audio",
+      "kind": "audio"
+    },
+    "refText": {
+      "node": "2",
+      "input": "ref_text"
+    },
+    "seed": {
+      "node": "2",
+      "input": "seed"
+    },
+    "language": {
+      "node": "2",
+      "input": "language"
+    }
+  },
+  "limits": {},
+  "notes": "Qwen3-TTS 1.7B (open weights) voice clone from the voice sample; refText is the words in the sample when known (a talking clip's line), which improves the clone. Output FLAC."
+}

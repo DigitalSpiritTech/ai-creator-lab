@@ -33,7 +33,7 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: the bible is saved and the face is not locked, so propose four face candidates.',
   ].join(" "),
   select_reference: [
-    "Lock a character's face or body reference to the candidate the user picked, bump the bible version, and archive the other candidates for that slot. The face must be locked before the body.",
+    "Lock a character's face or body reference to the candidate the user picked, bump the bible version, and archive the other candidates for that slot. The face must be locked before the body. Slot voice sets the uploaded recording voice-overs are cloned from (archiveSiblings false).",
     'Example: the user says "the second face, that\'s her", so pass slot face and that asset id.',
   ].join(" "),
   generate_face_candidates: [
@@ -79,11 +79,20 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: "the bottle label is blurry" on a still the user otherwise likes.',
   ].join(" "),
   generate_clip: [
-    `Propose a five-second clip for one beat from its approved still; talking beats carry the spoken line for synchronized audio, b-roll is ambient sound only. ${PROPOSAL_NOTE}`,
+    `Propose a clip for one beat from its approved still, at the beat's length; talking beats carry the spoken line for synchronized audio, b-roll is ambient sound only (its voice-over is a separate step). ${PROPOSAL_NOTE}`,
     "Example: beat 2's still was just approved.",
   ].join(" "),
+  extract_voice_sample: [
+    "Set the character's voice sample, which every voice-over is cloned from: the audio of the first approved talking clip (or of clipAssetId). generate_voice_over does this on its own when no sample is set, so call it only when the user wants a different clip's voice. An uploaded recording is set with select_reference, slot voice.",
+    'Example: "use the voice from beat 3\'s clip instead".',
+  ].join(" "),
+  generate_voice_over: [
+    `Propose the voice-over for one b-roll or text card beat: its line read in the creator's cloned voice. One take by default. The approved take is mixed over the clip's ambient sound at export. ${PROPOSAL_NOTE}`,
+    "Call it once per beat that has a line and is not a talking beat, after a talking clip is approved (its voice is the sample) or the user uploaded a recording.",
+    "Example: beat 1's talking clip is approved and beat 2 is b-roll with a line.",
+  ].join(" "),
   approve: [
-    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), or this project's reference sheet. The other candidates are archived. Only when the user chose that candidate.",
+    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), a beat's voice-over take, or this project's reference sheet. The other candidates are archived. Only when the user chose that candidate.",
     'Example: "approve the first sheet" gives kind sheet, the asset id, projectId, and characterId.',
   ].join(" "),
   archive_asset: [
@@ -95,7 +104,7 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: the user says "yes, delete it everywhere" after you listed what breaks.',
   ].join(" "),
   assemble_ad: [
-    "Join the approved clips in order into the final 1080 x 1920 MP4 with the on-screen text burned in (captions false to skip, mute true to drop audio) and save it as an export. Every beat needs an approved clip first.",
+    "Join the approved clips in order into the final 1080 x 1920 MP4 with the on-screen text burned in (captions false to skip, mute true to drop audio) and approved voice-overs mixed over their clips, and save it as an export. Every beat needs an approved clip first; a beat with a line and no approved voice-over exports with ambient sound only.",
     "Example: all clips are approved and the user asks for the final ad.",
   ].join(" "),
   list_assets: ["List assets, newest first, filtered by project, kind, state, or recipe.", 'Example: the user asks "what did I archive?"'].join(" "),

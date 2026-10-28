@@ -10,7 +10,7 @@ import { fail } from "@/lib/domain/failure";
 import type { LibraryItem, ProjectLink } from "@/lib/domain/library";
 
 export const AssetUsageSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("character_reference"), itemId: IdSchema, slot: z.enum(["face", "body", "wardrobe"]) }),
+  z.object({ kind: z.literal("character_reference"), itemId: IdSchema, slot: z.enum(["face", "body", "wardrobe", "voice"]) }),
   z.object({ kind: z.literal("library_image"), itemId: IdSchema }),
   z.object({ kind: z.literal("reference_sheet"), projectId: IdSchema, itemId: IdSchema }),
   z.object({ kind: z.literal("shot_candidate"), contentId: IdSchema, beatIndex: z.number().int(), slot: SlotKindSchema }),
@@ -37,6 +37,7 @@ export function findAssetUsage(graph: AssetGraph, assetId: string): AssetUsage[]
       const references = item.bible.references;
       if (references.faceAssetId === assetId) usage.push({ kind: "character_reference", itemId: item.id, slot: "face" });
       if (references.bodyAssetId === assetId) usage.push({ kind: "character_reference", itemId: item.id, slot: "body" });
+      if (references.voiceAssetId === assetId) usage.push({ kind: "character_reference", itemId: item.id, slot: "voice" });
       if (references.wardrobeAssetIds.includes(assetId)) {
         usage.push({ kind: "character_reference", itemId: item.id, slot: "wardrobe" });
       }
@@ -67,6 +68,8 @@ export function findAssetUsage(graph: AssetGraph, assetId: string): AssetUsage[]
   }
   for (const asset of graph.assets) {
     if (asset.provenance.source === "generated" && asset.provenance.inputs.some((input) => input.assetId === assetId)) {
+      usage.push({ kind: "asset_input", assetId: asset.id });
+    } else if (asset.provenance.source === "derived" && asset.provenance.fromAssetId === assetId) {
       usage.push({ kind: "asset_input", assetId: asset.id });
     }
   }
@@ -145,6 +148,7 @@ export function planDeleteEverywhere(
             faceAssetId: references.faceAssetId === id ? null : references.faceAssetId,
             bodyAssetId: references.bodyAssetId === id ? null : references.bodyAssetId,
             wardrobeAssetIds: references.wardrobeAssetIds.filter((entry) => entry !== id),
+            voiceAssetId: references.voiceAssetId === id ? null : references.voiceAssetId,
           },
         },
       });

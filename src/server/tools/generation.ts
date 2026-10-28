@@ -81,6 +81,7 @@ export const proposeCandidates = defineTool({
       target: GenerationTargetSchema.default({ kind: "loose" }),
       aspectRatio: AspectRatioSchema.optional(),
       durationSeconds: z.number().positive().max(60).optional(),
+      slots: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().describe("Extra named workflow slots the recipe accepts, such as imageStrength."),
     })
     .strict(),
   output: GenerationProposalSchema,
@@ -95,6 +96,7 @@ export const proposeCandidates = defineTool({
       target: input.target,
       aspectRatio: input.aspectRatio,
       durationSeconds: input.durationSeconds,
+      slots: input.slots,
     }),
 });
 

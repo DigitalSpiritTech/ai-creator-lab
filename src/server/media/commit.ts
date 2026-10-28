@@ -7,7 +7,7 @@
  */
 import { readFile } from "node:fs/promises";
 import { capabilityMedia } from "@/lib/catalog";
-import { type Asset, type AssetKind, type AssetMime, AssetSchema, type VideoMetadata, extensionFor } from "@/lib/domain/asset";
+import { type Asset, type AssetKind, type AssetMime, AssetSchema, type AudioMetadata, type VideoMetadata, extensionFor, isAudioMime } from "@/lib/domain/asset";
 import { MediaPathSchema } from "@/lib/domain/common";
 import { addCandidates } from "@/lib/domain/content";
 import { fail } from "@/lib/domain/failure";
@@ -24,6 +24,7 @@ export interface BytesOutput {
   width: number;
   height: number;
   video?: Omit<VideoMetadata, "posterPath"> & { posterPng?: Uint8Array };
+  audio?: AudioMetadata;
 }
 
 /** A file an executor retrieved into `media/`, with an optional extracted poster beside it. */
@@ -51,6 +52,7 @@ function attachToTarget(store: Store, job: Job, assetIds: string[], now: number)
 /** Asset kind for a retrieved file: MP4 is video, an SVG plate for a video capability is a storyboard, a sheet target's image is a sheet. */
 export function assetKindFor(job: Job, mime: AssetMime): AssetKind {
   if (mime === "video/mp4") return "video";
+  if (isAudioMime(mime)) return "audio";
   if (mime === "image/svg+xml" && capabilityMedia(job.capability) === "video") return "storyboard";
   return job.request.target.kind === "reference_sheet" ? "sheet" : "image";
 }
@@ -70,6 +72,7 @@ async function stagedAsset(store: Store, job: Job, output: StagedOutput): Promis
         posterPath: output.posterPath,
       }
     : undefined;
+  const audio: AudioMetadata | undefined = file.audio ? { ...file.audio, transcript: job.request.input.prompt.slice(0, 2000) } : undefined;
   return {
     projectId: job.projectId,
     kind: assetKindFor(job, file.mime),
@@ -79,6 +82,7 @@ async function stagedAsset(store: Store, job: Job, output: StagedOutput): Promis
     height: file.height,
     sha256: file.sha256,
     video,
+    audio,
   };
 }
 
@@ -128,6 +132,7 @@ export async function commitJobOutputs(
           height: output.height,
           sha256: sha256(output.bytes),
           video,
+          audio: output.audio,
         };
       }
       assets.push(

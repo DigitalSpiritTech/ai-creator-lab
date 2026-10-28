@@ -1,0 +1,27 @@
+{
+  "workflow": "chatterbox-turbo-tts.api.json",
+  "capability": "text_to_speech",
+  "openWeights": true,
+  "outputNode": "3",
+  "slots": {
+    "prompt": {
+      "node": "2",
+      "input": "text"
+    },
+    "voice": {
+      "node": "1",
+      "input": "audio",
+      "kind": "audio"
+    },
+    "seed": {
+      "node": "2",
+      "input": "seed"
+    },
+    "temperature": {
+      "node": "2",
+      "input": "temperature"
+    }
+  },
+  "limits": {},
+  "notes": "Chatterbox Turbo (Resemble AI, open weights) zero-shot voice clone from the voice sample; the prompt is the line to read. Supports [laugh] and similar tags inline. Output FLAC."
+}

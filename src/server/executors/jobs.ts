@@ -104,7 +104,8 @@ export function claimForSubmit(port: JobStorePort, job: Job, now: number): Job |
 
 /** Resolves request image paths against the data directory; absolute paths pass through. */
 export function absoluteInput(input: GenerationInput, mediaRoot: string): GenerationInput {
-  return { ...input, images: input.images.map((path) => (isAbsolute(path) ? path : resolve(mediaRoot, path))) };
+  const absolute = (path: string) => (isAbsolute(path) ? path : resolve(mediaRoot, path));
+  return { ...input, images: input.images.map(absolute), ...(input.audio ? { audio: absolute(input.audio) } : {}) };
 }
 
 /** Poll pacing: 2 s doubling-ish to a 15 s ceiling. */

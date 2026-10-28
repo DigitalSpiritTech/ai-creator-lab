@@ -169,7 +169,8 @@ describe("creative director prompt", () => {
       "Keep replies short",
       "Never refuse because a step is out of order",
       "what to look for",
-      "13. Next piece",
+      "12. Voice-overs",
+      "14. Next piece",
     ]) {
       assert.ok(CREATIVE_DIRECTOR_PROMPT.includes(phrase), phrase);
     }

@@ -31,6 +31,7 @@ import {
 import { getProjectState, saveBriefTool } from "@/server/tools/project";
 import { type Tool, type ToolContext, toJsonSchemaTools } from "@/server/tools/registry";
 import { planShots, resetShots, saveScript, setCutOrder } from "@/server/tools/script";
+import { extractVoiceSampleTool, generateVoiceOver } from "@/server/tools/voice";
 
 export { createToolContext, type GenerationContext, type Tool, type ToolContext } from "@/server/tools/registry";
 export { createGenerationContext } from "@/server/tools/generation-context";
@@ -38,7 +39,7 @@ export { createGenerationContext } from "@/server/tools/generation-context";
 /**
  * Every tool the assistant is offered, in roster order: get_project_state, save_brief,
  * save_character_bible, propose_candidates, select_reference, generate_reference_sheet,
- * save_product, save_script, plan_shots, compose_still, refine_still, generate_clip, approve,
+ * save_product, save_script, plan_shots, compose_still, refine_still, generate_clip, extract_voice_sample, generate_voice_over, approve,
  * archive_asset, delete_asset_everywhere, assemble_ad, list_assets, list_recipes, then the Library
  * tools link_library_item, unlink_library_item, archive_library_item, create_set, set_cut_order, and reset_shots.
  */
@@ -58,6 +59,8 @@ export const TOOLS: readonly Tool[] = [
   composeStill,
   refineStill,
   generateClip,
+  extractVoiceSampleTool,
+  generateVoiceOver,
   approve,
   archiveAssetTool,
   deleteAssetEverywhereTool,

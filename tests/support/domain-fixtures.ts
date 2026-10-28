@@ -137,6 +137,7 @@ const MIME_FOR: Record<AssetKind, AssetMime> = {
   storyboard: "image/svg+xml",
   video: "video/mp4",
   export: "video/mp4",
+  audio: "audio/flac",
 };
 
 /**
@@ -156,7 +157,7 @@ export async function generateAssets(
 ): Promise<{ job: Job; assetIds: string[] }> {
   const kind = options.kind ?? "image";
   const count = options.count ?? 1;
-  const capability = kind === "video" || kind === "storyboard" ? "image_to_video" : options.inputs?.length ? "image_edit" : "text_to_image";
+  const capability = kind === "video" || kind === "storyboard" ? "image_to_video" : kind === "audio" ? "text_to_speech" : options.inputs?.length ? "image_edit" : "text_to_image";
   const created = createJob(
     {
       id: randomUUID(),
@@ -181,8 +182,9 @@ export async function generateAssets(
     bytes: new TextEncoder().encode(`${kind}-${job.id}-${index}`),
     mime: MIME_FOR[kind],
     kind,
-    width: 1080,
-    height: 1920,
+    width: kind === "audio" ? 0 : 1080,
+    height: kind === "audio" ? 0 : 1920,
+    audio: kind === "audio" ? { durationSeconds: 3.2, codec: "flac" } : undefined,
     video:
       kind === "video" || kind === "export"
         ? {

@@ -63,8 +63,8 @@ export function requireActiveAsset(store: Store, assetId: string, kinds: Asset["
 /** Asset ids a Library item holds: face, body, and wardrobe references, or product and set images. */
 export function libraryItemAssetIds(item: LibraryItem): string[] {
   if (item.kind === "character") {
-    const { faceAssetId, bodyAssetId, wardrobeAssetIds } = item.bible.references;
-    return [faceAssetId, bodyAssetId, ...wardrobeAssetIds].filter((id): id is string => id !== null);
+    const { faceAssetId, bodyAssetId, wardrobeAssetIds, voiceAssetId } = item.bible.references;
+    return [faceAssetId, bodyAssetId, voiceAssetId, ...wardrobeAssetIds].filter((id): id is string => id !== null);
   }
   return item.imageAssetIds;
 }

@@ -286,7 +286,7 @@ export function approveCandidate(
   const next: Shot =
     slot === "still"
       ? { ...shot, still: approved, clip: current.state === "approved" ? withdrawApproval(shot.clip) : shot.clip }
-      : { ...shot, clip: approved };
+      : { ...shot, [slot]: approved };
   return { content: replaceShot(content, next, now), siblingIds };
 }
 

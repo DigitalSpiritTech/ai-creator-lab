@@ -14,6 +14,7 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   first_last_to_video: "First and last frame to video",
   text_to_video: "Text to video",
   references_to_video: "References to video",
+  text_to_speech: "Text to speech (voice-over)",
   text_generation: "Text generation",
 };
 
@@ -97,6 +98,7 @@ export const ASSET_KINDS: Record<AssetKind, { label: string; plural: string; pla
   video: { label: "Clip", plural: "Clips", playable: true },
   storyboard: { label: "Storyboard", plural: "Storyboards", playable: false },
   export: { label: "Export", plural: "Exports", playable: true },
+  audio: { label: "Voice", plural: "Voice recordings", playable: false },
 };
 
 export function assetKindInfo(kind: string): { label: string; plural: string; playable: boolean } {

@@ -14,12 +14,19 @@ import {
 } from "@/lib/domain/common";
 import { fail } from "@/lib/domain/failure";
 
-/** `export` is an assembled ad; it plays like a video but is never a shot candidate. */
-export const AssetKindSchema = z.enum(["image", "video", "sheet", "storyboard", "export"]);
+/**
+ * `export` is an assembled ad; it plays like a video but is never a shot candidate. `audio` is a
+ * voice sample or a generated voice-over; it has no size.
+ */
+export const AssetKindSchema = z.enum(["image", "video", "sheet", "storyboard", "export", "audio"]);
 export type AssetKind = z.infer<typeof AssetKindSchema>;
 
-export const AssetMimeSchema = z.enum(["image/png", "image/jpeg", "image/webp", "image/svg+xml", "video/mp4"]);
+export const AssetMimeSchema = z.enum(["image/png", "image/jpeg", "image/webp", "image/svg+xml", "video/mp4", "audio/flac", "audio/mpeg", "audio/wav"]);
 export type AssetMime = z.infer<typeof AssetMimeSchema>;
+
+export function isAudioMime(mime: string): boolean {
+  return mime.startsWith("audio/");
+}
 
 export const AssetInputRefSchema = z.object({ assetId: IdSchema, sha256: Sha256Schema }).strict();
 export type AssetInputRef = z.infer<typeof AssetInputRefSchema>;
@@ -49,6 +56,14 @@ export const ProvenanceSchema = z.discriminatedUnion("source", [
       contentId: IdSchema,
     })
     .strict(),
+  /** Made from another asset without a model: today, a clip's audio track as a voice sample. */
+  z
+    .object({
+      source: z.literal("derived"),
+      fromAssetId: IdSchema,
+      method: z.enum(["audio_track"]),
+    })
+    .strict(),
 ]);
 export type Provenance = z.infer<typeof ProvenanceSchema>;
 
@@ -71,6 +86,16 @@ export const VideoMetadataSchema = z
   .strict();
 export type VideoMetadata = z.infer<typeof VideoMetadataSchema>;
 
+export const AudioMetadataSchema = z
+  .object({
+    durationSeconds: z.number().positive(),
+    codec: z.string().min(1).max(32),
+    /** The words in the recording, when known (a clip's spoken line, a voice-over's text). */
+    transcript: z.string().max(2000).optional(),
+  })
+  .strict();
+export type AudioMetadata = z.infer<typeof AudioMetadataSchema>;
+
 /** Kinds stored as MP4 with playback metadata. */
 export function isPlayable(kind: AssetKind): boolean {
   return kind === "video" || kind === "export";
@@ -84,18 +109,23 @@ export const AssetSchema = z
     kind: AssetKindSchema,
     mime: AssetMimeSchema,
     relativePath: MediaPathSchema,
-    width: z.number().int().positive(),
-    height: z.number().int().positive(),
+    /** Pixels; 0 for audio. */
+    width: z.number().int().nonnegative(),
+    height: z.number().int().nonnegative(),
     sha256: Sha256Schema,
     provenance: ProvenanceSchema,
     state: AssetStateSchema,
     video: VideoMetadataSchema.optional(),
+    audio: AudioMetadataSchema.optional(),
     revision: RevisionSchema,
     createdAt: TimestampSchema,
   })
   .strict()
   .refine((asset) => isPlayable(asset.kind) === (asset.mime === "video/mp4"), "Video assets must be MP4 files.")
-  .refine((asset) => !isPlayable(asset.kind) || asset.video !== undefined, "Video assets need playback metadata.");
+  .refine((asset) => !isPlayable(asset.kind) || asset.video !== undefined, "Video assets need playback metadata.")
+  .refine((asset) => (asset.kind === "audio") === isAudioMime(asset.mime), "Audio assets must be audio files.")
+  .refine((asset) => asset.kind !== "audio" || (asset.audio !== undefined && asset.width === 0 && asset.height === 0), "Audio assets need playback metadata and no size.")
+  .refine((asset) => asset.kind === "audio" || (asset.width > 0 && asset.height > 0), "Image and video assets need a size.");
 export type Asset = z.infer<typeof AssetSchema>;
 
 export function isActive(asset: Asset): boolean {
@@ -131,6 +161,9 @@ export function extensionFor(mime: AssetMime): string {
     "image/webp": "webp",
     "image/svg+xml": "svg",
     "video/mp4": "mp4",
+    "audio/flac": "flac",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
   };
   return extensions[mime];
 }

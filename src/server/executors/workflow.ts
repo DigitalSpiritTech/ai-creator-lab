@@ -25,6 +25,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   applySlots,
+  audioSlotNames,
   capabilityMedia,
   imageSlotNames,
   ratioValue,
@@ -113,6 +114,8 @@ export function seedFromId(id: string): number {
 export interface WorkflowPlan {
   values: Record<string, SlotValue>;
   images: { slot: string; path: string }[];
+  /** The voice sample for a text to speech recipe, when its sidecar has an audio slot. */
+  audio?: { slot: string; path: string };
   width?: number;
   height?: number;
   length?: number;
@@ -163,6 +166,11 @@ export function planWorkflow(recipe: WorkflowRecipe, input: GenerationInput, gra
   }
   const images = imageSlots.map((slot, index) => ({ slot, path: input.images[index] }));
 
+  const audioSlots = audioSlotNames(sidecar);
+  if (audioSlots.length > 1) throw invalid(`${recipe.title} has more than one audio slot.`);
+  if (audioSlots.length === 1 && !input.audio) throw invalid(`${recipe.title} needs a voice sample (an audio reference).`);
+  const audio = audioSlots.length === 1 && input.audio ? { slot: audioSlots[0], path: input.audio } : undefined;
+
   const { width, height } = pickSize(recipe, input, graph);
   if (width !== undefined && height !== undefined) {
     const multiple = sidecar.limits.multipleOf;
@@ -191,7 +199,7 @@ export function planWorkflow(recipe: WorkflowRecipe, input: GenerationInput, gra
 
   if (sidecar.slots.seed) values.seed = input.seed ?? fallbackSeed;
 
-  const reserved = new Set(["prompt", "width", "height", "length", "seed", ...imageSlots]);
+  const reserved = new Set(["prompt", "width", "height", "length", "seed", ...imageSlots, ...audioSlots]);
   for (const [name, value] of Object.entries(input.slots ?? {})) {
     if (reserved.has(name)) throw invalid(`Set ${name} through its own field, not as an extra slot.`);
     if (!sidecar.slots[name]) throw invalid(`${recipe.title} has no slot named ${name}.`);
@@ -203,8 +211,22 @@ export function planWorkflow(recipe: WorkflowRecipe, input: GenerationInput, gra
   const expectation: OutputExpectation =
     media === "image"
       ? { media, width, height }
-      : { media, width, height, frames: length, fps: sidecar.limits.fps ?? recipe.limits.fps };
-  return { values, images, width, height, length, expectation };
+      : media === "audio"
+        ? { media }
+        : { media, width, height, frames: length, fps: sidecar.limits.fps ?? recipe.limits.fps };
+  return { values, images, audio, width, height, length, expectation };
+}
+
+/** The file extension a save node writes: SaveAudioMP3 makes MP3, SaveAudio FLAC. */
+export function audioExtension(graph: WorkflowGraph, outputNode: string): "flac" | "mp3" | "wav" {
+  const classType = graph[outputNode]?.class_type ?? "";
+  if (classType === "SaveAudioMP3") return "mp3";
+  if (classType === "SaveAudioAdvanced") {
+    const format = graph[outputNode]?.inputs.format;
+    if (format === "mp3") return "mp3";
+    if (format === "wav") return "wav";
+  }
+  return "flac";
 }
 
 /** Maps a Cloud job status to the job record's status. */
@@ -309,6 +331,11 @@ export class WorkflowExecutor implements Executor {
           throw invalid("A reference image file is missing.");
         });
       }
+      if (input.audio) {
+        await access(input.audio).catch(() => {
+          throw invalid("The voice sample file is missing.");
+        });
+      }
       claimed = claimForSubmit(this.jobs, job, this.now());
       if (!claimed) return { kind: "existing", job: loadJob(this.jobs, job.id) };
       return await this.dispatch(claimed, graph);
@@ -352,8 +379,9 @@ export class WorkflowExecutor implements Executor {
       return this.retrieveFailed(job, jobError("provider", `The workflow finished without an output on node ${recipe.sidecar.outputNode}.`));
     }
     try {
-      const plan = planWorkflow(recipe, absoluteInput(job.request.input, this.mediaRoot), await this.loadGraph(recipe), seedFromId(job.id));
-      const extension = plan.expectation.media === "video" ? "mp4" : "png";
+      const graph = await this.loadGraph(recipe);
+      const plan = planWorkflow(recipe, absoluteInput(job.request.input, this.mediaRoot), graph, seedFromId(job.id));
+      const extension = plan.expectation.media === "video" ? "mp4" : plan.expectation.media === "audio" ? audioExtension(graph, recipe.sidecar.outputNode) : "png";
       const saved: RetrievedFile[] = [];
       for (const [index, output] of outputs.entries()) {
         const { absolute, relative } = outputLocation(destination, `${job.id}-${index}.${extension}`);
@@ -425,6 +453,7 @@ export class WorkflowExecutor implements Executor {
         }
         values[image.slot] = this.client.assets.fromFile(path) as object;
       }
+      if (plan.audio) values[plan.audio.slot] = this.client.assets.fromFile(plan.audio.path) as object;
       applySlots(workflow, recipe.sidecar, values);
       let handle: CloudJobHandle;
       try {

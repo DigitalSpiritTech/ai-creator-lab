@@ -33,6 +33,8 @@ export interface ProposalSpec {
   target: GenerationTarget;
   aspectRatio?: AspectRatio;
   durationSeconds?: number;
+  /** Extra named workflow slots, such as a voice sample's transcript for a cloning model. */
+  slots?: Record<string, string | number | boolean>;
 }
 
 /** How many reference images a recipe accepts, as [min, max]. */
@@ -94,26 +96,34 @@ export function pickRecipe(
   return fail("invalid", `No configured recipe can do ${capability.replaceAll("_", " ")} with ${references} reference image${references === 1 ? "" : "s"}.`);
 }
 
-/** Loads proposal references, checking they are active stills from this project or the Library. */
+/**
+ * Loads proposal references, checking they are active stills (or, for a voice-over, one voice
+ * recording) from this project or the Library.
+ */
 export function referenceAssets(context: ToolContext, projectId: string, references: { role: string; assetId: string }[]): Asset[] {
   const linked = linkedReferenceIds(context.store, projectId);
-  return references.map(({ assetId }) => {
+  const assets = references.map(({ assetId }) => {
     const asset = context.store.assets.getRequired(assetId);
-    if (asset.state.state !== "active") fail("invalid", "Restore every reference image before using it.");
-    if (asset.kind !== "image" && asset.kind !== "sheet") fail("invalid", "References must be still images or reference sheets.");
+    if (asset.state.state !== "active") fail("invalid", "Restore every reference before using it.");
+    if (asset.kind !== "image" && asset.kind !== "sheet" && asset.kind !== "audio") fail("invalid", "References must be still images, reference sheets, or a voice recording.");
     if (!referenceableIn(context.store, projectId, asset, linked)) {
       fail("invalid", "References must come from this project or from a Library item linked to it. Link the item first.");
     }
     return asset;
   });
+  if (assets.filter((asset) => asset.kind === "audio").length > 1) fail("invalid", "A generation takes one voice recording.");
+  return assets;
 }
 
-function generationInput(spec: Pick<ProposalSpec, "prompt" | "aspectRatio" | "durationSeconds">, assets: Asset[]): GenerationInput {
+function generationInput(spec: Pick<ProposalSpec, "prompt" | "aspectRatio" | "durationSeconds" | "slots">, assets: Asset[]): GenerationInput {
+  const voice = assets.find((asset) => asset.kind === "audio");
   return {
     prompt: spec.prompt,
-    images: assets.map((asset) => asset.relativePath),
+    images: assets.filter((asset) => asset.kind !== "audio").map((asset) => asset.relativePath),
+    ...(voice ? { audio: voice.relativePath } : {}),
     ...(spec.aspectRatio ? { aspectRatio: spec.aspectRatio } : {}),
     ...(spec.durationSeconds ? { durationSeconds: spec.durationSeconds } : {}),
+    ...(spec.slots && Object.keys(spec.slots).length ? { slots: spec.slots } : {}),
   };
 }
 
@@ -148,13 +158,14 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
   context.store.projects.getRequired(spec.projectId);
   const assets = referenceAssets(context, spec.projectId, spec.references);
   const recipes = await generation.recipes();
-  const recipe = pickRecipe(recipes, generation.executors, spec.capability, assets.length, [
+  const recipe = pickRecipe(recipes, generation.executors, spec.capability, assets.filter((asset) => asset.kind !== "audio").length, [
     spec.recipeId,
     context.store.workspace.get().defaultRecipes[spec.capability],
   ]);
   const id = context.newId();
   const executor = generation.executors.forRecipe(recipe)!;
-  const estimate = await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput(spec, assets) });
+  const slots = recipe.kind === "workflow" ? Object.fromEntries(Object.entries(spec.slots ?? {}).filter(([name]) => name in recipe.sidecar.slots)) : {};
+  const estimate = await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, slots }, assets) });
   return GenerationProposalSchema.parse({
     id,
     projectId: spec.projectId,
@@ -165,6 +176,7 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
     references: spec.references,
     aspectRatio: spec.aspectRatio,
     durationSeconds: spec.durationSeconds,
+    ...(Object.keys(slots).length ? { slots } : {}),
     count: spec.count,
     target: spec.target,
     estimate: summarizeEstimate(estimate),

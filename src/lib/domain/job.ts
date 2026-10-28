@@ -38,6 +38,8 @@ export const GenerationInputSchema = z
     aspectRatio: AspectRatioSchema.optional(),
     width: z.number().int().min(64).max(4096).optional(),
     height: z.number().int().min(64).max(4096).optional(),
+    /** A voice sample for text to speech recipes with an audio slot, as a path like `images`. */
+    audio: z.string().min(1).max(4096).optional(),
     /** Frame count for workflow video recipes; derived from durationSeconds when absent. */
     length: z.number().int().positive().max(2000).optional(),
     durationSeconds: z.number().positive().max(60).optional(),
@@ -85,10 +87,11 @@ export type JobError = z.infer<typeof JobErrorSchema>;
 /** A verified file the executor copied into managed storage, waiting for the output commit. */
 export const RetrievedFileSchema = z
   .object({
-    relativePath: z.string().regex(/^[\w-]+(\/[\w-]+)*\/[\w.-]+\.(png|jpg|webp|svg|mp4)$/),
-    mime: z.enum(["image/png", "image/jpeg", "image/webp", "image/svg+xml", "video/mp4"]),
-    width: z.number().int().positive(),
-    height: z.number().int().positive(),
+    relativePath: z.string().regex(/^[\w-]+(\/[\w-]+)*\/[\w.-]+\.(png|jpg|webp|svg|mp4|flac|mp3|wav)$/),
+    mime: z.enum(["image/png", "image/jpeg", "image/webp", "image/svg+xml", "video/mp4", "audio/flac", "audio/mpeg", "audio/wav"]),
+    /** Pixels; 0 for audio. */
+    width: z.number().int().nonnegative(),
+    height: z.number().int().nonnegative(),
     sha256: Sha256Schema,
     video: z
       .object({
@@ -99,6 +102,7 @@ export const RetrievedFileSchema = z
       })
       .strict()
       .optional(),
+    audio: z.object({ durationSeconds: z.number().positive(), codec: z.string().min(1).max(32) }).strict().optional(),
   })
   .strict();
 export type RetrievedFile = z.infer<typeof RetrievedFileSchema>;
@@ -301,6 +305,8 @@ export const GenerationProposalSchema = z
     references: z.array(z.object({ role: JobInputSchema.shape.role, assetId: IdSchema }).strict()).max(16),
     aspectRatio: AspectRatioSchema.optional(),
     durationSeconds: z.number().positive().max(60).optional(),
+    /** Extra named workflow slots the recipe accepts, such as a voice sample's transcript. */
+    slots: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
     count: z.number().int().min(1).max(8),
     target: GenerationTargetSchema,
     /** Estimate for one run; the total is this times `count`. */

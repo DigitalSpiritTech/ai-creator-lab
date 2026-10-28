@@ -232,7 +232,7 @@ export class RouterExecutor implements Executor {
     if (job.status !== "retrieving") return { kind: "not_ready", job };
     const recipe = this.recipeOf(job.request);
     const media = capabilityMedia(recipe.capability);
-    if (media === "text") return this.retrieveFailed(job, jobError("invalid", "Text models are not retrieved as media."));
+    if (media === "text" || media === "audio") return this.retrieveFailed(job, jobError("invalid", `${media === "text" ? "Text" : "Speech"} models are not retrieved from Router.`));
     try {
       const found = this.pending.get(job.id) ?? (await this.replay(job));
       const bytes = found.kind === "inline" ? found.bytes : await downloadMedia(found.url, this.mediaPorts);

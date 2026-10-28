@@ -44,6 +44,8 @@ const NAMES = [
   "wan-2.2-flf2v",
   "ltx-2.5-i2v",
   "ltx-2.5-flf2v",
+  "chatterbox-turbo-tts",
+  "qwen3-tts-voice-clone",
 ];
 
 test("every starter sidecar parses and matches its workflow graph", () => {
@@ -113,6 +115,8 @@ test("starter recipes match the spike: verified defaults per MVP capability, unv
   assert.equal(new Set(recipes.map((recipe) => recipe.id)).size, recipes.length);
   const summary = Object.fromEntries(recipes.filter((recipe) => recipe.kind !== "mock").map((recipe) => [recipe.id, [recipe.kind, recipe.capability, recipe.verified]]));
   assert.deepEqual(summary, {
+    "chatterbox-turbo-tts": ["workflow", "text_to_speech", "2026-10-28"],
+    "qwen3-tts-voice-clone": ["workflow", "text_to_speech", "2026-10-28"],
     "flux-2-dev-edit-1ref": ["workflow", "image_edit", "2026-10-27"],
     "flux-2-dev-edit-2ref": ["workflow", "image_edit", null],
     "flux-2-dev-edit-3ref": ["workflow", "image_edit", "2026-10-27"],
@@ -200,8 +204,8 @@ test("mock recipes stay out of the catalog unless MOCK_RECIPES=1 or the caller a
     assert.ok(hidden.some((recipe) => recipe.id === "ltx-2.5-i2v"));
     process.env.MOCK_RECIPES = "1";
     const listed = await defaultRecipes(workflowsDir);
-    assert.equal(listed.filter((recipe) => recipe.kind === "mock").length, 5);
-    assert.equal((await defaultRecipes(workflowsDir, { mocks: true })).filter((recipe) => recipe.kind === "mock").length, 5);
+    assert.equal(listed.filter((recipe) => recipe.kind === "mock").length, 6);
+    assert.equal((await defaultRecipes(workflowsDir, { mocks: true })).filter((recipe) => recipe.kind === "mock").length, 6);
   } finally {
     if (previous === undefined) delete process.env.MOCK_RECIPES;
     else process.env.MOCK_RECIPES = previous;

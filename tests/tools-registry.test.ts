@@ -23,6 +23,8 @@ const ROSTER = [
   "compose_still",
   "refine_still",
   "generate_clip",
+  "extract_voice_sample",
+  "generate_voice_over",
   "approve",
   "archive_asset",
   "delete_asset_everywhere",
@@ -355,5 +357,65 @@ describe("store-backed tools", () => {
     assert.deepEqual([assembled.asset.kind, assembled.asset.width, assembled.asset.height], ["export", 1080, 1920]);
     assert.equal(assembled.asset.video.hasAudio, false);
     assert.equal(store.content.listExports(content.id).length, 1);
+  });
+
+  test("voice-overs: a b-roll line is read in the character's voice from the voice sample, approved into the voice slot, and withdrawn when the line changes", async () => {
+    const { store, now, tools, project } = setup();
+    const saved = await ok<{ character: { id: string } }>(tools, "save_character_bible", { projectId: project.id, wardrobe: "Oatmeal knit sweater and jeans", bible: averyBible() });
+    const characterId = saved.character.id;
+    const beats = ridgelineBeats().slice(0, 2);
+    beats[1] = { ...beats[1], spokenLine: "By noon it was warm, every single day." };
+    const script = await ok<{ script: { id: string; version: number } }>(tools, "save_script", { projectId: project.id, title: "Cup holder", beats });
+    const content = await ok<{ id: string; shots: { voice: { state: string } }[] }>(tools, "plan_shots", { projectId: project.id, scriptId: script.script.id });
+    assert.deepEqual(content.shots.map((shot) => shot.voice.state), ["empty", "empty"]);
+
+    const talking = await callTool(tools, "generate_voice_over", { projectId: project.id, beatIndex: 1 });
+    assert.ok(!talking.ok && /talking beat/.test(talking.failure.message));
+    const noSample = await callTool(tools, "generate_voice_over", { projectId: project.id, beatIndex: 2 });
+    assert.ok(!noSample.ok && /no voice sample yet/.test(noSample.failure.message));
+
+    const { assetIds } = await generateAssets(store, now, { projectId: project.id, kind: "audio" });
+    const wrongSlot = await callTool(tools, "select_reference", { characterId, slot: "face", assetId: assetIds[0], archiveSiblings: false });
+    assert.ok(!wrongSlot.ok);
+    const withVoice = await ok<{ character: { bible: { references: { voiceAssetId: string | null } } } }>(tools, "select_reference", { characterId, slot: "voice", assetId: assetIds[0], archiveSiblings: false });
+    assert.equal(withVoice.character.bible.references.voiceAssetId, assetIds[0]);
+
+    const proposal = await ok<{ capability: string; recipeId: string; prompt: string; references: { role: string; assetId: string }[]; target: unknown; count: number }>(tools, "generate_voice_over", {
+      projectId: project.id,
+      beatIndex: 2,
+    });
+    assert.equal(proposal.capability, "text_to_speech");
+    assert.equal(proposal.recipeId, "mock-text-to-speech");
+    assert.equal(proposal.prompt, "By noon it was warm, every single day.");
+    assert.deepEqual(proposal.references, [{ role: "voice", assetId: assetIds[0] }]);
+    assert.deepEqual(proposal.target, { kind: "shot", contentId: content.id, beatIndex: 2, slot: "voice" });
+    assert.equal(proposal.count, 1);
+
+    const takes = await ok<{ results: { outcome: string; assetIds: string[] }[] }>(tools, "submit_proposal", { proposal, wait: true });
+    assert.equal(takes.results[0].outcome, "completed");
+    const take = store.assets.getRequired(takes.results[0].assetIds[0]);
+    assert.equal(take.kind, "audio");
+    assert.equal(take.mime, "audio/wav");
+    assert.deepEqual([take.width, take.height], [0, 0]);
+    assert.ok(take.audio && Math.abs(take.audio.durationSeconds - 3.2) < 0.05, JSON.stringify(take.audio));
+    assert.equal(take.audio?.transcript, "By noon it was warm, every single day.");
+    assert.ok(take.provenance.source === "generated" && take.provenance.inputs.some((input) => input.assetId === assetIds[0]));
+    const shot = store.content.getRequired(content.id).shots[1];
+    assert.ok(shot.voice.state === "open" && shot.voice.candidateIds.includes(take.id));
+
+    await ok(tools, "approve", { kind: "voice", contentId: content.id, beatIndex: 2, assetId: take.id });
+    assert.equal(store.content.getRequired(content.id).shots[1].voice.state, "approved");
+
+    beats[1] = { ...beats[1], spokenLine: "Warm by noon. Every day." };
+    const revised = await ok<{ change: { voiceInvalidated: number[]; clipInvalidated: number[] } }>(tools, "save_script", {
+      projectId: project.id,
+      scriptId: script.script.id,
+      baseVersion: script.script.version,
+      title: "Cup holder",
+      beats,
+    });
+    assert.deepEqual(revised.change.voiceInvalidated, [2]);
+    assert.deepEqual(revised.change.clipInvalidated, []);
+    assert.equal(store.content.getRequired(content.id).shots[1].voice.state, "open");
   });
 });

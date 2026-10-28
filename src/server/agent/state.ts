@@ -93,7 +93,7 @@ export function loadSnapshot(store: Store, projectId: string): ProjectSnapshot |
   };
 }
 
-export type StageId = "brief" | "character" | "face" | "body" | "sheet" | "product" | "script" | "shots" | "stills" | "clips" | "assemble" | "next";
+export type StageId = "brief" | "character" | "face" | "body" | "sheet" | "product" | "script" | "shots" | "stills" | "clips" | "voice" | "assemble" | "next";
 
 export interface Stage {
   id: StageId;
@@ -274,10 +274,35 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
     }
     return { id: "clips", step: 11, title: "Clips", guidance: `Propose the clip for beat ${clipBeat.beatIndex}: generate_clip with contentId ${content.id} and beatIndex ${clipBeat.beatIndex}.` };
   }
-  if (snapshot.completedExports === 0) {
-    return { id: "assemble", step: 12, title: "Assemble", guidance: `Every beat has an approved clip. Offer to assemble: assemble_ad with contentId ${content.id} (captions on by default).` };
+  const voiceBeat = content.shots.find((shot) => {
+    const beat = script.beats[shot.beatIndex - 1];
+    return beat && beat.type !== "talking" && beat.spokenLine.trim().length > 0 && shot.voice.state !== "approved";
+  });
+  if (voiceBeat) {
+    const slot = voiceBeat.voice;
+    if (slot.state === "open") {
+      return {
+        id: "voice",
+        step: 12,
+        title: "Voice-overs",
+        guidance: waiting(`beat ${voiceBeat.beatIndex} voice-over`, slot.candidateIds, "voice", `When the user chooses, call approve with kind voice, contentId ${content.id}, beatIndex ${voiceBeat.beatIndex}. Say the take plays on the Shots tab.`),
+      };
+    }
+    if (running(snapshot, (target) => target.kind === "shot" && target.slot === "voice" && target.beatIndex === voiceBeat.beatIndex)) {
+      return { id: "voice", step: 12, title: "Voice-overs", guidance: `Beat ${voiceBeat.beatIndex}'s voice-over is generating. Say it will appear on the Shots tab.` };
+    }
+    const sample = item.bible.references.voiceAssetId ? "the character's voice sample" : "the first approved talking clip's voice";
+    return {
+      id: "voice",
+      step: 12,
+      title: "Voice-overs",
+      guidance: `Beat ${voiceBeat.beatIndex} is ${script.beats[voiceBeat.beatIndex - 1]?.type === "broll" ? "b-roll" : "a text card"} with a line and no approved voice-over. Propose it: generate_voice_over with projectId ${project.id} and beatIndex ${voiceBeat.beatIndex} (cloned from ${sample}). If the user would rather skip voice-overs, go on to assembling; those beats keep ambient sound only.`,
+    };
   }
-  return { id: "next", step: 13, title: "Next piece", guidance: "Offer another ad in this project, or a new project with the same character." };
+  if (snapshot.completedExports === 0) {
+    return { id: "assemble", step: 13, title: "Assemble", guidance: `Every beat has an approved clip${content.shots.some((shot) => shot.voice.state === "approved") ? " and the voice-overs are approved" : ""}. Offer to assemble: assemble_ad with contentId ${content.id} (captions on by default).` };
+  }
+  return { id: "next", step: 14, title: "Next piece", guidance: "Offer another ad in this project, or a new project with the same character." };
 }
 
 function short(value: string, max = 120): string {
@@ -330,7 +355,9 @@ export function renderSnapshot(snapshot: ProjectSnapshot): string {
   if (content) {
     const shots = content.shots.map((shot) => {
       const describe = (slot: typeof shot.still) => (slot.state === "approved" ? "approved" : slot.state === "open" ? `${slot.candidateIds.length} candidates` : "empty");
-      return `beat ${shot.beatIndex} still ${describe(shot.still)}, clip ${describe(shot.clip)}`;
+      const beat = script?.beats[shot.beatIndex - 1];
+      const voice = beat && beat.type !== "talking" && beat.spokenLine ? `, voice-over ${describe(shot.voice)}` : "";
+      return `beat ${shot.beatIndex} still ${describe(shot.still)}, clip ${describe(shot.clip)}${voice}`;
     });
     lines.push(`Ad: "${content.title}" (contentId ${content.id}, script v${content.scriptVersion}): ${shots.join("; ")}.`);
   }

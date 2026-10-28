@@ -167,8 +167,49 @@ export function isEmptyOutput(error: { providerCode?: string }): boolean {
 }
 
 /** What a finished output must look like; unset fields are not checked. */
+export interface AudioInfo {
+  mime: "audio/flac" | "audio/mpeg" | "audio/wav";
+  codec: string;
+  durationSeconds: number;
+}
+
+/** Reads an audio file's codec and length with ffprobe and checks ffmpeg can decode it. */
+export async function probeAudio(path: string): Promise<AudioInfo> {
+  const { stdout } = await execute(ffprobePath(), ["-v", "error", "-show_streams", "-show_format", "-of", "json", path], { timeout: 60_000, maxBuffer: 1_000_000 });
+  const probe = ProbeSchema.parse(JSON.parse(stdout));
+  const audio = probe.streams.find((stream) => stream.codec_type === "audio");
+  if (!audio?.codec_name || probe.streams.some((stream) => stream.codec_type === "video")) throw new Error("Not an audio file.");
+  const durationSeconds = Number(audio.duration ?? probe.format.duration);
+  if (!(durationSeconds > 0)) throw new Error("Unreadable audio length.");
+  const container = probe.format.format_name ?? "";
+  const mime = container.includes("flac") ? "audio/flac" : container.includes("mp3") ? "audio/mpeg" : container.includes("wav") ? "audio/wav" : undefined;
+  if (!mime) throw new Error(`Unsupported audio container ${container}.`);
+  await execute(ffmpegPath(), ["-nostdin", "-v", "error", "-xerror", "-i", path, "-f", "null", "-"], { timeout: 120_000, maxBuffer: 1_000_000 });
+  return { mime, codec: audio.codec_name, durationSeconds };
+}
+
+const SILENT_DB = -50;
+
+/** Mean loudness in dBFS, from ffmpeg's volumedetect. */
+export async function meanVolumeDb(path: string): Promise<number> {
+  const { stderr } = await execute(ffmpegPath(), ["-nostdin", "-hide_banner", "-nostats", "-v", "info", "-i", path, "-af", "volumedetect", "-vn", "-f", "null", "-"], {
+    timeout: 120_000,
+    maxBuffer: 4_000_000,
+  });
+  const match = /mean_volume:\s*(-?[\d.]+|-inf)\s*dB/.exec(stderr);
+  if (!match) throw new Error("No volume statistics.");
+  return match[1] === "-inf" ? -Infinity : Number(match[1]);
+}
+
+export async function assertNotSilent(path: string): Promise<void> {
+  const mean = await meanVolumeDb(path).catch(() => {
+    throw new ExecutorFailure(jobError("provider", "The output's audio could not be read. Check that ffmpeg is installed.", true));
+  });
+  if (mean < SILENT_DB) throw new ExecutorFailure(jobError("provider", EMPTY_OUTPUT_MESSAGE, true, EMPTY_OUTPUT_CODE));
+}
+
 export interface OutputExpectation {
-  media: "image" | "video";
+  media: "image" | "video" | "audio";
   width?: number;
   height?: number;
   /** Aspect ratio (width / height) within 3 percent, for providers that pick their own pixel size. */
@@ -192,6 +233,12 @@ export async function commitOutput(temporary: string, absolute: string, relative
       assertSize(info.width, info.height, expected);
       await assertNotEmpty(temporary);
       output = { relativePath: relative, mime: info.mime, width: info.width, height: info.height, sha256: sha256(bytes) };
+    } else if (expected.media === "audio") {
+      const info = await probeAudio(temporary).catch(() => {
+        throw new ExecutorFailure(jobError("provider", "The audio output could not be decoded. Check that ffmpeg and ffprobe are installed.", true));
+      });
+      await assertNotSilent(temporary);
+      output = { relativePath: relative, mime: info.mime, width: 0, height: 0, sha256: sha256(bytes), audio: { durationSeconds: info.durationSeconds, codec: info.codec } };
     } else {
       const info = await probeVideo(temporary).catch(() => {
         throw new ExecutorFailure(jobError("provider", "The video output could not be decoded. Check that ffmpeg and ffprobe are installed.", true));
@@ -236,5 +283,8 @@ export function extensionFor(mime: string): string {
   if (mime === "image/jpeg") return "jpg";
   if (mime === "image/webp") return "webp";
   if (mime === "image/svg+xml") return "svg";
+  if (mime === "audio/flac") return "flac";
+  if (mime === "audio/mpeg") return "mp3";
+  if (mime === "audio/wav") return "wav";
   return "png";
 }

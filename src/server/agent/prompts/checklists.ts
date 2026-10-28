@@ -37,6 +37,12 @@ export const CHECKLISTS = {
     "Face and clothing stay the same as the still",
     "B-roll has ambient sound only, no stray speech",
   ],
+  voice: [
+    "Sounds like the same person as the talking clips (or the uploaded recording)",
+    "Every word of the line is there, in order, with no extra words or repeats",
+    "Fits the beat: it ends before the clip does, at a natural pace",
+    "No hiss, clicks, or robotic buzz; a quiet room, not an echo",
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 export type ChecklistKind = keyof typeof CHECKLISTS;

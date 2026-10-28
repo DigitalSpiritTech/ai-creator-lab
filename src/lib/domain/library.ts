@@ -41,6 +41,8 @@ export const CharacterReferencesSchema = z
     faceAssetId: IdSchema.nullable(),
     bodyAssetId: IdSchema.nullable(),
     wardrobeAssetIds: z.array(IdSchema).max(12).default([]),
+    /** The voice sample every voice-over is cloned from: an uploaded recording or a talking clip's audio. */
+    voiceAssetId: IdSchema.nullable().default(null),
   })
   .strict();
 export type CharacterReferences = z.infer<typeof CharacterReferencesSchema>;
@@ -168,23 +170,27 @@ export function reviseCharacterBible(item: CharacterItem, fields: CharacterBible
   });
 }
 
-export type ReferenceSlot = "face" | "body";
+export type ReferenceSlot = "face" | "body" | "voice";
 
-/** Locks the face or body reference. The asset must be an active still image. */
+/** Locks the face, body, or voice reference. Face and body take an active still image; voice takes an audio asset. */
 export function setCharacterReference(
   item: CharacterItem,
   slot: ReferenceSlot,
   asset: Asset,
   now: number,
 ): CharacterItem {
-  if (asset.state.state !== "active") fail("invalid", "Restore this image before using it as a reference.");
-  if (asset.kind !== "image") fail("invalid", "Face and body references must be still images.");
+  if (asset.state.state !== "active") fail("invalid", "Restore this file before using it as a reference.");
+  if (slot === "voice") {
+    if (asset.kind !== "audio") fail("invalid", "A voice reference must be an audio recording.");
+  } else if (asset.kind !== "image") {
+    fail("invalid", "Face and body references must be still images.");
+  }
   if (slot === "body" && item.bible.references.faceAssetId === null) {
     fail("invalid", "Lock the face before choosing a body reference.");
   }
   const references = {
     ...item.bible.references,
-    ...(slot === "face" ? { faceAssetId: asset.id } : { bodyAssetId: asset.id }),
+    ...(slot === "face" ? { faceAssetId: asset.id } : slot === "body" ? { bodyAssetId: asset.id } : { voiceAssetId: asset.id }),
   };
   return CharacterItemSchema.parse({
     ...nextRevision(item, now),

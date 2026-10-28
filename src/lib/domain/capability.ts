@@ -8,6 +8,7 @@ export const CapabilitySchema = z.enum([
   "first_last_to_video",
   "text_to_video",
   "references_to_video",
+  "text_to_speech",
   "text_generation",
 ]);
 export type Capability = z.infer<typeof CapabilitySchema>;

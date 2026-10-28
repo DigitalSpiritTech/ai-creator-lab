@@ -147,6 +147,20 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
     fitImages: true,
     defaults: { width: 736, height: 1312, length: 124 },
   },
+  "chatterbox-turbo-tts": {
+    title: "Chatterbox Turbo voice clone on Comfy Cloud",
+    verified: "2026-10-28",
+    costHint: "About 4 credits per line (about 40 s).",
+    ceilingUsd: 0.05,
+    notes: "Zero-shot clone from the character's voice sample. Inline tags such as [laugh] are read as expression.",
+  },
+  "qwen3-tts-voice-clone": {
+    title: "Qwen3-TTS voice clone on Comfy Cloud",
+    verified: "2026-10-28",
+    costHint: "About 2 credits per line (about 40 s).",
+    ceilingUsd: 0.05,
+    notes: "1.7B model; the sample's transcript (a talking clip's line) is passed as refText when known.",
+  },
   "ltx-2.5-i2v": {
     title: "LTX 2.5 image to video on Comfy Cloud",
     verified: "2026-10-26",
@@ -386,7 +400,7 @@ export const ROUTER_RECIPES: RouterRecipe[] = [
   }),
 ];
 
-const MOCK_CAPABILITIES: Capability[] = ["text_to_image", "image_edit", "image_to_video", "first_last_to_video", "text_to_video"];
+const MOCK_CAPABILITIES: Capability[] = ["text_to_image", "image_edit", "image_to_video", "first_last_to_video", "text_to_video", "text_to_speech"];
 
 export const MOCK_RECIPES: MockRecipe[] = MOCK_CAPABILITIES.map((capability) =>
   MockRecipeSchema.parse({
@@ -413,6 +427,7 @@ export const DEFAULT_RECIPE_IDS: Partial<Record<Capability, { primary: string; s
   image_to_video: { primary: "ltx-2.5-i2v", hosted: "router-kling-3-omni-i2v", mock: "mock-image-to-video" },
   first_last_to_video: { primary: "ltx-2.5-flf2v", hosted: "router-kling-3-omni-flf2v", mock: "mock-first-last-to-video" },
   text_to_video: { primary: "wan-2.2-t2v", hosted: "router-ltx-2.5-fast", mock: "mock-text-to-video" },
+  text_to_speech: { primary: "chatterbox-turbo-tts", siblings: ["qwen3-tts-voice-clone"], mock: "mock-text-to-speech" },
 };
 
 /**
