@@ -57,7 +57,7 @@ async function main() {
   const maxBeats = Number(process.env.E2E_MAX_BEATS ?? "1");
   await withStore(async (store) => {
     const now = Date.now();
-    store.workspace.update({ allowanceUsd: 5 }, now);
+    store.workspace.update({ allowanceUsd: Number(process.env.E2E_ALLOWANCE ?? "5") }, now);
     const context = createToolContext(store, createGenerationContext(store));
     const existing = process.env.PROJECT_ID;
     const project = existing
@@ -130,12 +130,17 @@ async function main() {
       if (shot.still.state === "approved" && shot.clip.state === "approved") continue;
       if (done >= maxBeats) { log("stopping after", done, "beat(s) this call; rerun with PROJECT_ID to continue"); return; }
       const beatIndex = shot.beatIndex;
-      if (shot.still.state !== "approved") {
+      // A candidate recovered from a cut-off call is approved rather than made again.
+      if (shot.still.state === "open" && shot.still.candidateIds?.length) {
+        await tool(context, "approve", { kind: "still", assetId: shot.still.candidateIds[0], contentId: content.id, beatIndex });
+      } else if (shot.still.state !== "approved") {
         const stillProposal = await tool(context, "compose_still", { contentId: content.id, beatIndex, count: 1 });
         const stills = await generate(context, stillProposal, `still ${beatIndex}`);
         await tool(context, "approve", { kind: "still", assetId: stills[0], contentId: content.id, beatIndex });
       }
-      if (shot.clip.state !== "approved") {
+      if (shot.clip.state === "open" && shot.clip.candidateIds?.length) {
+        await tool(context, "approve", { kind: "clip", assetId: shot.clip.candidateIds[0], contentId: content.id, beatIndex });
+      } else if (shot.clip.state !== "approved") {
         const clipProposal = await tool(context, "generate_clip", { contentId: content.id, beatIndex, count: 1 });
         const clips = await generate(context, clipProposal, `clip ${beatIndex}`);
         await tool(context, "approve", { kind: "clip", assetId: clips[0], contentId: content.id, beatIndex });
