@@ -2,13 +2,14 @@
  * Real end-to-end run through the tools layer on real Comfy credits, without the assistant.
  * Face lock, body reference, reference sheet, product, script, stills, clips, and assembly.
  * Usage: npm run e2e-real   (about 80 credits; needs .env.local and the workspace allowance)
+ * PROJECT_ID resumes; E2E_MAX_BEATS beats per call; E2E_FACES face candidates (default 2); E2E_NAME names the project;
+ * b-roll beats carry voice-over lines and get a take each after the clips.
  */
 import { randomUUID } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { withStore } from "@/server/runtime";
 import { callTool, createGenerationContext, createToolContext } from "@/server/tools";
-import { bodyPrompt, facePrompt } from "@/server/tools/prompts";
 import { averyBible, ridgelineBeats } from "../tests/support/domain-fixtures";
 
 for (const line of readFileSync(resolve(process.cwd(), ".env.local"), "utf8").split("\n")) {
@@ -47,7 +48,7 @@ type State = {
   characters: { item: { id: string; bible: { references: { faceAssetId: string | null; bodyAssetId: string | null } } }; link: { wardrobe: string | null; sheetAssetId: string | null; sheetApprovedAt: number | null } }[];
   products: { id: string }[];
   scripts: { id: string }[];
-  contents: { id: string; shots: { beatIndex: number; still: { state: string; candidateIds?: string[] }; clip: { state: string; candidateIds?: string[] } }[] }[];
+  contents: { id: string; shots: { beatIndex: number; still: { state: string; candidateIds?: string[] }; clip: { state: string; candidateIds?: string[] }; voice: { state: string } }[] }[];
 };
 
 async function main() {
@@ -61,7 +62,7 @@ async function main() {
     const existing = process.env.PROJECT_ID;
     const project = existing
       ? store.projects.getRequired(existing)
-      : store.projects.create({ id: randomUUID(), appId: "ugc-creator", name: "Ridgeline e2e v2", brief: null, revision: 0, createdAt: now, updatedAt: now });
+      : store.projects.create({ id: randomUUID(), appId: "ugc-creator", name: process.env.E2E_NAME ?? "Ridgeline e2e v2", brief: null, revision: 0, createdAt: now, updatedAt: now });
     const pid = project.id;
     console.log("PROJECT_ID=" + pid);
     const state = async () => tool<State>(context, "get_project_state", { projectId: pid });
@@ -79,7 +80,7 @@ async function main() {
     log("character", cid);
 
     if (!character.item.bible.references.faceAssetId) {
-      const faceProposal = await tool(context, "propose_candidates", { projectId: pid, capability: "text_to_image", prompt: facePrompt(bible as never), count: 2, aspectRatio: "4:5", target: { kind: "loose" } });
+      const faceProposal = await tool(context, "generate_face_candidates", { projectId: pid, characterId: cid, count: Number(process.env.E2E_FACES ?? "2") });
       const faces = await generate(context, faceProposal, "face");
       await tool(context, "select_reference", { characterId: cid, slot: "face", assetId: faces[0] });
       s = await state();
@@ -88,7 +89,7 @@ async function main() {
     log("face", faceId);
 
     if (!s.characters[0].item.bible.references.bodyAssetId) {
-      const bodyProposal = await tool(context, "propose_candidates", { projectId: pid, capability: "image_edit", prompt: bodyPrompt(bible as never), referenceAssetIds: [faceId], count: 1, aspectRatio: "9:16", target: { kind: "loose" } });
+      const bodyProposal = await tool(context, "generate_body_reference", { projectId: pid, characterId: cid, count: 1 });
       const bodies = await generate(context, bodyProposal, "body");
       await tool(context, "select_reference", { characterId: cid, slot: "body", assetId: bodies[0] });
       s = await state();
@@ -111,7 +112,11 @@ async function main() {
     }
     log("product", s.products[0].id);
 
-    const beats = ridgelineBeats().slice(0, 3);
+    const beats = ridgelineBeats().slice(0, 4).map((beat) =>
+      beat.type === "broll" && !beat.spokenLine
+        ? { ...beat, spokenLine: beat.purpose === "problem" ? "By noon that water was warm, every single day." : "And it goes straight in the dishwasher.", durationSeconds: 4 }
+        : beat,
+    );
     if (!s.contents.length) {
       const scriptId = s.scripts[0]?.id ?? (await tool<{ script: { id: string } }>(context, "save_script", { projectId: pid, title: "Cup holder hook", beats })).script.id;
       await tool(context, "plan_shots", { projectId: pid, scriptId, title: "Ridgeline ad" });
@@ -137,6 +142,15 @@ async function main() {
       }
       log(`beat ${beatIndex} approved`);
       done++;
+    }
+
+    for (const shot of content.shots) {
+      const beat = beats[shot.beatIndex - 1];
+      if (!beat || beat.type === "talking" || !beat.spokenLine || shot.voice.state === "approved") continue;
+      const voiceProposal = await tool(context, "generate_voice_over", { projectId: pid, beatIndex: shot.beatIndex, count: 1 });
+      const takes = await generate(context, voiceProposal, `voice-over ${shot.beatIndex}`);
+      await tool(context, "approve", { kind: "voice", assetId: takes[0], contentId: content.id, beatIndex: shot.beatIndex });
+      log(`beat ${shot.beatIndex} voice-over approved`);
     }
 
     const { export: record, asset } = await tool<{ export: { id: string; durationSeconds?: number }; asset: { relativePath: string; width: number; height: number } }>(context, "assemble_ad", { contentId: content.id, captions: true });

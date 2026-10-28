@@ -64,6 +64,9 @@ export function classifyRouterError(cause: unknown): Classified {
   const code = cause.code ?? "";
   const reason = cause.message.slice(0, 300);
   const failed = (error: JobError): Classified => ({ outcome: "failed", error });
+  if (isRouterBusy(cause)) {
+    return failed(jobError("provider", "Router is busy: this account has too many hosted requests open. The job waited its turn and Router still refused; try again in a minute.", true, code || "rate_limited"));
+  }
   switch (code) {
     case "content_policy_violation":
       return failed(jobError("provider", `The provider declined this request: ${reason}`, false, code));
@@ -122,9 +125,47 @@ export interface RouterExecutorOptions {
   staleSubmitMs?: number;
   /** How often a pending Router call refreshes the job so its age reflects reality; default 30 s. */
   heartbeatMs?: number;
+  /** Router calls this executor keeps open at once; the rest wait their turn. Default `ROUTER_CONCURRENCY` or 2. */
+  concurrency?: number;
+  /** Wait between retries after Router refuses for too many concurrent partner requests; default 15 s. */
+  busyRetryMs?: number;
+  /** How long a job keeps retrying that refusal before failing; default 15 minutes. */
+  busyRetryWindowMs?: number;
 }
 
 const IN_FLIGHT_NOTICE = "Router is generating. The request stays open until it answers; it is never sent twice.";
+const WAITING_NOTICE = "Waiting for a Router slot: this account runs a few hosted requests at a time, and the rest go in turn.";
+
+/** Router's refusal when the account has too many partner requests open; the job waits and tries again. */
+export function isRouterBusy(cause: unknown): boolean {
+  if (!(cause instanceof ComfyError)) return false;
+  return cause.httpStatus === 429 || cause.code === "rate_limited" || /too many concurrent/i.test(cause.message);
+}
+
+/** A small turnstile: `limit` callers run at once, the rest wait in order. */
+export class Turnstile {
+  private active = 0;
+  private readonly waiting: (() => void)[] = [];
+  constructor(readonly limit: number) {}
+  async run<T>(work: () => Promise<T>, onWait?: () => void): Promise<T> {
+    if (this.active >= this.limit) {
+      onWait?.();
+      await new Promise<void>((resolve) => this.waiting.push(resolve));
+    }
+    this.active += 1;
+    try {
+      return await work();
+    } finally {
+      this.active -= 1;
+      this.waiting.shift()?.();
+    }
+  }
+}
+
+function defaultConcurrency(): number {
+  const value = Number(process.env.ROUTER_CONCURRENCY);
+  return Number.isInteger(value) && value > 0 ? value : 2;
+}
 
 /**
  * The recipe's ceiling scaled by clip length: a ceiling is stated for the default duration, so a clip
@@ -156,9 +197,15 @@ export class RouterExecutor implements Executor {
    */
   private readonly inFlight = new Set<string>();
   private readonly heartbeatMs: number;
+  private readonly turnstile: Turnstile;
+  private readonly busyRetryMs: number;
+  private readonly busyRetryWindowMs: number;
 
   constructor(options: RouterExecutorOptions) {
     this.heartbeatMs = options.heartbeatMs ?? 30_000;
+    this.turnstile = new Turnstile(options.concurrency ?? defaultConcurrency());
+    this.busyRetryMs = options.busyRetryMs ?? 15_000;
+    this.busyRetryWindowMs = options.busyRetryWindowMs ?? 15 * 60_000;
     this.options = options;
     this.jobs = options.jobs;
     this.models = options.models;
@@ -282,7 +329,28 @@ export class RouterExecutor implements Executor {
   private async run(job: Job, body?: Record<string, unknown>): Promise<RunResult> {
     const recipe = this.recipeOf(job.request);
     const native = body ?? (await this.body(recipe, job.request.input));
-    return this.models.run(recipe.model, native, { idempotencyKey: job.id, maxBytes: MAX_RESULT_BYTES });
+    const note = (notice: string) => {
+      try {
+        const current = this.jobs.get(job.id);
+        if (current && current.status === "submitting") patchJob(this.jobs, current, { notice }, this.now());
+      } catch {
+        // A lost race only skips a notice.
+      }
+    };
+    // Router allows a few hosted (partner) requests per account at once: hold the rest here, and
+    // when Router still says it is busy, wait and send the same key again rather than failing.
+    return this.turnstile.run(async () => {
+      const started = this.now();
+      for (;;) {
+        try {
+          return await this.models.run(recipe.model, native, { idempotencyKey: job.id, maxBytes: MAX_RESULT_BYTES });
+        } catch (cause) {
+          if (!isRouterBusy(cause) || this.now() - started > this.busyRetryWindowMs) throw cause;
+          note(WAITING_NOTICE);
+          await new Promise((resolve) => setTimeout(resolve, this.busyRetryMs));
+        }
+      }
+    }, () => note(WAITING_NOTICE));
   }
 
   /** Whether a `models.run` call for this job is pending in this process. */

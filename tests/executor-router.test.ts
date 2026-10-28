@@ -16,7 +16,7 @@ import { MemoryJobStore, admitJob } from "./support/memory-job-store";
 import { buildRouterBody, prepareImages } from "@/server/executors/router-body";
 import { downloadMedia, mediaRequestOptions, mediaUrl, publicMediaAddress, type MediaPorts } from "@/server/executors/router-download";
 import { extractRouterMedia } from "@/server/executors/router-output";
-import { classifyRouterError, parseCredits, RouterExecutor, type RouterModelsPort } from "@/server/executors/router";
+import { classifyRouterError, isRouterBusy, parseCredits, RouterExecutor, type RouterModelsPort } from "@/server/executors/router";
 import type { GenerationInput, Job } from "@/server/executors/types";
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`./fixtures/router/${name}`, import.meta.url), "utf8"));
@@ -141,6 +141,45 @@ test("submit records the request id and credits, then retrieve downloads and ver
     assert.deepEqual([saved.mime, saved.width, saved.height], ["image/png", 768, 1376]);
     assert.deepEqual(await readFile(join(directory, saved.relativePath)), output);
     assert.equal(models.calls.length, 1);
+  }));
+
+test("a busy Router (too many concurrent partner requests) makes the job wait and resend the same key; two calls run at once, the third waits", () =>
+  withTemp(async (directory) => {
+    const repository = new MemoryJobStore();
+    const recipe = routerRecipe("router-nano-banana-2.1-edit");
+    const face = await png(join(directory, "face.png"), 64, 64);
+    const busy = new ComfyError("Too many concurrent partner node requests. Please wait for existing requests to complete.", { code: "rate_limited", httpStatus: 429 });
+    const models = fakeModels((call) => (call <= 2 ? busy : json(results.gemini_file, { requestId: "req-busy", creditsUsed: "12.5" })));
+    const executor = new RouterExecutor({ jobs: repository, models, mediaPorts: cdn(Buffer.alloc(0)), schemaFor: async () => nanoSchema, busyRetryMs: 5 });
+    const submitted = await executor.submit(request(repository, recipe, { prompt: "Compose.", images: [face], aspectRatio: "9:16" }));
+    assert.equal(submitted.kind, "accepted");
+    assert.equal(models.calls.length, 3);
+    assert.ok(models.calls.every((call) => call.key === submitted.job!.id), "one idempotency key across the retries");
+    assert.equal(submitted.job?.status, "retrieving");
+
+    const gave = new ComfyError("Too many concurrent partner node requests.", { httpStatus: 429 });
+    const giveUp = new RouterExecutor({ jobs: repository, models: fakeModels(() => gave), schemaFor: async () => nanoSchema, busyRetryMs: 1, busyRetryWindowMs: 0 });
+    const failed = await giveUp.submit(request(repository, recipe, { prompt: "Compose.", images: [face], aspectRatio: "9:16" }));
+    assert.equal(failed.kind, "failed");
+    assert.equal(failed.kind === "failed" && failed.error.retryable, true);
+
+    let open = 0;
+    let most = 0;
+    const slow: RouterModelsPort = {
+      async run(_model, _body, options) {
+        open += 1;
+        most = Math.max(most, open);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        open -= 1;
+        return json(results.gemini_file, { requestId: options!.idempotencyKey!, creditsUsed: "1" });
+      },
+    };
+    const limited = new RouterExecutor({ jobs: repository, models: slow, schemaFor: async () => nanoSchema, concurrency: 2 });
+    const jobs = [1, 2, 3].map(() => request(repository, recipe, { prompt: "Compose.", images: [face], aspectRatio: "9:16" }));
+    const outcomes = await Promise.all(jobs.map((job) => limited.submit(job)));
+    assert.deepEqual(outcomes.map((outcome) => outcome.kind), ["accepted", "accepted", "accepted"]);
+    assert.equal(most, 2);
+    assert.equal(isRouterBusy(new ComfyError("nope", { httpStatus: 400 })), false);
   }));
 
 test("a schema violation is rejected before anything is sent", () =>
