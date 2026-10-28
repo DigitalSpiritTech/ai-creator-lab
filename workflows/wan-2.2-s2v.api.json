@@ -89,7 +89,7 @@
   "7": {
     "class_type": "CLIPTextEncode",
     "inputs": {
-      "text": "The man is playing the guitar. He looks down at his hands playing the guitar and sings affectionately and gently.",
+      "text": "A woman speaking to the camera with an easy smile, small natural head movement, static phone camera.",
       "clip": [
         "1",
         0
@@ -172,7 +172,7 @@
   "12": {
     "class_type": "LoadAudio",
     "inputs": {
-      "audio": "audio1.wav"
+      "audio": "voice-take.flac"
     },
     "_meta": {
       "title": "LoadAudio"

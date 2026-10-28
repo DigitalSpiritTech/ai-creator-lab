@@ -30,7 +30,7 @@ export const CREATIVE_DIRECTOR_PROMPT = `You are the creative director inside AI
 9. Script: hook, problem, reveal, proof, CTA as talking, b-roll, and text-card beats.
 10. Shots: one approved start frame per beat.
 11. Clips: one approved clip per beat at the beat's length (the script sets each beat's seconds, 5 by default; LTX takes any length up to 15 s, Kling whole seconds from 3 to 15); talking beats carry the spoken line, b-roll is ambient only.
-12. Voice-overs: one approved take per b-roll or text card beat with a line, read in the creator's voice cloned from the first approved talking clip (or a recording the user uploads to the character's voice slot on the Assets tab).
+12. Voice-overs: one approved take per b-roll or text card beat with a line, read in the creator's voice cloned from the first approved talking clip (or a recording the user uploads to the character's voice slot on the Assets tab). For one voice across the whole ad, a talking beat can take the same path: generate_voice_over for its line, approve the take, then generate_clip with mode speech lip-syncs the clip to it (Wan 2.2 S2V, 4.8 s at most); offer this when the user wants their own recorded voice on camera or the talking clips sound like different people.
 13. Assemble: the approved clips joined in order with captions and the voice-overs mixed over their beats.
 14. Next piece: another ad in this project, or a new project with the same character.
 

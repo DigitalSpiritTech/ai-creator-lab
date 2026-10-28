@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { AspectRatioSchema, CapabilitySchema } from "@/lib/catalog";
 import { IdSchema, RecipeIdSchema, text } from "@/lib/domain/common";
-import { AssetSchema } from "@/lib/domain/asset";
+import { type Asset, AssetSchema } from "@/lib/domain/asset";
 import { type ContentPiece, ExportRecordSchema } from "@/lib/domain/content";
 import { fail } from "@/lib/domain/failure";
 import {
@@ -361,14 +361,14 @@ export function endingFrame(store: Store, content: ContentPiece, assetId: string
 export const generateClip = defineTool({
   name: "generate_clip",
   description:
-    "Propose a clip for one beat from its approved still (the first frame). Talking beats carry the spoken line in quotes for synchronized audio; b-roll is ambient sound only. With mode first_last, the clip also ends on lastAssetId, which must be an approved still in this content piece or the project's reference sheet; use it only when that ending still was composed for the same shot, since unrelated endpoints produce a dissolve.",
+    "Propose a clip for one beat from its approved still (the first frame). Talking beats carry the spoken line in quotes for synchronized audio; b-roll is ambient sound only. With mode first_last, the clip also ends on lastAssetId, which must be an approved still in this content piece or the project's reference sheet; use it only when that ending still was composed for the same shot, since unrelated endpoints produce a dissolve. With mode speech, a talking beat's approved voice take drives the clip (lip sync, speech_to_video, 4.8 s at most), so every talking beat can share one cloned voice.",
   input: z
     .object({
       contentId: IdSchema,
       beatIndex: z.number().int().positive(),
       recipeId: RecipeIdSchema.optional(),
       count: z.number().int().min(1).max(4).default(1),
-      mode: z.enum(["start", "first_last"]).default("start").describe("start animates from the approved still; first_last also lands on an ending frame."),
+      mode: z.enum(["start", "first_last", "speech"]).default("start").describe("start animates from the approved still; first_last also lands on an ending frame; speech lip-syncs the beat's approved voice take."),
       lastAssetId: IdSchema.optional().describe("The ending frame for mode first_last."),
     })
     .strict(),
@@ -379,33 +379,48 @@ export const generateClip = defineTool({
     const script = store.scripts.get(content.scriptId, content.scriptVersion) ?? fail("storage", "This content piece's script version is missing.");
     const beat = script.beats[input.beatIndex - 1] ?? fail("not_found", `Beat ${input.beatIndex} is not in the script.`);
     const shot = content.shots[input.beatIndex - 1];
+    const speech = input.mode === "speech";
+    if (speech && beat.type !== "talking") {
+      fail("invalid", `Beat ${beat.index} is ${beat.type === "broll" ? "b-roll" : "a text card"}; its line is a voice-over mixed in at export, not lip-synced. Use mode start.`);
+    }
     if (!shot || shot.still.state !== "approved") fail("invalid", `Approve a still for beat ${input.beatIndex} before making its clip.`);
-    if (input.mode === "start" && input.lastAssetId) fail("invalid", "An ending frame needs mode first_last.");
+    if (input.mode !== "first_last" && input.lastAssetId) fail("invalid", "An ending frame needs mode first_last.");
     const firstLast = input.mode === "first_last";
     const lastAssetId = firstLast
       ? endingFrame(store, content, input.lastAssetId ?? fail("invalid", "Choose the ending frame (lastAssetId) for a first-and-last clip."), shot.still.assetId)
       : undefined;
+    let take: Asset | undefined;
+    if (speech) {
+      if (shot.voice.state !== "approved") fail("invalid", `Approve a voice take for beat ${beat.index} first (generate_voice_over), then make the clip from it.`);
+      take = store.assets.getRequired(shot.voice.assetId);
+      if (take.kind !== "audio" || !take.audio) fail("invalid", "The approved voice take is not an audio recording.");
+    }
+    const cast = projectCast(store, content.projectId);
     return buildProposal(context, {
       projectId: content.projectId,
-      capability: firstLast ? "first_last_to_video" : "image_to_video",
+      capability: firstLast ? "first_last_to_video" : speech ? "speech_to_video" : "image_to_video",
       recipeId: input.recipeId,
-      prompt: (() => {
-        const cast = projectCast(store, content.projectId);
-        return clipPrompt(beat, {
-          wardrobe: beat.type === "talking" ? cast.character?.link.wardrobe : undefined,
-          product: cast.product ? { name: cast.product.name, appearance: cast.product.appearance || undefined } : undefined,
-        });
-      })(),
+      prompt: clipPrompt(beat, {
+        wardrobe: beat.type === "talking" ? cast.character?.link.wardrobe : undefined,
+        product: cast.product ? { name: cast.product.name, appearance: cast.product.appearance || undefined } : undefined,
+        speech,
+      }),
       references: lastAssetId
         ? [
             { role: "first", assetId: shot.still.assetId },
             { role: "last", assetId: lastAssetId },
           ]
-        : [{ role: "image1", assetId: shot.still.assetId }],
+        : take
+          ? [
+              { role: "image1", assetId: shot.still.assetId },
+              { role: "voice", assetId: take.id },
+            ]
+          : [{ role: "image1", assetId: shot.still.assetId }],
       count: input.count,
       target: { kind: "shot", contentId: content.id, beatIndex: beat.index, slot: "clip" },
       aspectRatio: "9:16",
-      durationSeconds: beat.durationSeconds,
+      // A lip-synced clip lasts as long as its take plus a breath; the recipe caps it at one chunk.
+      durationSeconds: take?.audio ? Math.min(beat.durationSeconds, take.audio.durationSeconds + 0.4) : beat.durationSeconds,
     });
   },
 });

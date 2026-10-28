@@ -28,6 +28,8 @@ export interface Segment {
   /** Source pixel size, when known; decides fill-and-crop against fit-and-pad. */
   width?: number;
   height?: number;
+  /** The clip's own sound is speech (a talking beat): leveled like the voice-overs. */
+  speech?: boolean;
   voice?: VoiceOver;
 }
 
@@ -121,6 +123,7 @@ function audioChain(index: number, input: number, segment: Segment): string {
     ? `anullsrc=r=${AUDIO_RATE}:cl=stereo,${length}${segment.voice ? `,volume=${DUCK_GAIN}` : ""}${label}`
     : [
         `[${input}:a:0]asetpts=PTS-STARTPTS`,
+        ...(segment.speech && !segment.voice ? [`loudnorm=I=${VOICE_LOUDNESS}:TP=-1.5:LRA=11`] : []),
         `aresample=${AUDIO_RATE}`,
         "aformat=sample_fmts=fltp:channel_layouts=stereo",
         "apad",
@@ -206,10 +209,11 @@ export function planAssembly(
   ];
   const captioned = !!options.fontPath && segments.some((segment) => segment.caption.trim().length > 0);
   const voiced = options.mute ? 0 : segments.filter((segment) => segment.voice).length;
+  const spoken = options.mute ? 0 : segments.filter((segment) => segment.speech && segment.hasAudio && !segment.voice).length;
   const summary = [
     `${segments.length} segment${segments.length === 1 ? "" : "s"} (${segments.map((segment) => `${segment.source} ${segment.frames}f${segment.voice ? " +voice" : ""}`).join(", ")})`,
     `video: scale to fit, pad ${EXPORT_WIDTH}x${EXPORT_HEIGHT}, setsar=1, fps=${EXPORT_FPS}${captioned ? ", drawtext captions" : ""}`,
-    options.mute ? "audio: none (muted)" : `audio: aresample ${AUDIO_RATE} Hz stereo, anullsrc for silent clips${voiced ? `, ${voiced} voice-over${voiced === 1 ? "" : "s"} leveled to ${VOICE_LOUDNESS} LUFS and mixed over the clip at ${DUCK_GAIN} gain` : ""}`,
+    options.mute ? "audio: none (muted)" : `audio: aresample ${AUDIO_RATE} Hz stereo, anullsrc for silent clips${spoken ? `, ${spoken} talking clip${spoken === 1 ? "" : "s"} leveled to ${VOICE_LOUDNESS} LUFS` : ""}${voiced ? `, ${voiced} voice-over${voiced === 1 ? "" : "s"} leveled to ${VOICE_LOUDNESS} LUFS and mixed over the clip at ${DUCK_GAIN} gain` : ""}`,
     `join: concat filter n=${segments.length}:v=1:a=${audio}`,
     `encode: libx264 crf ${EXPORT_CRF} yuv420p +faststart${options.mute ? "" : `, aac ${AUDIO_BITRATE}`}`,
   ].join("; ");

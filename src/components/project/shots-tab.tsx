@@ -99,11 +99,20 @@ function ShotRow({
   const approvedClip = shot.clip.state === "approved" ? shot.clip.assetId : null;
   const approvedVoice = shot.voice.state === "approved" ? shot.voice.assetId : null;
   const voiceOver = hasVoiceOver(beat);
+  const hasVoiceSample = view.characters.some(({ item }) => !!item.bible.references.voiceAssetId);
+  // A talking beat can take the cloned voice too; its clip is then lip-synced to the take.
+  const talkingTake = beat?.type === "talking" && beat.spokenLine.trim().length > 0 && (hasVoiceSample || voices.length > 0 || voicePending.length > 0);
+  const lipSync = beat?.type === "talking" && !!approvedVoice;
 
   async function ask(tool: "compose_still" | "generate_clip" | "generate_voice_over") {
     setBusy(true);
     try {
-      const input = tool === "generate_voice_over" ? { projectId, contentId, beatIndex: shot.beatIndex } : { contentId, beatIndex: shot.beatIndex };
+      const input =
+        tool === "generate_voice_over"
+          ? { projectId, contentId, beatIndex: shot.beatIndex }
+          : tool === "generate_clip" && lipSync
+            ? { contentId, beatIndex: shot.beatIndex, mode: "speech" }
+            : { contentId, beatIndex: shot.beatIndex };
       propose(await callTool<GenerationProposal>(tool, input, projectId), "workspace");
     } catch (cause) {
       notify("error", errorMessage(cause));
@@ -142,19 +151,23 @@ function ShotRow({
             variant={approvedStill && !approvedClip && !clips.length && !clipPending.length ? "default" : "outline"}
             disabled={busy || !approvedStill}
             onClick={() => void ask("generate_clip")}
-            title={approvedStill ? undefined : "Approve a still first"}
+            title={approvedStill ? (lipSync ? "Lip-synced to the approved voice take (Wan 2.2 S2V, 4.8 s at most)" : undefined) : "Approve a still first"}
           >
-            <Clapperboard /> {clips.length || clipPending.length ? "Another clip" : "Make clip"}
+            <Clapperboard /> {clips.length || clipPending.length ? "Another clip" : lipSync ? "Lip-sync clip" : "Make clip"}
           </Button>
-          {voiceOver ? (
+          {voiceOver || talkingTake ? (
             <Button
               size="sm"
-              variant={approvedClip && !approvedVoice && !voices.length && !voicePending.length ? "default" : "outline"}
+              variant={voiceOver && approvedClip && !approvedVoice && !voices.length && !voicePending.length ? "default" : "outline"}
               disabled={busy}
               onClick={() => void ask("generate_voice_over")}
-              title="Read the line in the creator's voice, cloned from the first approved talking clip or the character's voice recording"
+              title={
+                voiceOver
+                  ? "Read the line in the creator's voice, cloned from the first approved talking clip or the character's voice recording"
+                  : "Read this line in the cloned voice; the clip is then lip-synced to it, so every talking beat shares one voice"
+              }
             >
-              <Mic /> {voices.length || voicePending.length ? "Another take" : "Voice-over"}
+              <Mic /> {voices.length || voicePending.length ? "Another take" : voiceOver ? "Voice-over" : "Voice take"}
             </Button>
           ) : null}
         </div>
@@ -163,9 +176,9 @@ function ShotRow({
         <ApprovedSlot label="Approved still" asset={approvedStill ? assets.get(approvedStill) : undefined} />
         <div className="space-y-2">
           <ApprovedSlot label="Approved clip" asset={approvedClip ? assets.get(approvedClip) : undefined} />
-          {voiceOver ? (
+          {voiceOver || approvedVoice ? (
             <div>
-              <div className="mb-1 text-xs text-muted-foreground">Approved voice-over</div>
+              <div className="mb-1 text-xs text-muted-foreground">{voiceOver ? "Approved voice-over" : "Approved voice take"}</div>
               {approvedVoice && assets.get(approvedVoice) ? (
                 <AssetMedia asset={assets.get(approvedVoice)!} />
               ) : (
@@ -189,7 +202,7 @@ function ShotRow({
           ) : null}
           {voices.length || voicePending.length ? (
             <div>
-              <div className="mb-1 text-xs text-muted-foreground">{slotStatus(shot.voice, "voice-over")}</div>
+              <div className="mb-1 text-xs text-muted-foreground">{slotStatus(shot.voice, voiceOver ? "voice-over" : "voice take")}</div>
               <CandidateGrid assets={voices} pending={voicePending} approvedId={approvedVoice} onApprove={(asset) => approve("voice", asset)} compact className="lg:grid-cols-2" />
             </div>
           ) : null}

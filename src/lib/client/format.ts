@@ -14,6 +14,7 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   first_last_to_video: "First and last frame to video",
   text_to_video: "Text to video",
   references_to_video: "References to video",
+  speech_to_video: "Speech to video (lip sync)",
   text_to_speech: "Text to speech (voice-over)",
   text_generation: "Text generation",
 };

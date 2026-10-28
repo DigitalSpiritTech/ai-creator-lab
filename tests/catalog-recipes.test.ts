@@ -46,6 +46,7 @@ const NAMES = [
   "ltx-2.5-flf2v",
   "chatterbox-turbo-tts",
   "qwen3-tts-voice-clone",
+  "wan-2.2-s2v",
 ];
 
 test("every starter sidecar parses and matches its workflow graph", () => {
@@ -87,6 +88,9 @@ test("lengths snap to the 8n+1 rule", () => {
   assert.equal(snapLength(80, "4n+1"), 81, "Wan 2.2 at 16 fps for 5 s");
   assert.equal(snapLength(120, "17n+5"), 124, "MiniMax H3 at 24 fps for 5 s");
   assert.equal(snapLength(2, "17n+5"), 5, "never below the offset");
+  assert.equal(snapLength(48, "4n+1", 77), 49, "a 3 s take at 16 fps for S2V");
+  assert.equal(snapLength(130, "4n+1", 77), 77, "one S2V chunk at most");
+  assert.equal(snapLength(76, "4n+1", 76), 73, "snapping never lands above the limit");
 });
 
 test("the workflow loader builds recipes from sidecars and reports broken ones without failing", async () => {
@@ -134,6 +138,7 @@ test("starter recipes match the spike: verified defaults per MVP capability, unv
     "qwen-image-edit-2511-2ref": ["workflow", "image_edit", "2026-10-26"],
     "qwen-image-edit-2511-3ref": ["workflow", "image_edit", "2026-10-27"],
     "wan-2.2-flf2v": ["workflow", "first_last_to_video", "2026-10-27"],
+    "wan-2.2-s2v": ["workflow", "speech_to_video", "2026-10-28"],
     "wan-2.2-i2v": ["workflow", "image_to_video", "2026-10-27"],
     "wan-2.2-t2v": ["workflow", "text_to_video", "2026-10-27"],
     "z-image-turbo-t2i": ["workflow", "text_to_image", "2026-10-26"],
@@ -204,8 +209,8 @@ test("mock recipes stay out of the catalog unless MOCK_RECIPES=1 or the caller a
     assert.ok(hidden.some((recipe) => recipe.id === "ltx-2.5-i2v"));
     process.env.MOCK_RECIPES = "1";
     const listed = await defaultRecipes(workflowsDir);
-    assert.equal(listed.filter((recipe) => recipe.kind === "mock").length, 6);
-    assert.equal((await defaultRecipes(workflowsDir, { mocks: true })).filter((recipe) => recipe.kind === "mock").length, 6);
+    assert.equal(listed.filter((recipe) => recipe.kind === "mock").length, 7);
+    assert.equal((await defaultRecipes(workflowsDir, { mocks: true })).filter((recipe) => recipe.kind === "mock").length, 7);
   } finally {
     if (previous === undefined) delete process.env.MOCK_RECIPES;
     else process.env.MOCK_RECIPES = previous;

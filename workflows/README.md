@@ -21,6 +21,7 @@ These are API-format ComfyUI workflows, each with a small sidecar file that tell
 | `minimax-h3-i2v.api.json` | image_to_video (with sound) | same | 2026-10-27, 736x1312, 124 frames, about 21 credits |
 | `minimax-h3-flf2v.api.json` | first_last_to_video (with sound) | same | 2026-10-27, 736x1312, 124 frames, about 23 credits |
 | `ltx-2.5-i2v.api.json` | image_to_video | ltx-2.5-22b-distilled-transformer-comfy-int8-convrot, gemma4-12b-with-proj-ltx-2.5-bf16, ltx-2.5 video and audio VAEs | 2026-10-26, 576x1024, 121 frames, 24 fps, audio, about 10 credits |
+| `wan-2.2-s2v.api.json` | speech_to_video (lip sync) | wan2.2_s2v_14B_fp8_scaled, umt5_xxl, wan_2.1_vae, wav2vec2_large_english_fp16, the lightx2v 4-step LoRA | 2026-10-28, 720x1280, 49 and 65 frames at 16 fps from 2.7 s and 3.6 s takes, about 12 credits |
 | `chatterbox-turbo-tts.api.json` | text_to_speech (voice clone) | the FL_ChatterboxTurboTTS custom node, model downloaded on first run | 2026-10-28, a 13-word line in 4.0 s, FLAC 24 kHz mono, about 4 credits |
 | `qwen3-tts-voice-clone.api.json` | text_to_speech (voice clone) | the FB_Qwen3TTSVoiceClone custom node, 1.7B model | 2026-10-28, the same line in 4.0 s, about 2 credits |
 
@@ -96,4 +97,4 @@ All three starter workflows ran successfully on Comfy Cloud on 2026-10-26 with t
 
 ## Not on Cloud yet
 
-Qwen-Image 2.1 (text to image and edit) has native nodes on Comfy Cloud but its weights were not in the Cloud library on October 27, 2026, so no workflow ships for it. Wan 2.2 S2V (a reference image plus speech audio) is built and waiting on the app's audio input support (`wan-2.2-s2v.*.pending`).
+Qwen-Image 2.1 (text to image and edit) has native nodes on Comfy Cloud but its weights were not in the Cloud library on October 27, 2026, so no workflow ships for it.

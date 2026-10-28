@@ -8,6 +8,8 @@ export const CapabilitySchema = z.enum([
   "first_last_to_video",
   "text_to_video",
   "references_to_video",
+  /** A still plus a speech recording: the clip's mouth and gestures follow the audio. */
+  "speech_to_video",
   "text_to_speech",
   "text_generation",
 ]);

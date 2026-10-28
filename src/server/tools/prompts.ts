@@ -289,6 +289,8 @@ export interface ClipPromptParts {
   wardrobe?: string | null;
   /** The project's product: its name is removed from the visual, and visible products are described by look. */
   product?: ProductLook;
+  /** The speech comes from a recording (speech to video), so the prompt describes the delivery and never quotes the line. */
+  speech?: boolean;
 }
 
 /**
@@ -307,8 +309,8 @@ export function clipPrompt(beat: Beat, parts: ClipPromptParts = {}): string {
       `${clause(visual)}, speaking to the camera with an easy smile, small natural head movement, static phone camera.`,
       parts.wardrobe ? `Wearing ${clause(parts.wardrobe)}.` : "",
       productLine,
-      `Quiet ambient sound of ${ambient}.`,
-      `The person says, "${line}"`,
+      parts.speech ? "The person talks naturally, mouth and expression following the voice." : `Quiet ambient sound of ${ambient}.`,
+      parts.speech ? "" : `The person says, "${line}"`,
       "No text on screen. The person's face and clothing stay consistent.",
     ]
       .filter(Boolean)

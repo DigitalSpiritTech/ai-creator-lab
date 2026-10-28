@@ -369,8 +369,6 @@ describe("store-backed tools", () => {
     const content = await ok<{ id: string; shots: { voice: { state: string } }[] }>(tools, "plan_shots", { projectId: project.id, scriptId: script.script.id });
     assert.deepEqual(content.shots.map((shot) => shot.voice.state), ["empty", "empty"]);
 
-    const talking = await callTool(tools, "generate_voice_over", { projectId: project.id, beatIndex: 1 });
-    assert.ok(!talking.ok && /talking beat/.test(talking.failure.message));
     const noSample = await callTool(tools, "generate_voice_over", { projectId: project.id, beatIndex: 2 });
     assert.ok(!noSample.ok && /no voice sample yet/.test(noSample.failure.message));
 
@@ -405,6 +403,37 @@ describe("store-backed tools", () => {
 
     await ok(tools, "approve", { kind: "voice", contentId: content.id, beatIndex: 2, assetId: take.id });
     assert.equal(store.content.getRequired(content.id).shots[1].voice.state, "approved");
+
+    // A talking beat can take the same voice and lip-sync its clip to it.
+    const stillProposal = await ok<{ id: string }>(tools, "propose_candidates", {
+      projectId: project.id,
+      capability: "text_to_image",
+      prompt: "Avery at the wheel, holding the bottle.",
+      count: 1,
+      target: { kind: "shot", contentId: content.id, beatIndex: 1, slot: "still" },
+    });
+    const stills = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: stillProposal, wait: true });
+    await ok(tools, "approve", { kind: "still", contentId: content.id, beatIndex: 1, assetId: stills.results[0].assetIds[0] });
+    const noTake = await callTool(tools, "generate_clip", { contentId: content.id, beatIndex: 1, mode: "speech" });
+    assert.ok(!noTake.ok && /Approve a voice take/.test(noTake.failure.message));
+    const talkingTake = await ok<{ capability: string; prompt: string }>(tools, "generate_voice_over", { projectId: project.id, beatIndex: 1 });
+    assert.equal(talkingTake.capability, "text_to_speech");
+    const takes1 = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: talkingTake, wait: true });
+    await ok(tools, "approve", { kind: "voice", contentId: content.id, beatIndex: 1, assetId: takes1.results[0].assetIds[0] });
+    const lipSync = await ok<{ capability: string; recipeId: string; prompt: string; references: { role: string; assetId: string }[]; durationSeconds: number }>(tools, "generate_clip", {
+      contentId: content.id,
+      beatIndex: 1,
+      mode: "speech",
+    });
+    assert.equal(lipSync.capability, "speech_to_video");
+    assert.equal(lipSync.recipeId, "mock-speech-to-video");
+    assert.deepEqual(lipSync.references.map((reference) => reference.role), ["image1", "voice"]);
+    assert.equal(lipSync.references[1].assetId, takes1.results[0].assetIds[0]);
+    assert.doesNotMatch(lipSync.prompt, /The person says/);
+    assert.match(lipSync.prompt, /mouth and expression following the voice/);
+    assert.ok(lipSync.durationSeconds <= 5 && lipSync.durationSeconds > 4, `${lipSync.durationSeconds} s`);
+    const brollSync = await callTool(tools, "generate_clip", { contentId: content.id, beatIndex: 2, mode: "speech" });
+    assert.ok(!brollSync.ok && /voice-over mixed in at export/.test(brollSync.failure.message));
 
     beats[1] = { ...beats[1], spokenLine: "Warm by noon. Every day." };
     const revised = await ok<{ change: { voiceInvalidated: number[]; clipInvalidated: number[] } }>(tools, "save_script", {

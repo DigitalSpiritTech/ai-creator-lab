@@ -124,7 +124,7 @@ function clipLine(store: Store, projectId: string, clipAssetId: string): string 
 export const generateVoiceOver = defineTool({
   name: "generate_voice_over",
   description:
-    "Propose the voice-over for one b-roll or text card beat: its line read in the creator's cloned voice (from the character's voice sample, taken from the first approved talking clip when none is set). The take lands in the beat's voice slot; approve it and the export mixes it over the clip's ambient sound. Nothing is generated until the user approves the proposal. Example: beat 2 is b-roll with a line and has no approved voice-over.",
+    "Propose a voice take for one beat: its line read in the creator's cloned voice (from the character's voice sample, taken from the first approved talking clip when none is set). On a b-roll or text card beat the approved take is the voice-over the export mixes over the clip. On a talking beat it is the speech a lip-synced clip is made from (generate_clip with mode speech), for one voice across the whole ad. Nothing is generated until the user approves the proposal. Example: beat 2 is b-roll with a line and has no approved voice-over.",
   input: z
     .object({
       projectId: IdSchema,
@@ -141,8 +141,7 @@ export const generateVoiceOver = defineTool({
     if (content.projectId !== input.projectId) fail("invalid", "This Ad belongs to another project.");
     const script = scriptOf(store, content);
     const beat = script.beats[input.beatIndex - 1] ?? fail("not_found", `Beat ${input.beatIndex} is not in the script.`);
-    if (beat.type === "talking") fail("invalid", `Beat ${beat.index} is a talking beat; its line is spoken on camera in the clip. Voice-overs are for b-roll and text cards.`);
-    if (!beat.spokenLine.trim()) fail("invalid", `Beat ${beat.index} has no line. Add a voice-over line to the script first.`);
+    if (!beat.spokenLine.trim()) fail("invalid", `Beat ${beat.index} has no line. Add a line to the script first.`);
     const character = linkedCharacter(store, input.projectId);
     const { sample } = await ensureVoiceSample(context, input.projectId, character);
     const transcript = sample.audio?.transcript?.trim();

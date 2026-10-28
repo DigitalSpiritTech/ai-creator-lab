@@ -79,7 +79,7 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: "the bottle label is blurry" on a still the user otherwise likes.',
   ].join(" "),
   generate_clip: [
-    `Propose a clip for one beat from its approved still, at the beat's length; talking beats carry the spoken line for synchronized audio, b-roll is ambient sound only (its voice-over is a separate step). ${PROPOSAL_NOTE}`,
+    `Propose a clip for one beat from its approved still, at the beat's length; talking beats carry the spoken line for synchronized audio, b-roll is ambient sound only (its voice-over is a separate step). Mode speech lip-syncs a talking beat to its approved voice take instead (one cloned voice across the ad, 4.8 s at most). ${PROPOSAL_NOTE}`,
     "Example: beat 2's still was just approved.",
   ].join(" "),
   extract_voice_sample: [
@@ -87,8 +87,8 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: "use the voice from beat 3\'s clip instead".',
   ].join(" "),
   generate_voice_over: [
-    `Propose the voice-over for one b-roll or text card beat: its line read in the creator's cloned voice. One take by default. The approved take is mixed over the clip's ambient sound at export. ${PROPOSAL_NOTE}`,
-    "Call it once per beat that has a line and is not a talking beat, after a talking clip is approved (its voice is the sample) or the user uploaded a recording.",
+    `Propose a voice take for one beat: its line read in the creator's cloned voice. One take by default. On b-roll and text cards the approved take is mixed over the clip at export; on a talking beat it is the speech for a lip-synced clip (generate_clip, mode speech). ${PROPOSAL_NOTE}`,
+    "Call it once per b-roll or text card beat with a line, after a talking clip is approved (its voice is the sample) or the user uploaded a recording; on talking beats only when the user wants one voice across the ad.",
     "Example: beat 1's talking clip is approved and beat 2 is b-roll with a line.",
   ].join(" "),
   approve: [

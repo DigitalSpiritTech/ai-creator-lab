@@ -24,7 +24,7 @@ export const SlotLimitsSchema = z
     sizes: z.array(z.tuple([z.number().int().positive(), z.number().int().positive()])).optional(),
     multipleOf: z.number().int().positive().optional(),
     aspectRatios: z.array(z.string()).optional(),
-    length: z.object({ default: z.number().int().positive(), rule: z.string().optional() }).optional(),
+    length: z.object({ default: z.number().int().positive(), rule: z.string().optional(), max: z.number().int().positive().optional() }).optional(),
     fps: z.number().positive().optional(),
     megapixelsPerReference: z.number().positive().optional(),
   })
@@ -126,11 +126,16 @@ export function applySlots(target: SlotTarget, sidecar: SlotSidecar, values: Rec
   }
 }
 
-/** Snaps a frame count to a model's rule such as LTX's 8n+1, Wan's 4n+1 or MiniMax H3's 17n+5. */
-export function snapLength(frames: number, rule?: string): number {
+/**
+ * Snaps a frame count to a model's rule such as LTX's 8n+1, Wan's 4n+1 or MiniMax H3's 17n+5,
+ * never above `max` (the longest single chunk a model makes) when one is given.
+ */
+export function snapLength(frames: number, rule?: string, max?: number): number {
   const match = rule?.match(/^(\d+)n\+(\d+)$/);
-  if (!match) return Math.max(1, Math.round(frames));
+  const wanted = max !== undefined ? Math.min(frames, max) : frames;
+  if (!match) return Math.max(1, Math.round(wanted));
   const k = Number(match[1]);
   const c = Number(match[2]);
-  return Math.max(c, Math.round((frames - c) / k) * k + c);
+  const snapped = Math.max(c, Math.round((wanted - c) / k) * k + c);
+  return max !== undefined && snapped > max ? snapped - k : snapped;
 }

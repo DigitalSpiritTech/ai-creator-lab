@@ -90,6 +90,8 @@ export const ExportSourceSchema = z
     /** Segment length in the export: the clip's length (or the beat's, for a still) rounded to whole frames. */
     durationSeconds: z.number().positive().max(60),
     onScreenText: z.string().max(80),
+    /** A talking beat: the clip's own sound is speech and is leveled with the voice-overs. */
+    speech: z.boolean().default(false),
     /** The approved voice-over take mixed over this segment, when the beat has one. */
     voice: z.object({ assetId: IdSchema, sha256: Sha256Schema, durationSeconds: z.number().positive() }).strict().optional(),
   })
@@ -344,7 +346,8 @@ export function beginExport(
     }
     const seconds = asset.video?.durationSeconds ?? beat?.durationSeconds ?? 5;
     let voice: ExportSource["voice"];
-    if (shot.voice.state === "approved") {
+    // A talking beat's take is the clip's own speech (lip-synced or not), never a second layer.
+    if (shot.voice.state === "approved" && beat?.type !== "talking") {
       const take = findAsset(shot.voice.assetId);
       if (!take || take.state.state !== "active" || take.kind !== "audio" || !take.audio) {
         fail("invalid", `The approved voice-over for beat ${shot.beatIndex} is missing or archived. Approve another take or archive the beat's voice-over.`);
@@ -358,6 +361,7 @@ export function beginExport(
       sha256: asset.sha256,
       durationSeconds: wholeFrames(seconds) / EXPORT_FPS,
       onScreenText: beat?.onScreenText ?? "",
+      speech: beat?.type === "talking",
       ...(voice ? { voice } : {}),
     };
   });

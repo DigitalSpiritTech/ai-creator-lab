@@ -85,7 +85,7 @@ async function prepareSegment(store: Store, record: ExportRecord, index: number,
     const path = join(work, `${index}.mp4`);
     await writeFile(path, bytes, { flag: "wx" });
     const info = await probeVideo(path).catch(() => fail("invalid", `The clip for ${beat} could not be decoded.`));
-    return { source: "video", path, hasAudio: info.hasAudio, frames, caption, width: info.width, height: info.height, voice };
+    return { source: "video", path, hasAudio: info.hasAudio, frames, caption, width: info.width, height: info.height, speech: source.speech, voice };
   }
   const scale = Math.min(EXPORT_WIDTH / asset.width, EXPORT_HEIGHT / asset.height);
   const density = Math.min(2400, Math.max(1, Math.round(72 * scale)));

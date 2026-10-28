@@ -116,14 +116,6 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
     fitImages: true,
     defaults: { width: 720, height: 1280, length: 81 },
   },
-  "wan-2.2-s2v": {
-    title: "Wan 2.2 S2V 14B speech to video on Comfy Cloud",
-    verified: null,
-    costHint: "Not yet measured; expected 20 to 40 credits for 77 frames at 480x832.",
-    ceilingUsd: 0.25,
-    fitImages: true,
-    defaults: { width: 480, height: 832, length: 77 },
-  },
   "minimax-h3-t2v": {
     title: "MiniMax H3 text to video on Comfy Cloud",
     verified: "2026-10-27",
@@ -146,6 +138,15 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
     ceilingUsd: 0.25,
     fitImages: true,
     defaults: { width: 736, height: 1312, length: 124 },
+  },
+  "wan-2.2-s2v": {
+    title: "Wan 2.2 S2V speech to video on Comfy Cloud",
+    verified: "2026-10-28",
+    costHint: "About 12 credits for 49 to 65 frames at 720x1280 (one chunk, 4.8 s at most).",
+    ceilingUsd: 0.2,
+    fitImages: true,
+    defaults: { width: 480, height: 832, length: 77 },
+    notes: "The still is the reference frame and the approved voice take drives the mouth; the length follows the take, 4.8 s at most.",
   },
   "chatterbox-turbo-tts": {
     title: "Chatterbox Turbo voice clone on Comfy Cloud",
@@ -400,7 +401,7 @@ export const ROUTER_RECIPES: RouterRecipe[] = [
   }),
 ];
 
-const MOCK_CAPABILITIES: Capability[] = ["text_to_image", "image_edit", "image_to_video", "first_last_to_video", "text_to_video", "text_to_speech"];
+const MOCK_CAPABILITIES: Capability[] = ["text_to_image", "image_edit", "image_to_video", "first_last_to_video", "text_to_video", "speech_to_video", "text_to_speech"];
 
 export const MOCK_RECIPES: MockRecipe[] = MOCK_CAPABILITIES.map((capability) =>
   MockRecipeSchema.parse({
@@ -427,6 +428,7 @@ export const DEFAULT_RECIPE_IDS: Partial<Record<Capability, { primary: string; s
   image_to_video: { primary: "ltx-2.5-i2v", hosted: "router-kling-3-omni-i2v", mock: "mock-image-to-video" },
   first_last_to_video: { primary: "ltx-2.5-flf2v", hosted: "router-kling-3-omni-flf2v", mock: "mock-first-last-to-video" },
   text_to_video: { primary: "wan-2.2-t2v", hosted: "router-ltx-2.5-fast", mock: "mock-text-to-video" },
+  speech_to_video: { primary: "wan-2.2-s2v", mock: "mock-speech-to-video" },
   text_to_speech: { primary: "chatterbox-turbo-tts", siblings: ["qwen3-tts-voice-clone"], mock: "mock-text-to-speech" },
 };
 

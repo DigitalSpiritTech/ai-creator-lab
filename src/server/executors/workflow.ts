@@ -185,12 +185,13 @@ export function planWorkflow(recipe: WorkflowRecipe, input: GenerationInput, gra
   let length: number | undefined;
   if (sidecar.slots.length) {
     const rule = sidecar.limits.length?.rule;
+    const max = sidecar.limits.length?.max;
     const fps = sidecar.limits.fps ?? recipe.limits.fps;
     if (input.length !== undefined) {
-      if (snapLength(input.length, rule) !== input.length) throw invalid(`A length of ${input.length} frames breaks the ${rule} rule.`);
+      if (snapLength(input.length, rule, max) !== input.length) throw invalid(`A length of ${input.length} frames breaks the ${rule} rule${max ? ` or the ${max}-frame limit` : ""}.`);
       length = input.length;
     } else if (input.durationSeconds !== undefined && fps) {
-      length = snapLength(input.durationSeconds * fps, rule);
+      length = snapLength(input.durationSeconds * fps, rule, max);
     } else {
       length = recipe.defaults.length ?? sidecar.limits.length?.default ?? numeric(slotDefault(sidecar, graph, "length"));
     }
