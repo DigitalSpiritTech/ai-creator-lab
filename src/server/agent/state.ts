@@ -320,7 +320,7 @@ export function renderSnapshot(snapshot: ProjectSnapshot): string {
   if (script) {
     lines.push(`Script: "${script.title}" (scriptId ${script.id}, version ${script.version}), ${script.beats.length} beats:`);
     for (const beat of script.beats) {
-      const spoken = beat.spokenLine ? ` says "${beat.spokenLine}"` : "";
+      const spoken = beat.spokenLine ? ` ${beat.type === "talking" ? "says" : "voice-over"} "${beat.spokenLine}"` : " (silent)";
       const onScreen = beat.onScreenText ? ` | on screen "${beat.onScreenText}"` : "";
       lines.push(`  ${beat.index}. ${beat.type}/${beat.purpose}${spoken}${onScreen} | ${short(beat.visual, 100)}`);
     }

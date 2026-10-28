@@ -109,13 +109,13 @@ export function ScriptTab() {
     setBusy(true);
     setMessage(null);
     try {
-      const result = await callTool<{ script: Script; change: { stillInvalidated: number[]; clipInvalidated: number[] } | null }>(
+      const result = await callTool<{ script: Script; change: { stillInvalidated: number[]; clipInvalidated: number[]; voiceInvalidated: number[] } | null }>(
         "save_script",
         { projectId, scriptId: script?.id, baseVersion: script ? baseVersion : undefined, title: title.trim(), beats },
         projectId,
       );
       setScriptId(result.script.id);
-      const lost = result.change ? [...new Set([...result.change.stillInvalidated, ...result.change.clipInvalidated])] : [];
+      const lost = result.change ? [...new Set([...result.change.stillInvalidated, ...result.change.clipInvalidated, ...result.change.voiceInvalidated])].sort((a, b) => a - b) : [];
       setMessage({
         tone: lost.length ? "warn" : "ok",
         text: `Saved version ${result.script.version}.${lost.length ? ` Beats ${lost.join(", ")} need new approvals.` : ""}`,
@@ -236,7 +236,7 @@ export function ScriptTab() {
             <tr>
               <th className="p-2">#</th>
               <th className="p-2">Type and purpose</th>
-              <th className="p-2">Spoken line</th>
+              <th className="p-2">Line (on camera, or voice-over on b-roll)</th>
               <th className="p-2">On-screen text</th>
               <th className="p-2">Visual and setting</th>
               <th className="p-2">Length</th>
@@ -258,7 +258,7 @@ export function ScriptTab() {
                     <input type="checkbox" checked={beat.productVisible} onChange={(event) => update(index, { productVisible: event.target.checked })} /> product visible
                   </label>
                 </td>
-                <td className="p-2"><Textarea rows={3} value={beat.spokenLine} onChange={(event) => update(index, { spokenLine: event.target.value })} aria-label={`Beat ${index + 1} spoken line`} className="min-w-40 text-xs" /></td>
+                <td className="p-2"><Textarea rows={3} value={beat.spokenLine} onChange={(event) => update(index, { spokenLine: event.target.value })} aria-label={`Beat ${index + 1} line`} placeholder={beat.type === "talking" ? "Said on camera" : "Voice-over"} className="min-w-40 text-xs" /></td>
                 <td className="p-2"><Textarea rows={3} value={beat.onScreenText} onChange={(event) => update(index, { onScreenText: event.target.value })} aria-label={`Beat ${index + 1} on-screen text`} className="min-w-32 text-xs" /></td>
                 <td className="space-y-1 p-2">
                   <Textarea rows={3} value={beat.visual} onChange={(event) => update(index, { visual: event.target.value })} aria-label={`Beat ${index + 1} visual`} className="min-w-48 text-xs" />

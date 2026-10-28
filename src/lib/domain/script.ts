@@ -11,10 +11,23 @@ export type BeatType = z.infer<typeof BeatTypeSchema>;
 export const BeatPurposeSchema = z.enum(["hook", "problem", "reveal", "proof", "cta"]);
 export type BeatPurpose = z.infer<typeof BeatPurposeSchema>;
 
+/** Speech at a natural pace; a line fits its beat when `words / WORDS_PER_SECOND` is within the beat's seconds. */
+export const WORDS_PER_SECOND = 2.5;
+
+/** The most words a beat's line can hold: a brisk three words per second. */
+export function maxWords(durationSeconds: number): number {
+  return Math.ceil(durationSeconds * 3);
+}
+
 const beatFields = {
   type: BeatTypeSchema,
   purpose: BeatPurposeSchema,
-  spokenLine: optionalText(160),
+  /**
+   * What the creator says during the beat: on camera on a talking beat (the video model generates
+   * the speech), as a voice-over on b-roll and text cards (generated separately and mixed in at
+   * export). Empty means a silent beat.
+   */
+  spokenLine: optionalText(300),
   onScreenText: optionalText(80),
   visual: text(400),
   setting: optionalText(200),
@@ -24,14 +37,20 @@ const beatFields = {
   notes: optionalText(500),
 };
 
-type BeatShape = { type: BeatType; spokenLine: string; onScreenText: string };
+type BeatShape = { type: BeatType; spokenLine: string; onScreenText: string; durationSeconds: number };
 
 function checkBeat(beat: BeatShape, context: z.RefinementCtx): void {
   if (beat.type === "talking" && beat.spokenLine.length === 0) {
     context.addIssue({ code: "custom", message: "A talking beat needs a spoken line.", path: ["spokenLine"] });
   }
-  if (wordCount(beat.spokenLine) > 15) {
-    context.addIssue({ code: "custom", message: "Keep the spoken line to 15 words or fewer.", path: ["spokenLine"] });
+  const words = wordCount(beat.spokenLine);
+  if (words > maxWords(beat.durationSeconds)) {
+    const needed = Math.ceil(words / WORDS_PER_SECOND);
+    context.addIssue({
+      code: "custom",
+      message: `A ${words}-word line needs about ${needed} s at a natural pace; this beat is ${beat.durationSeconds} s. Shorten the line or lengthen the beat (up to 15 s).`,
+      path: ["spokenLine"],
+    });
   }
   const lines = beat.onScreenText.split("\n").filter((line) => line.trim().length > 0);
   if (lines.length > 2 || lines.some((line) => wordCount(line) > 6)) {
@@ -75,6 +94,7 @@ export const ScriptChangeSchema = z
   .object({
     stillInvalidated: z.array(z.number().int().positive()),
     clipInvalidated: z.array(z.number().int().positive()),
+    voiceInvalidated: z.array(z.number().int().positive()),
     added: z.array(z.number().int().positive()),
     removed: z.array(z.number().int().positive()),
   })
@@ -102,28 +122,40 @@ export function visualSignature(beat: Beat): string {
   return JSON.stringify([beat.type, beat.visual, beat.setting, beat.productVisible]);
 }
 
-/** What a clip adds on top of its still. A change here invalidates only the clip. */
+/**
+ * What a clip adds on top of its still: its length, and on a talking beat the line the video model
+ * speaks. A b-roll or text card clip never carries its line (that is the voice-over), so editing
+ * the line there keeps the clip.
+ */
 export function clipSignature(beat: Beat): string {
-  return JSON.stringify([beat.spokenLine, beat.durationSeconds]);
+  return JSON.stringify([beat.type === "talking" ? beat.spokenLine : "", beat.durationSeconds]);
+}
+
+/** What a voice-over is made from. A change here invalidates the beat's voice-over. */
+export function voiceSignature(beat: Beat): string {
+  return JSON.stringify([beat.spokenLine]);
 }
 
 /**
- * Compares two versions of a script: a beat whose visual changed loses its still and clip; a beat
- * whose spoken line or length changed loses only its clip; text-only edits (on-screen text,
- * purpose, notes) keep both.
+ * Compares two versions of a script: a beat whose visual changed loses its still and clip; a
+ * talking beat whose line or length changed loses only its clip; a line change on any beat loses
+ * its voice-over; text-only edits (on-screen text, purpose, notes) keep everything.
  */
 export function diffScripts(before: Script, after: Script): ScriptChange {
-  const change: ScriptChange = { stillInvalidated: [], clipInvalidated: [], added: [], removed: [] };
+  const change: ScriptChange = { stillInvalidated: [], clipInvalidated: [], voiceInvalidated: [], added: [], removed: [] };
   for (const beat of after.beats) {
     const previous = before.beats[beat.index - 1];
     if (!previous) {
       change.added.push(beat.index);
-    } else if (visualSignature(previous) !== visualSignature(beat)) {
+      continue;
+    }
+    if (visualSignature(previous) !== visualSignature(beat)) {
       change.stillInvalidated.push(beat.index);
       change.clipInvalidated.push(beat.index);
     } else if (clipSignature(previous) !== clipSignature(beat)) {
       change.clipInvalidated.push(beat.index);
     }
+    if (voiceSignature(previous) !== voiceSignature(beat)) change.voiceInvalidated.push(beat.index);
   }
   for (const beat of before.beats) {
     if (beat.index > after.beats.length) change.removed.push(beat.index);

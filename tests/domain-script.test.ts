@@ -8,10 +8,15 @@ import { ridgelineBeats } from "./support/domain-fixtures";
 const NOW = 1_760_000_000_000;
 
 describe("beats", () => {
-  test("talking beats need a short spoken line and on-screen text stays small", () => {
+  test("talking beats need a line that fits the beat, and on-screen text stays small", () => {
     assert.ok(BeatInputSchema.safeParse(ridgelineBeats()[0]).success);
     assert.equal(BeatInputSchema.safeParse({ ...ridgelineBeats()[0], spokenLine: "" }).success, false);
     assert.equal(BeatInputSchema.safeParse({ ...ridgelineBeats()[0], spokenLine: "word ".repeat(16) }).success, false);
+    assert.ok(BeatInputSchema.safeParse({ ...ridgelineBeats()[0], spokenLine: "word ".repeat(16), durationSeconds: 6 }).success);
+    const tooFast = BeatInputSchema.safeParse({ ...ridgelineBeats()[1], spokenLine: "word ".repeat(10), durationSeconds: 3 });
+    assert.equal(tooFast.success, false);
+    assert.match(tooFast.error?.issues[0]?.message ?? "", /10-word line needs about 4 s .* this beat is 3 s/);
+    assert.ok(BeatInputSchema.safeParse({ ...ridgelineBeats()[1], spokenLine: "Still cold at six.", durationSeconds: 3 }).success);
     assert.equal(BeatInputSchema.safeParse({ ...ridgelineBeats()[1], onScreenText: "one two three four five six seven" }).success, false);
     assert.equal(BeatInputSchema.safeParse({ ...ridgelineBeats()[1], onScreenText: "a\nb\nc" }).success, false);
     assert.ok(BeatInputSchema.safeParse({ ...ridgelineBeats()[1], onScreenText: "Warm by noon.\nEvery day." }).success);
@@ -35,7 +40,14 @@ describe("script revision", () => {
     beats[3] = { ...beats[3], onScreenText: "Goes in the dishwasher.", notes: "Close-up" };
     const { script, change } = reviseScript(original, "Cup holder v2", beats, NOW + 1);
     assert.equal(script.version, 2);
-    assert.deepEqual(change, { stillInvalidated: [1], clipInvalidated: [1, 3], added: [], removed: [] });
+    assert.deepEqual(change, { stillInvalidated: [1], clipInvalidated: [1, 3], voiceInvalidated: [3], added: [], removed: [] });
+  });
+
+  test("a voice-over change on a b-roll beat keeps its clip and withdraws only its voice-over", () => {
+    const beats = ridgelineBeats();
+    beats[1] = { ...beats[1], spokenLine: "By noon it was warm, every single day." };
+    const { change } = reviseScript(original, "v2", beats, NOW + 1);
+    assert.deepEqual(change, { stillInvalidated: [], clipInvalidated: [], voiceInvalidated: [2], added: [], removed: [] });
   });
 
   test("setting and product visibility count as visual changes", () => {

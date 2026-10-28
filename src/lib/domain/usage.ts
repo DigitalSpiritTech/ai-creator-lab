@@ -51,7 +51,7 @@ export function findAssetUsage(graph: AssetGraph, assetId: string): AssetUsage[]
   }
   for (const content of graph.contents) {
     for (const shot of content.shots) {
-      for (const slot of ["still", "clip"] as const) {
+      for (const slot of ["still", "clip", "voice"] as const) {
         const state = shot[slot];
         if (state.state === "approved" && state.assetId === assetId) {
           usage.push({ kind: "shot_approval", contentId: content.id, beatIndex: shot.beatIndex, slot });

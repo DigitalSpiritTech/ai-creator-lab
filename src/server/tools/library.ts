@@ -185,7 +185,7 @@ export const unlinkLibraryItem = defineTool({
       if (link.kind === "character" && link.sheetAssetId) held.add(link.sheetAssetId);
       for (const content of store.content.listByProject(input.projectId)) {
         for (const shot of content.shots) {
-          for (const slot of ["still", "clip"] as const) {
+          for (const slot of ["still", "clip", "voice"] as const) {
             const state = shot[slot];
             if (state.state !== "approved") continue;
             if ([...ancestry(store, state.assetId)].some((id) => held.has(id))) {

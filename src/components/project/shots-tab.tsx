@@ -113,7 +113,7 @@ function ShotRow({
           </div>
           {beat ? (
             <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
-              {beat.spokenLine ? `“${beat.spokenLine}” · ` : ""}{beat.visual}
+              {beat.spokenLine ? `${beat.type === "talking" ? "" : "Voice-over: "}“${beat.spokenLine}” · ` : ""}{beat.visual}
             </p>
           ) : null}
           {shot.brokenAssetIds.length ? <p className="mt-1 text-xs text-destructive">An approved file was deleted; choose again.</p> : null}

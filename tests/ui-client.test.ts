@@ -125,7 +125,7 @@ describe("format", () => {
     const id = randomUUID();
     assert.equal(slotStatus({ state: "empty" }, "still"), "No still yet");
     assert.equal(slotStatus({ state: "open", candidateIds: [id], selectedId: null }, "still"), "1 still candidate");
-    const shot = { id, beatIndex: 1, still: { state: "approved" as const, candidateIds: [id], assetId: id, approvedAt: 1 }, clip: { state: "empty" as const }, brokenAssetIds: [] };
+    const shot = { id, beatIndex: 1, still: { state: "approved" as const, candidateIds: [id], assetId: id, approvedAt: 1 }, clip: { state: "empty" as const }, voice: { state: "empty" as const }, brokenAssetIds: [] };
     assert.equal(shotStatus(shot), "Needs a clip");
     assert.ok(sheetChecklist("Olive utility jacket over a white tee").some((line) => line.includes("Olive utility jacket")));
   });

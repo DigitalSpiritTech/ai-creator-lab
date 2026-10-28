@@ -62,8 +62,8 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: "keeps drinks cold 24 hours, fits a cup holder, dishwasher safe" becomes three allowedClaims, and "dark green steel bottle, black cap" becomes the appearance.',
   ].join(" "),
   save_script: [
-    "Save a 15 to 30 second script as ordered beats (talking, broll, textcard), or a new version (pass scriptId and baseVersion). Talking lines are at most 15 words; on-screen text at most two lines of six words.",
-    "Editing a beat's visual withdraws that beat's approved still and clip; editing only its spoken line or length withdraws only its clip.",
+    "Save a 15 to 30 second script as ordered beats (talking, broll, textcard), or a new version (pass scriptId and baseVersion). Every beat carries the creator's line in spokenLine: said on camera on a talking beat, read as a voice-over on b-roll and text cards. A line holds at most 3 words per second of the beat (2.5 is a natural pace); on-screen text is at most two lines of six words.",
+    "Editing a beat's visual withdraws that beat's approved still and clip; editing a talking beat's line or any beat's length withdraws its clip; editing any line withdraws that beat's voice-over.",
     'Example: the user approves the beat outline, so save it; when they change beat 3\'s line, save a new version.',
   ].join(" "),
   plan_shots: [

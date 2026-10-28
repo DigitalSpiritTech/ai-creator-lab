@@ -16,7 +16,8 @@ import {
 import { fail } from "@/lib/domain/failure";
 import type { Script, ScriptChange } from "@/lib/domain/script";
 
-export const SlotKindSchema = z.enum(["still", "clip"]);
+/** `voice` holds the beat's voice-over audio; it stays empty on beats without a line. */
+export const SlotKindSchema = z.enum(["still", "clip", "voice"]);
 export type SlotKind = z.infer<typeof SlotKindSchema>;
 
 const candidateIds = z.array(IdSchema).min(1).max(64);
@@ -40,6 +41,7 @@ export const ShotSchema = z
     beatIndex: z.number().int().positive(),
     still: SlotSchema,
     clip: SlotSchema,
+    voice: SlotSchema.default({ state: "empty" }),
     brokenAssetIds: z.array(IdSchema).default([]),
   })
   .strict();
@@ -147,6 +149,7 @@ export function planShots(
     beatIndex: beat.index,
     still: EMPTY_SLOT,
     clip: EMPTY_SLOT,
+    voice: EMPTY_SLOT,
     brokenAssetIds: [],
   }));
   return ContentPieceSchema.parse({
@@ -185,11 +188,12 @@ export function syncShotsToScript(
   const shots: Shot[] = script.beats.map((beat) => {
     const existing = content.shots.find((shot) => shot.beatIndex === beat.index);
     if (!existing) {
-      return { id: newId(), beatIndex: beat.index, still: EMPTY_SLOT, clip: EMPTY_SLOT, brokenAssetIds: [] };
+      return { id: newId(), beatIndex: beat.index, still: EMPTY_SLOT, clip: EMPTY_SLOT, voice: EMPTY_SLOT, brokenAssetIds: [] };
     }
     const still = change.stillInvalidated.includes(beat.index) ? withdrawApproval(existing.still) : existing.still;
     const clip = change.clipInvalidated.includes(beat.index) ? withdrawApproval(existing.clip) : existing.clip;
-    return { ...existing, still, clip };
+    const voice = change.voiceInvalidated.includes(beat.index) ? withdrawApproval(existing.voice) : existing.voice;
+    return { ...existing, still, clip, voice };
   });
   const ids = shots.map((shot) => shot.id);
   const kept = content.cut.order.filter((id) => ids.includes(id));
