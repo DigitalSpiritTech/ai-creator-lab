@@ -11,3 +11,7 @@ coverage/
 *.sqlite-wal
 .DS_Store
 test-results/
+
+# API keys saved from Settings (also inside any STUDIO_DATA_DIR)
+secrets.json
+**/secrets.json

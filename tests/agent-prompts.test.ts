@@ -4,7 +4,7 @@ import { afterEach, describe, test } from "node:test";
 import { CREATIVE_DIRECTOR_PROMPT, agentTools, loadSnapshot, nextStage, systemPrompt } from "@/server/agent";
 import { AGENT_TOOL_DESCRIPTIONS } from "@/server/agent/tools";
 import { stagePrompt } from "@/server/agent/prompts/creative-director";
-import { INTERNAL_TOOLS, TOOLS, type ToolContext, callTool, toolsToJsonSchema } from "@/server/tools";
+import { AGENT_TOOLS, INTERNAL_TOOLS, TOOLS, type ToolContext, callTool, toolsToJsonSchema } from "@/server/tools";
 import { PROMPT_LIMIT, backdropFor, backdropOf, facePrompt, onlyDescribedObjects, withoutProductName } from "@/server/tools/prompts";
 import { averyBible, clock, seedProject, tempStore } from "./support/domain-fixtures";
 import { promptCases } from "./support/prompt-cases";
@@ -208,20 +208,22 @@ describe("creative director prompt", () => {
 describe("tool descriptions", () => {
   test("every roster tool has a model-facing description with an example, and schemas are unchanged", () => {
     const offered = agentTools();
-    const registry = toolsToJsonSchema();
-    assert.deepEqual(offered.map((tool) => tool.name), TOOLS.map((tool) => tool.name));
+    const registry = new Map(toolsToJsonSchema().map((tool) => [tool.name, tool]));
+    assert.deepEqual(offered.map((tool) => tool.name), AGENT_TOOLS.map((tool) => tool.name));
     assert.deepEqual(Object.keys(AGENT_TOOL_DESCRIPTIONS).sort(), TOOLS.map((tool) => tool.name).sort());
-    for (const [index, tool] of offered.entries()) {
+    for (const tool of offered) {
       assert.equal(tool.description, AGENT_TOOL_DESCRIPTIONS[tool.name]);
       assert.match(tool.description!, /Example/, tool.name);
       assert.ok(tool.description!.length < 1000, tool.name);
-      assert.deepEqual(tool.input_schema, registry[index].input_schema, tool.name);
+      assert.deepEqual(tool.input_schema, registry.get(tool.name)!.input_schema, tool.name);
     }
   });
 
-  test("internal tools such as submit_proposal are never offered", () => {
+  test("internal tools such as submit_proposal, and permanent deletion, are never offered to the assistant", () => {
     const names = agentTools().map((tool) => tool.name);
     for (const internal of INTERNAL_TOOLS) assert.equal(names.includes(internal.name), false, internal.name);
     assert.equal(names.includes("submit_proposal"), false);
+    assert.equal(names.includes("delete_asset_everywhere"), false);
+    assert.ok(TOOLS.some((tool) => tool.name === "delete_asset_everywhere"), "the UI and MCP still have it");
   });
 });

@@ -12,6 +12,7 @@ import sharp from "sharp";
 import { z } from "zod";
 import { jobError, ExecutorFailure } from "@/server/executors/jobs";
 import type { RetrieveDestination, RetrievedFile } from "@/server/executors/types";
+import { childEnv } from "@/server/process";
 
 const execute = promisify(execFile);
 
@@ -87,6 +88,7 @@ export interface VideoInfo {
 /** Probes an MP4 (counting decoded frames) and decodes it once end to end. */
 export async function probeVideo(path: string): Promise<VideoInfo> {
   const { stdout } = await execute(ffprobePath(), ["-v", "error", "-count_frames", "-show_streams", "-show_format", "-of", "json", path], {
+    env: childEnv(),
     timeout: 60_000,
     maxBuffer: 1_000_000,
   });
@@ -99,7 +101,7 @@ export async function probeVideo(path: string): Promise<VideoInfo> {
   const frames = Number(video.nb_read_frames ?? video.nb_frames);
   const durationSeconds = Number(video.duration ?? probe.format.duration);
   if (!Number.isInteger(frames) || frames <= 0 || !(fps > 0) || !(durationSeconds > 0)) throw new Error("Unreadable video timing.");
-  await execute(ffmpegPath(), ["-nostdin", "-v", "error", "-xerror", "-i", path, "-f", "null", "-"], { timeout: 120_000, maxBuffer: 1_000_000 });
+  await execute(ffmpegPath(), ["-nostdin", "-v", "error", "-xerror", "-i", path, "-f", "null", "-"], { env: childEnv(), timeout: 120_000, maxBuffer: 1_000_000 });
   return { codec: video.codec_name, width: video.width, height: video.height, frames, fps, durationSeconds, hasAudio: !!audio };
 }
 
@@ -127,6 +129,7 @@ export async function sampleLuma(path: string, frames?: number): Promise<LumaSam
   const step = frames && frames > 1 ? Math.max(1, Math.ceil(frames / 5)) : 1;
   const filters = [...(frames && frames > 1 ? [`select=not(mod(n\\,${step}))`] : []), "scale=out_range=full", "format=yuvj444p", "signalstats", "metadata=print"];
   const { stderr } = await execute(ffmpegPath(), ["-nostdin", "-hide_banner", "-nostats", "-v", "info", "-i", path, "-vf", filters.join(","), "-an", "-f", "null", "-"], {
+    env: childEnv(),
     timeout: 120_000,
     maxBuffer: 8_000_000,
   });
@@ -175,7 +178,7 @@ export interface AudioInfo {
 
 /** Reads an audio file's codec and length with ffprobe and checks ffmpeg can decode it. */
 export async function probeAudio(path: string): Promise<AudioInfo> {
-  const { stdout } = await execute(ffprobePath(), ["-v", "error", "-show_streams", "-show_format", "-of", "json", path], { timeout: 60_000, maxBuffer: 1_000_000 });
+  const { stdout } = await execute(ffprobePath(), ["-v", "error", "-show_streams", "-show_format", "-of", "json", path], { env: childEnv(), timeout: 60_000, maxBuffer: 1_000_000 });
   const probe = ProbeSchema.parse(JSON.parse(stdout));
   const audio = probe.streams.find((stream) => stream.codec_type === "audio");
   if (!audio?.codec_name || probe.streams.some((stream) => stream.codec_type === "video")) throw new Error("Not an audio file.");
@@ -184,7 +187,7 @@ export async function probeAudio(path: string): Promise<AudioInfo> {
   const container = probe.format.format_name ?? "";
   const mime = container.includes("flac") ? "audio/flac" : container.includes("mp3") ? "audio/mpeg" : container.includes("wav") ? "audio/wav" : undefined;
   if (!mime) throw new Error(`Unsupported audio container ${container}.`);
-  await execute(ffmpegPath(), ["-nostdin", "-v", "error", "-xerror", "-i", path, "-f", "null", "-"], { timeout: 120_000, maxBuffer: 1_000_000 });
+  await execute(ffmpegPath(), ["-nostdin", "-v", "error", "-xerror", "-i", path, "-f", "null", "-"], { env: childEnv(), timeout: 120_000, maxBuffer: 1_000_000 });
   return { mime, codec: audio.codec_name, durationSeconds };
 }
 
@@ -193,6 +196,7 @@ const SILENT_DB = -50;
 /** Mean loudness in dBFS, from ffmpeg's volumedetect. */
 export async function meanVolumeDb(path: string): Promise<number> {
   const { stderr } = await execute(ffmpegPath(), ["-nostdin", "-hide_banner", "-nostats", "-v", "info", "-i", path, "-af", "volumedetect", "-vn", "-f", "null", "-"], {
+    env: childEnv(),
     timeout: 120_000,
     maxBuffer: 4_000_000,
   });

@@ -78,6 +78,13 @@ export const TOOLS: readonly Tool[] = [
 /** Tools the UI calls but the assistant is not offered (the spending gate). */
 export const INTERNAL_TOOLS: readonly Tool[] = [submitProposal];
 
+/**
+ * The roster the assistant is offered: everything except permanent deletion, which stays a
+ * person's click on the Archive page. A prompt injection in project text can then at worst
+ * archive something restorable.
+ */
+export const AGENT_TOOLS: readonly Tool[] = TOOLS.filter((tool) => tool.name !== "delete_asset_everywhere");
+
 const TOOL_INDEX = new Map([...TOOLS, ...INTERNAL_TOOLS].map((tool) => [tool.name, tool]));
 
 export function getTool(name: string): Tool | undefined {

@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
-import { TOOLS, toolsToJsonSchema } from "@/server/tools";
+import { AGENT_TOOLS, toolsToJsonSchema } from "@/server/tools";
 
 const PROPOSAL_NOTE = "Returns a proposal (recipe, prompt, references, count, estimated cost); nothing is generated until the user approves it on the card.";
 
@@ -140,10 +140,10 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
 
 /** The `tools` array for the assistant: the roster, with model-facing descriptions. */
 export function agentTools(): AnthropicTool[] {
-  return toolsToJsonSchema(TOOLS).map((tool) => ({ ...tool, description: AGENT_TOOL_DESCRIPTIONS[tool.name] ?? tool.description }));
+  return toolsToJsonSchema(AGENT_TOOLS).map((tool) => ({ ...tool, description: AGENT_TOOL_DESCRIPTIONS[tool.name] ?? tool.description }));
 }
 
 /** Names the assistant may call; anything else is refused without running. */
 export function agentToolNames(): Set<string> {
-  return new Set(TOOLS.map((tool) => tool.name));
+  return new Set(AGENT_TOOLS.map((tool) => tool.name));
 }

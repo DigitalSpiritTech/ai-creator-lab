@@ -87,6 +87,8 @@ Twenty-three open-weights workflows ship in `workflows/` (Z-Image, Qwen-Image 25
 
 ## Troubleshooting
 
+- The app must stay on your own computer. `npm start` binds to 127.0.0.1 on purpose; the local-only check refuses other hosts, and it is not a login. Do not expose the port to a network. [SECURITY.md](SECURITY.md) says what is and is not protected.
+
 - "Paid generation is off." Both the Settings allowance and `GENERATION_ALLOWANCE_USD` in `.env.local` must be above zero. Restart after editing `.env.local`.
 - Cloud workflows fail with an authorization or plan error. API access to Comfy Cloud is not part of the free tier. Use a paid plan, or use Router models, which need only credits.
 - Jobs wait in a queue. On the entry plan Comfy Cloud runs one workflow at a time. The app also submits one job at a time per target and shows queue position, so a batch of candidates arrives one after another.
@@ -124,7 +126,7 @@ Where things live:
 
 `npm run --silent mcp` (or `node --import tsx scripts/mcp.ts`) starts an MCP server on stdio over the same tools the in-app assistant uses. It opens the data folder in `STUDIO_DATA_DIR` (default `.data` in the repo). Keys come from `.env.local`, which the server loads when present, or from the secrets file that Settings writes in the data folder. Run it from the repo folder. Use `--silent` with `npm run`, because npm's own banner on stdout would break the protocol.
 
-Every tool is offered under its own name. Generating is split the same way as in the app: tools such as `propose_candidates` and `compose_still` return a proposal, and only `approve_and_generate` spends credits. It is the human approval step, and it is held to the same allowance (`GENERATION_ALLOWANCE_USD` and the workspace allowance; zero blocks every paid run). Two resources let a client look at the work: `project://{id}/state` (the whole project as JSON) and `asset://{id}` (a candidate's file).
+Every tool is offered under its own name. Generating is split the same way as in the app: tools such as `propose_candidates` and `compose_still` return a proposal, and only `approve_and_generate` spends credits. That tool, and `delete_asset_everywhere`, are offered only when you start the server with `MCP_ALLOW_SPEND=1` or `MCP_ALLOW_DELETE=1`, because an MCP client has no proposal card to click; with spending allowed it is still held to the same allowance (`GENERATION_ALLOWANCE_USD` and the workspace allowance; zero blocks every paid run). Two resources let a client look at the work: `project://{id}/state` (the whole project as JSON) and `asset://{id}` (a candidate's file).
 
 Claude Code, from the repo folder:
 

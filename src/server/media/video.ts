@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { fail } from "@/lib/domain/failure";
+import { childEnv } from "@/server/process";
 
 const execute = promisify(execFile);
 
@@ -51,8 +52,8 @@ function executable(tool: "ffmpeg" | "ffprobe"): string {
 /** Confirms ffmpeg and ffprobe respond before spending on a video. */
 export async function checkVideoTools(): Promise<void> {
   try {
-    await execute(executable("ffmpeg"), ["-version"], { timeout: 5000, maxBuffer: 64_000 });
-    await execute(executable("ffprobe"), ["-version"], { timeout: 5000, maxBuffer: 64_000 });
+    await execute(executable("ffmpeg"), ["-version"], { env: childEnv(), timeout: 5000, maxBuffer: 64_000 });
+    await execute(executable("ffprobe"), ["-version"], { env: childEnv(), timeout: 5000, maxBuffer: 64_000 });
   } catch {
     fail(
       "invalid",
@@ -106,7 +107,7 @@ export async function probeVideo(path: string): Promise<Probe> {
   const { stdout } = await execute(
     executable("ffprobe"),
     ["-v", "error", "-count_frames", "-show_streams", "-show_format", "-of", "json", path],
-    { timeout: 20_000, maxBuffer: 256_000 },
+    { env: childEnv(), timeout: 20_000, maxBuffer: 256_000 },
   );
   return ProbeSchema.parse(JSON.parse(stdout));
 }
@@ -118,12 +119,12 @@ export async function verifyVideo(path: string, posterPath: string, expect: Vide
   await execute(
     executable("ffmpeg"),
     ["-nostdin", "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", ...audioMap, "-f", "null", "-"],
-    { timeout: 45_000, maxBuffer: 256_000 },
+    { env: childEnv(), timeout: 45_000, maxBuffer: 256_000 },
   );
   await execute(
     executable("ffmpeg"),
     ["-nostdin", "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", "-frames:v", "1", "-update", "1", "-f", "image2", "-c:v", "png", posterPath],
-    { timeout: 15_000, maxBuffer: 256_000 },
+    { env: childEnv(), timeout: 15_000, maxBuffer: 256_000 },
   );
   return metadata;
 }
@@ -133,6 +134,6 @@ export async function extractPoster(path: string, posterPath: string): Promise<v
   await execute(
     executable("ffmpeg"),
     ["-nostdin", "-v", "error", "-y", "-i", path, "-map", "0:v:0", "-frames:v", "1", "-update", "1", "-f", "image2", "-c:v", "png", posterPath],
-    { timeout: 15_000, maxBuffer: 256_000 },
+    { env: childEnv(), timeout: 15_000, maxBuffer: 256_000 },
   );
 }

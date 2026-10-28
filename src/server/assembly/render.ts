@@ -19,6 +19,7 @@ import { readAssetBytes, removeMedia } from "@/server/media/files";
 import { resolveMediaPath, sha256 } from "@/server/media/paths";
 import { checkVideoTools, verifyVideo } from "@/server/media/video";
 import type { Store } from "@/server/store";
+import { childEnv } from "@/server/process";
 
 const execute = promisify(execFile);
 
@@ -34,7 +35,7 @@ export function supportsDrawtext(): Promise<boolean> {
   const binary = ffmpegPath();
   let known = drawtextSupport.get(binary);
   if (!known) {
-    known = execute(binary, ["-hide_banner", "-filters"], { timeout: 10_000, maxBuffer: 2_000_000 })
+    known = execute(binary, ["-hide_banner", "-filters"], { env: childEnv(), timeout: 10_000, maxBuffer: 2_000_000 })
       .then(({ stdout }) => /\sdrawtext\s/.test(stdout))
       .catch(() => false);
     drawtextSupport.set(binary, known);
@@ -89,7 +90,7 @@ async function prepareSegment(store: Store, record: ExportRecord, index: number,
   }
   const scale = Math.min(EXPORT_WIDTH / asset.width, EXPORT_HEIGHT / asset.height);
   const density = Math.min(2400, Math.max(1, Math.round(72 * scale)));
-  const png = await sharp(bytes, asset.mime === "image/svg+xml" ? { density } : {})
+  const png = await sharp(bytes, { failOn: "warning", limitInputPixels: 40_000_000, ...(asset.mime === "image/svg+xml" ? { density } : {}) })
     .png()
     .toBuffer()
     .catch(() => fail("invalid", `The still for ${beat} could not be decoded.`));
@@ -126,7 +127,7 @@ export async function renderExport(
     const fontPath = wantsCaptions(record) ? context.fontPath : undefined;
     if (wantsCaptions(record) && !fontPath) fail("invalid", "Captions need a font file.");
     const plan = planAssembly(segments, { mute: record.options.mute, fontPath, output });
-    await execute(ffmpegPath(), plan.args, { timeout: RENDER_TIMEOUT_MS, maxBuffer: 4_000_000 });
+    await execute(ffmpegPath(), plan.args, { env: childEnv(), timeout: RENDER_TIMEOUT_MS, maxBuffer: 4_000_000 });
     const poster = join(work, "poster.png");
     const probed = await verifyVideo(output, poster, {
       width: EXPORT_WIDTH,

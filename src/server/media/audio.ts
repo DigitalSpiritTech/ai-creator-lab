@@ -10,10 +10,11 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { type Asset, AssetSchema } from "@/lib/domain/asset";
 import { fail } from "@/lib/domain/failure";
-import { ffmpegPath, meanVolumeDb, probeAudio, type AudioInfo } from "@/server/executors/media";
+import { ffmpegPath, ffprobePath, meanVolumeDb, probeAudio, type AudioInfo } from "@/server/executors/media";
 import { removeMedia, writeAtomic } from "@/server/media/files";
 import { resolveMediaPath, sha256 } from "@/server/media/paths";
 import type { Store } from "@/server/store";
+import { childEnv } from "@/server/process";
 
 const execute = promisify(execFile);
 
@@ -28,6 +29,19 @@ export interface AudioImport {
   bytes: Uint8Array;
 }
 
+/** Containers a recording may arrive in. Anything else (playlists, concat scripts, images) is refused before ffmpeg decodes it. */
+const RECORDING_CONTAINERS = new Set(["flac", "mp3", "wav", "ogg", "aac", "mov,mp4,m4a,3gp,3g2,mj2", "matroska,webm", "aiff", "caf"]);
+
+/** The container ffprobe recognizes, so only audio files reach the decoder. */
+async function containerOf(path: string): Promise<string> {
+  const { stdout } = await execute(ffprobePath(), ["-v", "error", "-show_entries", "format=format_name", "-of", "json", path], { env: childEnv(), timeout: 30_000, maxBuffer: 64_000 }).catch(() =>
+    fail("invalid", "The recording could not be read as audio."),
+  );
+  const name = (JSON.parse(stdout) as { format?: { format_name?: string } }).format?.format_name ?? "";
+  if (!RECORDING_CONTAINERS.has(name)) fail("invalid", "Use an audio recording: FLAC, WAV, MP3, M4A, AAC, or OGG.");
+  return name;
+}
+
 /**
  * Reads an uploaded recording. FLAC, MP3, and WAV are kept as they are; anything else ffmpeg can
  * decode (M4A, AAC, OGG, a video's audio) is converted to FLAC.
@@ -37,11 +51,12 @@ async function normalizeAudio(bytes: Uint8Array): Promise<{ bytes: Buffer; info:
   try {
     const source = join(scratch, "upload");
     await writeFile(source, bytes);
+    await containerOf(source);
     let path = source;
     let info = await probeAudio(source).catch(() => undefined);
     if (!info) {
       const converted = join(scratch, "converted.flac");
-      await execute(ffmpegPath(), ["-nostdin", "-v", "error", "-i", source, "-vn", "-c:a", "flac", converted], { timeout: 120_000, maxBuffer: 1_000_000 }).catch(() => {
+      await execute(ffmpegPath(), ["-nostdin", "-v", "error", "-i", source, "-vn", "-c:a", "flac", converted], { env: childEnv(), timeout: 120_000, maxBuffer: 1_000_000 }).catch(() => {
         fail("invalid", "Use an audio recording ffmpeg can read: FLAC, WAV, MP3, M4A, or OGG.");
       });
       path = converted;
@@ -49,7 +64,7 @@ async function normalizeAudio(bytes: Uint8Array): Promise<{ bytes: Buffer; info:
     }
     if (info.durationSeconds > MAX_SAMPLE_SECONDS) {
       const trimmed = join(scratch, "trimmed.flac");
-      await execute(ffmpegPath(), ["-nostdin", "-v", "error", "-i", path, "-vn", "-t", String(MAX_SAMPLE_SECONDS), "-c:a", "flac", trimmed], { timeout: 120_000, maxBuffer: 1_000_000 });
+      await execute(ffmpegPath(), ["-nostdin", "-v", "error", "-i", path, "-vn", "-t", String(MAX_SAMPLE_SECONDS), "-c:a", "flac", trimmed], { env: childEnv(), timeout: 120_000, maxBuffer: 1_000_000 });
       path = trimmed;
       info = await probeAudio(trimmed);
     }
@@ -120,7 +135,7 @@ export async function extractVoiceSample(
     await execute(
       ffmpegPath(),
       ["-nostdin", "-v", "error", "-i", resolveMediaPath(store.dataDir, clip.relativePath), "-vn", "-t", String(MAX_SAMPLE_SECONDS), "-c:a", "flac", output],
-      { timeout: 120_000, maxBuffer: 1_000_000 },
+      { env: childEnv(), timeout: 120_000, maxBuffer: 1_000_000 },
     ).catch(() => fail("invalid", "The clip's audio could not be extracted. Check that ffmpeg is installed."));
     const info = await probeAudio(output).catch(() => fail("invalid", "The clip's audio could not be read."));
     const loudness = await meanVolumeDb(output).catch(() => fail("invalid", "The clip's loudness could not be measured."));

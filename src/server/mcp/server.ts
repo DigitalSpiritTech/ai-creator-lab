@@ -34,13 +34,28 @@ const APPROVE_DESCRIPTION = [
 const PROJECT_STATE = /^project:\/\/([^/]+)\/state$/;
 const ASSET = /^asset:\/\/([^/]+)$/;
 
-/** The tools offered over MCP: the roster plus `approve_and_generate`. */
-export function mcpTools(): McpTool[] {
-  const roster = toolsToJsonSchema(TOOLS).map((tool) => ({
+/**
+ * What an MCP client may do beyond proposing: spend (approve_and_generate) and delete files for
+ * good. Both are off until the person running the server sets MCP_ALLOW_SPEND=1 or
+ * MCP_ALLOW_DELETE=1, because an MCP client has no proposal card to click.
+ */
+export interface McpPermissions {
+  spend: boolean;
+  delete: boolean;
+}
+
+export function mcpPermissions(env: Record<string, string | undefined> = process.env): McpPermissions {
+  return { spend: env.MCP_ALLOW_SPEND === "1", delete: env.MCP_ALLOW_DELETE === "1" };
+}
+
+/** The tools offered over MCP: the roster, plus `approve_and_generate` and deletion when allowed. */
+export function mcpTools(permissions: McpPermissions = mcpPermissions()): McpTool[] {
+  const roster = toolsToJsonSchema(TOOLS.filter((tool) => permissions.delete || tool.name !== "delete_asset_everywhere")).map((tool) => ({
     name: tool.name,
     description: AGENT_TOOL_DESCRIPTIONS[tool.name] ?? tool.description,
     inputSchema: tool.input_schema as McpTool["inputSchema"],
   }));
+  if (!permissions.spend) return roster;
   const [gate] = toolsToJsonSchema(INTERNAL_TOOLS.filter((tool) => tool.name === "submit_proposal"));
   return [...roster, { name: APPROVE_AND_GENERATE, description: APPROVE_DESCRIPTION, inputSchema: gate.input_schema as McpTool["inputSchema"] }];
 }
@@ -53,23 +68,24 @@ function text(value: unknown, isError = false): CallToolResult {
  * Builds an MCP server over a tool context. The caller connects a transport and owns the store.
  * `log` receives one line per call (tool name and outcome code, never inputs or keys).
  */
-export function createMcpServer(context: ToolContext, options: { version?: string; log?: (line: string) => void } = {}): Server {
+export function createMcpServer(context: ToolContext, options: { version?: string; log?: (line: string) => void; permissions?: McpPermissions } = {}): Server {
   const log = options.log ?? (() => undefined);
-  const rosterNames = new Set(TOOLS.map((tool) => tool.name));
+  const permissions = options.permissions ?? mcpPermissions();
+  const rosterNames = new Set(mcpTools(permissions).map((tool) => tool.name));
   const server = new Server(
     { name: "ai-creator-lab", version: options.version ?? "0.0.1" },
     {
       capabilities: { tools: {}, resources: {} },
       instructions:
-        "AI Creator Lab: make a UGC ad from a brief, a Library character, a product, a script, stills, and clips. Read project://{id}/state first. Spending tools return proposals; nothing is generated until the user approves a proposal and you call approve_and_generate.",
+        `AI Creator Lab: make a UGC ad from a brief, a Library character, a product, a script, stills, and clips. Read project://{id}/state first. Spending tools return proposals; ${permissions.spend ? "nothing is generated until the user approves a proposal and you call approve_and_generate" : "this server cannot run them (start it with MCP_ALLOW_SPEND=1 to allow approve_and_generate); the user runs proposals from the app"}.`,
     },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: mcpTools() }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: mcpTools(permissions) }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name } = request.params;
-    const internal = name === APPROVE_AND_GENERATE ? "submit_proposal" : rosterNames.has(name) ? name : undefined;
+    const internal = !rosterNames.has(name) ? undefined : name === APPROVE_AND_GENERATE ? "submit_proposal" : name;
     if (!internal) {
       log(`[mcp] ${name}: unknown tool`);
       return text({ code: "invalid", message: `There is no tool named ${name}.` }, true);

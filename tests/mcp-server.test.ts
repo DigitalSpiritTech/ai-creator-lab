@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { APPROVE_AND_GENERATE, createMcpServer } from "@/server/mcp/server";
+import { APPROVE_AND_GENERATE, createMcpServer, mcpPermissions } from "@/server/mcp/server";
 import { INTERNAL_TOOLS, TOOLS, type ToolContext, createGenerationContext } from "@/server/tools";
 import { clock, generateAssets, seedProject, tempStore } from "./support/domain-fixtures";
 
@@ -18,13 +18,13 @@ afterEach(async () => {
   while (cleanups.length) await cleanups.pop()!();
 });
 
-async function connect() {
+async function connect(permissions: { spend: boolean; delete: boolean } = { spend: true, delete: false }) {
   const context = tempStore();
   cleanups.push(context.cleanup);
   const now = clock();
   const tools: ToolContext = { store: context.store, now, newId: randomUUID, generation: createGenerationContext(context.store, { workflowsDir }) };
   const lines: string[] = [];
-  const server = createMcpServer(tools, { log: (line) => lines.push(line) });
+  const server = createMcpServer(tools, { log: (line) => lines.push(line), permissions });
   const client = new Client({ name: "test-client", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
@@ -42,17 +42,33 @@ function json(result: unknown): unknown {
 }
 
 describe("MCP server", () => {
-  test("lists every roster tool plus approve_and_generate, and never the internal name", async () => {
+  test("lists every roster tool plus approve_and_generate when spending is allowed, never the internal name, and no deletion by default", async () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
     assert.ok(TOOLS.length >= 22);
-    assert.equal(tools.length, TOOLS.length + 1);
-    assert.deepEqual(tools.map((tool) => tool.name), [...TOOLS.map((tool) => tool.name), APPROVE_AND_GENERATE]);
+    const expected = TOOLS.filter((tool) => tool.name !== "delete_asset_everywhere").map((tool) => tool.name);
+    assert.equal(tools.length, expected.length + 1);
+    assert.deepEqual(tools.map((tool) => tool.name), [...expected, APPROVE_AND_GENERATE]);
     for (const internal of INTERNAL_TOOLS) assert.equal(tools.some((tool) => tool.name === internal.name), false);
     const gate = tools.find((tool) => tool.name === APPROVE_AND_GENERATE)!;
     assert.match(gate.description ?? "", /Spends Comfy credits\. This is the human's approval step/);
     assert.equal(gate.inputSchema.type, "object");
     assert.ok(tools.every((tool) => tool.inputSchema.type === "object" && (tool.description ?? "").length > 20));
+  });
+
+  test("without MCP_ALLOW_SPEND and MCP_ALLOW_DELETE, spending and deleting are neither listed nor callable", async () => {
+    const { client, project } = await connect({ spend: false, delete: false });
+    const { tools } = await client.listTools();
+    assert.equal(tools.some((tool) => tool.name === APPROVE_AND_GENERATE || tool.name === "delete_asset_everywhere"), false);
+    const refused = await client.callTool({ name: APPROVE_AND_GENERATE, arguments: { proposal: {} } });
+    assert.equal(refused.isError, true);
+    assert.match(JSON.stringify(refused.content), /no tool named approve_and_generate/);
+    const noDelete = await client.callTool({ name: "delete_asset_everywhere", arguments: { assetId: project.id, confirm: true } });
+    assert.equal(noDelete.isError, true);
+    const { tools: allowed } = await (await connect({ spend: true, delete: true })).client.listTools();
+    assert.ok(allowed.some((tool) => tool.name === "delete_asset_everywhere") && allowed.some((tool) => tool.name === APPROVE_AND_GENERATE));
+    assert.deepEqual(mcpPermissions({ MCP_ALLOW_SPEND: "1" }), { spend: true, delete: false });
+    assert.deepEqual(mcpPermissions({}), { spend: false, delete: false });
   });
 
   test("get_project_state, propose_candidates, and approve_and_generate run through callTool", async () => {

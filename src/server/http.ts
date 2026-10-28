@@ -30,7 +30,14 @@ export function assertLocalRequest(request: Request): void {
   // Next.js can normalize request.url to localhost; the validated Host preserves
   // the actual browser origin (including 127.0.0.1 and the chosen port).
   const expectedOrigin = host ? new URL(`${url.protocol}//${host}`).origin : url.origin;
-  if ((origin && origin !== expectedOrigin) || (site && !["same-origin", "none"].includes(site))) {
+  // A link to the app from another site (a README, a chat) is a top-level navigation: the page
+  // loads in its own tab and the other site reads nothing. Every other cross-site request, a
+  // form post, a fetch, an image or script load, is refused.
+  const navigation =
+    (request.method === "GET" || request.method === "HEAD") &&
+    request.headers.get("sec-fetch-mode") === "navigate" &&
+    request.headers.get("sec-fetch-dest") === "document";
+  if ((origin && origin !== expectedOrigin) || (site && !["same-origin", "none"].includes(site) && !navigation)) {
     throw Response.json({ error: "Cross-origin studio requests are not allowed." }, { status: 403 });
   }
 }
@@ -47,6 +54,8 @@ export async function readJson(request: Request, limit = 16_384): Promise<unknow
   if (!request.headers.get("content-type")?.includes("application/json")) {
     throw Response.json({ error: "Send a JSON request." }, { status: 415 });
   }
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > limit * 4) throw Response.json({ error: "The request is too large." }, { status: 413 });
   const text = await request.text();
   if (text.length > limit) throw Response.json({ error: "The request is too large." }, { status: 413 });
   try { return JSON.parse(text); } catch {
