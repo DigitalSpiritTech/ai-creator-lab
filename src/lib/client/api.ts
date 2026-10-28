@@ -43,6 +43,15 @@ export function submitProposal(proposal: GenerationProposal, confirmUnquoted = f
 }
 
 export const UPLOAD_TYPES = "image/png,image/jpeg,image/webp";
+export const AUDIO_UPLOAD_TYPES = "audio/flac,audio/wav,audio/x-wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/ogg,audio/webm,.flac,.wav,.mp3,.m4a,.aac,.ogg";
+
+/** Uploads one voice recording (any format ffmpeg reads; trimmed to 30 s) as an audio asset. */
+export async function uploadVoice(file: File, projectId?: string | null): Promise<{ asset: Asset }> {
+  const form = new FormData();
+  form.set("audio", file);
+  if (projectId) form.set("projectId", projectId);
+  return parse(await fetch("/api/uploads?as=voice", { method: "POST", body: form }));
+}
 
 /** Uploads one image as an asset; `as: "sheet"` stores it as a reference sheet (needs a project). */
 export async function uploadImage(file: File, projectId?: string | null, options: { as?: "sheet" } = {}): Promise<{ asset: Asset }> {

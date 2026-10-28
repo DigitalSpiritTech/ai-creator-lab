@@ -9,7 +9,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promise
 import { join } from "node:path";
 import { promisify } from "node:util";
 import sharp from "sharp";
-import { type Asset, AssetSchema } from "@/lib/domain/asset";
+import { type Asset, AssetSchema, extensionFor } from "@/lib/domain/asset";
 import { EXPORT_FPS, EXPORT_HEIGHT, EXPORT_WIDTH, type ExportRecord } from "@/lib/domain/content";
 import { fail } from "@/lib/domain/failure";
 import { captionFontPath } from "@/server/assembly/captions";
@@ -72,11 +72,20 @@ async function prepareSegment(store: Store, record: ExportRecord, index: number,
   const bytes = await readAssetBytes(store.dataDir, asset);
   const frames = Math.round(source.durationSeconds * EXPORT_FPS);
   const caption = record.options.captions ? source.onScreenText : "";
+  let voice: Segment["voice"];
+  if (source.voice && !record.options.mute) {
+    const take = store.assets.get(source.voice.assetId);
+    if (!take || take.state.state === "deleted") fail("invalid", `The approved voice-over for ${beat} was deleted.`);
+    if (take.sha256 !== source.voice.sha256) fail("conflict", `The voice-over for ${beat} changed after this export started.`);
+    const path = join(work, `${index}-voice.${extensionFor(take.mime)}`);
+    await writeFile(path, await readAssetBytes(store.dataDir, take), { flag: "wx" });
+    voice = { path, durationSeconds: source.voice.durationSeconds };
+  }
   if (asset.mime === "video/mp4") {
     const path = join(work, `${index}.mp4`);
     await writeFile(path, bytes, { flag: "wx" });
     const info = await probeVideo(path).catch(() => fail("invalid", `The clip for ${beat} could not be decoded.`));
-    return { source: "video", path, hasAudio: info.hasAudio, frames, caption, width: info.width, height: info.height };
+    return { source: "video", path, hasAudio: info.hasAudio, frames, caption, width: info.width, height: info.height, voice };
   }
   const scale = Math.min(EXPORT_WIDTH / asset.width, EXPORT_HEIGHT / asset.height);
   const density = Math.min(2400, Math.max(1, Math.round(72 * scale)));
@@ -86,7 +95,7 @@ async function prepareSegment(store: Store, record: ExportRecord, index: number,
     .catch(() => fail("invalid", `The still for ${beat} could not be decoded.`));
   const path = join(work, `${index}.png`);
   await writeFile(path, png, { flag: "wx" });
-  return { source: "still", path, hasAudio: false, frames, caption, width: asset.width, height: asset.height };
+  return { source: "still", path, hasAudio: false, frames, caption, width: asset.width, height: asset.height, voice };
 }
 
 export interface RenderedExport {

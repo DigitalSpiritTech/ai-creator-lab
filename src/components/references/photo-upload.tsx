@@ -17,10 +17,12 @@ export interface PhotoUploadProps {
   multiple?: boolean;
   requireLikenessConsent?: boolean;
   disabled?: boolean;
+  /** Accepted MIME types; images by default, `AUDIO_UPLOAD_TYPES` for a voice recording. */
+  accept?: string;
   className?: string;
 }
 
-export function PhotoUpload({ label, onFiles, multiple = false, requireLikenessConsent = false, disabled = false, className }: PhotoUploadProps) {
+export function PhotoUpload({ label, onFiles, multiple = false, requireLikenessConsent = false, disabled = false, accept = UPLOAD_TYPES, className }: PhotoUploadProps) {
   const id = useId();
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,7 +55,7 @@ export function PhotoUpload({ label, onFiles, multiple = false, requireLikenessC
       <input
         id={`${id}-file`}
         type="file"
-        accept={UPLOAD_TYPES}
+        accept={accept}
         multiple={multiple}
         disabled={!enabled}
         className="sr-only"

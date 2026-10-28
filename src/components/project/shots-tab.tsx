@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { Clapperboard, ImagePlus } from "lucide-react";
+import { Clapperboard, ImagePlus, Mic } from "lucide-react";
 import { useState } from "react";
 import { CandidateGrid } from "@/components/cards/candidate-grid";
 import { AssetMedia } from "@/components/media/asset-media";
@@ -25,8 +25,16 @@ export function slotStatus(slot: Slot, noun: string): string {
   return `No ${noun} yet`;
 }
 
-export function shotStatus(shot: Shot): string {
-  if (shot.clip.state === "approved") return "Ready";
+/** Whether a beat's line is read as a voice-over (b-roll and text cards with a line). */
+export function hasVoiceOver(beat?: { type: string; spokenLine: string }): boolean {
+  return !!beat && beat.type !== "talking" && beat.spokenLine.trim().length > 0;
+}
+
+export function shotStatus(shot: Shot, beat?: { type: string; spokenLine: string }): string {
+  if (shot.clip.state === "approved") {
+    if (hasVoiceOver(beat) && shot.voice.state !== "approved") return shot.voice.state === "open" ? "Choose a voice-over" : "Needs a voice-over";
+    return "Ready";
+  }
   if (shot.still.state === "approved") return shot.clip.state === "open" ? "Choose a clip" : "Needs a clip";
   return shot.still.state === "open" ? "Choose a still" : "Needs a still";
 }
@@ -81,15 +89,22 @@ function ShotRow({
   const stills = slotAssets(shot.still, assets);
   const clips = slotAssets(shot.clip, assets);
   const title = (id: string) => view.recipes[id] ?? id;
-  const stillPending = pendingTiles(jobs, (target) => target.kind === "shot" && target.contentId === contentId && target.beatIndex === shot.beatIndex && target.slot === "still", title);
-  const clipPending = pendingTiles(jobs, (target) => target.kind === "shot" && target.contentId === contentId && target.beatIndex === shot.beatIndex && target.slot === "clip", title);
+  const voices = slotAssets(shot.voice, assets);
+  const forSlot = (slot: "still" | "clip" | "voice") =>
+    pendingTiles(jobs, (target) => target.kind === "shot" && target.contentId === contentId && target.beatIndex === shot.beatIndex && target.slot === slot, title);
+  const stillPending = forSlot("still");
+  const clipPending = forSlot("clip");
+  const voicePending = forSlot("voice");
   const approvedStill = shot.still.state === "approved" ? shot.still.assetId : null;
   const approvedClip = shot.clip.state === "approved" ? shot.clip.assetId : null;
+  const approvedVoice = shot.voice.state === "approved" ? shot.voice.assetId : null;
+  const voiceOver = hasVoiceOver(beat);
 
-  async function ask(tool: "compose_still" | "generate_clip") {
+  async function ask(tool: "compose_still" | "generate_clip" | "generate_voice_over") {
     setBusy(true);
     try {
-      propose(await callTool<GenerationProposal>(tool, { contentId, beatIndex: shot.beatIndex }, projectId), "workspace");
+      const input = tool === "generate_voice_over" ? { projectId, contentId, beatIndex: shot.beatIndex } : { contentId, beatIndex: shot.beatIndex };
+      propose(await callTool<GenerationProposal>(tool, input, projectId), "workspace");
     } catch (cause) {
       notify("error", errorMessage(cause));
     } finally {
@@ -97,7 +112,7 @@ function ShotRow({
     }
   }
 
-  async function approve(kind: "still" | "clip", asset: Asset) {
+  async function approve(kind: "still" | "clip" | "voice", asset: Asset) {
     await callTool("approve", { kind, assetId: asset.id, contentId, beatIndex: shot.beatIndex }, projectId);
   }
 
@@ -109,7 +124,7 @@ function ShotRow({
             Beat {shot.beatIndex}
             {beat ? <Badge variant="outline">{beat.type === "broll" ? "b-roll" : beat.type}</Badge> : null}
             {beat ? <Badge variant="secondary">{beat.purpose}</Badge> : null}
-            <span className="text-xs font-normal text-muted-foreground">{shotStatus(shot)}</span>
+            <span className="text-xs font-normal text-muted-foreground">{shotStatus(shot, beat)}</span>
           </div>
           {beat ? (
             <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
@@ -131,11 +146,34 @@ function ShotRow({
           >
             <Clapperboard /> {clips.length || clipPending.length ? "Another clip" : "Make clip"}
           </Button>
+          {voiceOver ? (
+            <Button
+              size="sm"
+              variant={approvedClip && !approvedVoice && !voices.length && !voicePending.length ? "default" : "outline"}
+              disabled={busy}
+              onClick={() => void ask("generate_voice_over")}
+              title="Read the line in the creator's voice, cloned from the first approved talking clip or the character's voice recording"
+            >
+              <Mic /> {voices.length || voicePending.length ? "Another take" : "Voice-over"}
+            </Button>
+          ) : null}
         </div>
       </div>
       <div className="grid grid-cols-[160px_160px_1fr] gap-4">
         <ApprovedSlot label="Approved still" asset={approvedStill ? assets.get(approvedStill) : undefined} />
-        <ApprovedSlot label="Approved clip" asset={approvedClip ? assets.get(approvedClip) : undefined} />
+        <div className="space-y-2">
+          <ApprovedSlot label="Approved clip" asset={approvedClip ? assets.get(approvedClip) : undefined} />
+          {voiceOver ? (
+            <div>
+              <div className="mb-1 text-xs text-muted-foreground">Approved voice-over</div>
+              {approvedVoice && assets.get(approvedVoice) ? (
+                <AssetMedia asset={assets.get(approvedVoice)!} />
+              ) : (
+                <div className="rounded-lg border border-dashed p-2 text-xs text-muted-foreground">None</div>
+              )}
+            </div>
+          ) : null}
+        </div>
         <div className="min-w-0 space-y-3">
           {stills.length || stillPending.length ? (
             <div>
@@ -149,7 +187,13 @@ function ShotRow({
               <CandidateGrid assets={clips} pending={clipPending} approvedId={approvedClip} onApprove={(asset) => approve("clip", asset)} className="lg:grid-cols-3" />
             </div>
           ) : null}
-          {!stills.length && !clips.length && !stillPending.length && !clipPending.length ? <p className="text-xs text-muted-foreground">No candidates yet.</p> : null}
+          {voices.length || voicePending.length ? (
+            <div>
+              <div className="mb-1 text-xs text-muted-foreground">{slotStatus(shot.voice, "voice-over")}</div>
+              <CandidateGrid assets={voices} pending={voicePending} approvedId={approvedVoice} onApprove={(asset) => approve("voice", asset)} compact className="lg:grid-cols-2" />
+            </div>
+          ) : null}
+          {!stills.length && !clips.length && !voices.length && !stillPending.length && !clipPending.length && !voicePending.length ? <p className="text-xs text-muted-foreground">No candidates yet.</p> : null}
         </div>
       </div>
     </div>

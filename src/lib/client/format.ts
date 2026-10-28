@@ -50,7 +50,7 @@ export function describeTarget(target: GenerationTarget): string {
     case "product_image":
       return "Product photo";
     case "shot":
-      return `Beat ${target.beatIndex} ${target.slot}`;
+      return `Beat ${target.beatIndex} ${target.slot === "voice" ? "voice-over" : target.slot}`;
     case "loose":
       return "Loose generation";
   }

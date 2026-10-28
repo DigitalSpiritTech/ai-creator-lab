@@ -15,7 +15,8 @@ import { probeVideo } from "@/server/executors/media";
 import { resolveMediaPath, sha256 } from "@/server/media/paths";
 import { openStore } from "@/server/store";
 import { callTool, createToolContext } from "@/server/tools";
-import { approvedContent, audioRms, beatsWith, ffmpeg, frameAt, importClip, meanColor, pixelDifference } from "./support/assembly-fixtures";
+import { DUCK_GAIN, VOICE_MAX_TEMPO, planAssembly, voiceFit } from "@/server/assembly/graph";
+import { approvedContent, audioRms, beatsWith, ffmpeg, frameAt, importClip, importTake, meanColor, pixelDifference } from "./support/assembly-fixtures";
 import { clock, seedProject, tempStore } from "./support/domain-fixtures";
 
 const execute = promisify(execFile);
@@ -171,6 +172,61 @@ describe("assembly", () => {
     assert.ok((await audioRms(path, starts[2] + 0.1, starts[2] + record.sources[2].durationSeconds - 0.1)) < 0.001, "silent clip gets silence");
 
     for (const clip of clips) assert.equal(sha256(await readFile(resolveMediaPath(store.dataDir, clip.relativePath))), clip.sha256);
+  });
+
+  test("an approved voice-over is mixed over its beat with the clip's sound ducked, and a muted export leaves it out", async () => {
+    const { store, now, project, tools } = setup();
+    const quiet = await importClip(store, project.id, { color: "red", width: 90, height: 160, rate: 24, seconds: 2, audio: true }, now());
+    const silent = await importClip(store, project.id, { color: "blue", width: 90, height: 160, rate: 24, seconds: 2, audio: false }, now());
+    const plain = await importClip(store, project.id, { color: "lime", width: 90, height: 160, rate: 24, seconds: 1, audio: true }, now());
+    const take = await importTake(store, project.id, 1.2, "Warm by noon.", now(), 660);
+    const longTake = await importTake(store, project.id, 2.1, "A line that runs a little long for its beat.", now(), 660);
+    const beats = beatsWith(["", "", ""], [2, 2, 1]).map((beat, index) => (index < 2 ? { ...beat, type: "broll" as const, spokenLine: "Warm by noon." } : { ...beat, spokenLine: "Still cold." }));
+    let content = await approvedContent(store, project.id, beats, [quiet, silent, plain], now, [take, longTake, null]);
+    content = store.content.update(updateCut(content, { captions: false }, now()));
+
+    const { export: record, asset } = await assemble(tools, { contentId: content.id });
+    assert.equal(record.status, "completed");
+    assert.deepEqual(record.sources.map((source) => source.voice?.assetId ?? null), [take.id, longTake.id, null]);
+    assert.match(record.status === "completed" ? record.filterSummary : "", /2 voice-overs mixed over the clip at 0.35 gain/);
+    const path = resolveMediaPath(store.dataDir, asset!.relativePath);
+    const info = await probeVideo(path);
+    assert.ok(Math.abs(info.durationSeconds - 5) <= 0.1, `${info.durationSeconds} s`);
+
+    // Beat 1: the 440 Hz clip tone is ducked, so the first 0.15 s (before the take) is quieter than the clip's own level in beat 3.
+    const ducked = await audioRms(path, 0.02, 0.13);
+    const plainLevel = await audioRms(path, 4.1, 4.9);
+    assert.ok(ducked > 0.001 && ducked < plainLevel * 0.6, `ducked ${ducked} vs plain ${plainLevel}`);
+    // While the take plays, the mix is louder than the ducked bed alone.
+    const voiced = await audioRms(path, 0.4, 1.2);
+    assert.ok(voiced > ducked * 1.5, `voiced ${voiced} vs ducked ${ducked}`);
+    // Beat 2's clip is silent: only the take is heard, and it is sped up to fit before the beat ends.
+    assert.ok((await audioRms(path, 2.3, 3.5)) > 0.02, "the take plays over the silent clip");
+    assert.ok((await audioRms(path, 3.95, 4.0)) < 0.005, "the take fades out before the beat ends");
+
+    const muted = store.content.update(updateCut(store.content.getRequired(content.id), { mute: true }, now()));
+    const { export: mutedRecord, asset: mutedAsset } = await assemble(tools, { contentId: muted.id });
+    assert.equal(mutedRecord.status, "completed");
+    assert.equal(mutedAsset!.video!.hasAudio, false);
+  });
+
+  test("the voice-over plan speeds a long take up to a limit, then trims, and shifts input indexes past the take", () => {
+    assert.deepEqual(voiceFit({ path: "a.wav", durationSeconds: 1 }, 2), { tempo: 1, trimmed: false });
+    assert.deepEqual(voiceFit({ path: "a.wav", durationSeconds: 2.0 }, 2), { tempo: 1.15, trimmed: false });
+    assert.deepEqual(voiceFit({ path: "a.wav", durationSeconds: 4 }, 2), { tempo: VOICE_MAX_TEMPO, trimmed: true });
+    const plan = planAssembly(
+      [
+        { source: "video", path: "a.mp4", hasAudio: true, frames: 48, caption: "", voice: { path: "a.wav", durationSeconds: 1 } },
+        { source: "video", path: "b.mp4", hasAudio: false, frames: 24, caption: "" },
+      ],
+      { mute: false, output: "out.mp4" },
+    );
+    assert.deepEqual(plan.args.filter((arg, index) => plan.args[index - 1] === "-i"), ["a.mp4", "a.wav", "b.mp4"]);
+    assert.match(plan.filterGraph, /\[0:a:0\][^;]*volume=0\.35\[bed0\];\[1:a:0\][^;]*adelay=150:all=1[^;]*afade=t=out[^;]*\[take0\];\[bed0\]\[take0\]amix=inputs=2:duration=first:normalize=0\[a0\]/);
+    assert.match(plan.filterGraph, /\[2:v:0\]/);
+    assert.match(plan.filterGraph, /anullsrc[^;]*\[a1\]/);
+    assert.doesNotMatch(plan.filterGraph, /atempo/);
+    assert.equal(DUCK_GAIN, 0.35);
   });
 
   test("a muted export has no audio stream and saves the mute choice on the cut", async () => {

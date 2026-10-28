@@ -90,6 +90,8 @@ export const ExportSourceSchema = z
     /** Segment length in the export: the clip's length (or the beat's, for a still) rounded to whole frames. */
     durationSeconds: z.number().positive().max(60),
     onScreenText: z.string().max(80),
+    /** The approved voice-over take mixed over this segment, when the beat has one. */
+    voice: z.object({ assetId: IdSchema, sha256: Sha256Schema, durationSeconds: z.number().positive() }).strict().optional(),
   })
   .strict();
 export type ExportSource = z.infer<typeof ExportSourceSchema>;
@@ -341,6 +343,14 @@ export function beginExport(
       fail("invalid", `The approved clip for beat ${shot.beatIndex} is missing or archived.`);
     }
     const seconds = asset.video?.durationSeconds ?? beat?.durationSeconds ?? 5;
+    let voice: ExportSource["voice"];
+    if (shot.voice.state === "approved") {
+      const take = findAsset(shot.voice.assetId);
+      if (!take || take.state.state !== "active" || take.kind !== "audio" || !take.audio) {
+        fail("invalid", `The approved voice-over for beat ${shot.beatIndex} is missing or archived. Approve another take or archive the beat's voice-over.`);
+      }
+      voice = { assetId: take.id, sha256: take.sha256, durationSeconds: take.audio.durationSeconds };
+    }
     return {
       shotId,
       beatIndex: shot.beatIndex,
@@ -348,6 +358,7 @@ export function beginExport(
       sha256: asset.sha256,
       durationSeconds: wholeFrames(seconds) / EXPORT_FPS,
       onScreenText: beat?.onScreenText ?? "",
+      ...(voice ? { voice } : {}),
     };
   });
   return ExportRecordSchema.parse({

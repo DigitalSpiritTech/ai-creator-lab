@@ -24,6 +24,8 @@ import type { Asset } from "@/lib/domain/asset";
 import type { ExportRecord } from "@/lib/domain/content";
 import type { GenerationProposal, Job } from "@/lib/domain/job";
 import type { BeatInput } from "@/lib/domain/script";
+import { renderMockWav } from "@/server/executors/mock";
+import { importAudio } from "@/server/media/audio";
 import { readAssetBytes } from "@/server/media/files";
 import { importImage } from "@/server/media/images";
 import { type Store, openStore } from "@/server/store";
@@ -41,6 +43,8 @@ interface Client {
   /** Submits an approved proposal and waits for every candidate; returns the new asset ids. */
   submit(projectId: string, proposal: GenerationProposal): Promise<string[]>;
   upload(name: string, bytes: Uint8Array): Promise<Asset>;
+  /** Uploads a voice recording (WAV bytes) as an audio asset in a project. */
+  uploadVoice(projectId: string, name: string, bytes: Uint8Array): Promise<Asset>;
   download(assetId: string): Promise<Buffer>;
   /** Stops and starts again on the same data directory, or on a copy of it in a new location. */
   restart(relocate: boolean): Promise<void>;
@@ -88,7 +92,7 @@ const BEATS: BeatInput[] = [
   {
     type: "talking",
     purpose: "hook",
-    spokenLine: "I stopped buying bottled water the day this fit my cup holder.",
+    spokenLine: "This fits my cup holder.",
     onScreenText: "Fits the cup holder.",
     visual: "Avery in the driver's seat holding the Ridgeline bottle, morning light.",
     setting: "a car interior",
@@ -98,6 +102,7 @@ const BEATS: BeatInput[] = [
   {
     type: "broll",
     purpose: "problem",
+    spokenLine: "Warm by noon, every day.",
     onScreenText: "Warm by noon.",
     visual: "Hands pulling a warm plastic bottle from a hot car console.",
     setting: "a car interior",
@@ -106,7 +111,7 @@ const BEATS: BeatInput[] = [
   {
     type: "talking",
     purpose: "proof",
-    spokenLine: "Twenty-four hours later it was still cold. I checked.",
+    spokenLine: "Still cold a day later.",
     onScreenText: "Cold 24 hours: I checked.",
     visual: "Avery at a kitchen counter, bottle open, condensation.",
     setting: "a bright kitchen counter by a window",
@@ -116,6 +121,7 @@ const BEATS: BeatInput[] = [
   {
     type: "broll",
     purpose: "cta",
+    spokenLine: "Link below.",
     onScreenText: "",
     visual: "The bottle going into a dishwasher rack.",
     setting: "a bright kitchen counter by a window",
@@ -123,6 +129,9 @@ const BEATS: BeatInput[] = [
     durationSeconds: 2,
   },
 ];
+
+/** The beats whose line is a voice-over (b-roll with a line), 1-based. */
+const VOICE_BEATS = BEATS.map((beat, index) => (beat.type !== "talking" && beat.spokenLine ? index + 1 : 0)).filter(Boolean);
 
 type ProjectState = {
   project: { id: string; brief: unknown };
@@ -218,6 +227,28 @@ async function runFlow(client: Client) {
   }
   step(client, "stills and clips approved for every beat");
 
+  // Voice-overs: a recording of the creator becomes the voice sample; each b-roll line is read in it.
+  const recording = await client.uploadVoice(projectId, "creator-voice.wav", renderMockWav("Hello, this is the creator's voice sample for the ad.").bytes);
+  check(recording.kind === "audio" && recording.audio !== undefined, "the recording is an audio asset with playback metadata");
+  const voiced = await client.tool<{ character: { bible: { references: { voiceAssetId: string | null } } } }>(
+    "select_reference",
+    { characterId, slot: "voice", assetId: recording.id, archiveSiblings: false },
+    projectId,
+  );
+  check(voiced.character.bible.references.voiceAssetId === recording.id, "the recording is the character's voice sample");
+  for (const beatIndex of VOICE_BEATS) {
+    const voiceProposal = await client.tool<GenerationProposal>("generate_voice_over", { projectId, contentId: content.id, beatIndex, recipeId: "mock-text-to-speech" }, projectId);
+    check(voiceProposal.prompt === BEATS[beatIndex - 1].spokenLine, `the voice-over reads beat ${beatIndex}'s line`);
+    check(voiceProposal.references.some((reference) => reference.assetId === recording.id), `the voice-over clones the voice sample for beat ${beatIndex}`);
+    const takes = await client.submit(projectId, voiceProposal);
+    check(takes.length === 1, `one voice-over take for beat ${beatIndex}`);
+    await client.tool("approve", { kind: "voice", contentId: content.id, beatIndex, assetId: takes[0] }, projectId);
+  }
+  const voicedContent = await client.tool<{ contents: { id: string; shots: { voice: { state: string } }[] }[] }>("get_project_state", { projectId }, projectId);
+  const shots = voicedContent.contents.find((entry) => entry.id === content.id)!.shots;
+  check(VOICE_BEATS.every((beatIndex) => shots[beatIndex - 1].voice.state === "approved"), "every voice-over beat has an approved take");
+  step(client, `voice-overs approved for beats ${VOICE_BEATS.join(" and ")}`);
+
   const exportId = randomUUID();
   const assembled = await client.tool<Assembled>("assemble_ad", { contentId: content.id, exportId, captions: true }, projectId);
   check(assembled.export.status === "completed", `the export completed (${assembled.export.status === "failed" ? assembled.export.error : assembled.export.status})`);
@@ -284,6 +315,7 @@ async function toolsClient(): Promise<Client> {
       return results.flatMap((result) => result.assetIds);
     },
     upload: (name, bytes) => importImage(store, { projectId: null, name, bytes }, { now: Date.now(), newId: randomUUID }),
+    uploadVoice: (projectId, name, bytes) => importAudio(store, { projectId, name, bytes }, { now: Date.now(), newId: randomUUID }),
     download: async (assetId) => readAssetBytes(store.dataDir, store.assets.getRequired(assetId)),
     restart: async (relocate) => {
       store.close();
@@ -409,6 +441,12 @@ async function httpClient(): Promise<Client> {
       const form = new FormData();
       form.set("image", new Blob([new Uint8Array(bytes)], { type: "image/png" }), name);
       return (await json<{ asset: Asset }>("/api/uploads", { method: "POST", body: form })).asset;
+    },
+    uploadVoice: async (projectId, name, bytes) => {
+      const form = new FormData();
+      form.set("audio", new Blob([new Uint8Array(bytes)], { type: "audio/wav" }), name);
+      form.set("projectId", projectId);
+      return (await json<{ asset: Asset }>("/api/uploads?as=voice", { method: "POST", body: form })).asset;
     },
     download: async (assetId) => {
       const response = await fetch(`${base}/api/assets/${assetId}?download`);

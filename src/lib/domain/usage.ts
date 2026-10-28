@@ -63,7 +63,7 @@ export function findAssetUsage(graph: AssetGraph, assetId: string): AssetUsage[]
     }
   }
   for (const record of graph.exports) {
-    if (record.sources.some((source) => source.assetId === assetId)) usage.push({ kind: "export_source", exportId: record.id });
+    if (record.sources.some((source) => source.assetId === assetId || source.voice?.assetId === assetId)) usage.push({ kind: "export_source", exportId: record.id });
     if (record.status === "completed" && record.assetId === assetId) usage.push({ kind: "export_output", exportId: record.id });
   }
   for (const asset of graph.assets) {
@@ -192,7 +192,7 @@ export function planDeleteEverywhere(
   const exports: ExportRecord[] = [];
   for (const record of graph.exports) {
     const depends =
-      record.sources.some((source) => source.assetId === id) || (record.status === "completed" && record.assetId === id);
+      record.sources.some((source) => source.assetId === id || source.voice?.assetId === id) || (record.status === "completed" && record.assetId === id);
     if (depends) exports.push({ ...record, brokenAssetIds: addBroken(record.brokenAssetIds, id) });
   }
   return { asset: markAssetDeleted(asset, now), usage, libraryItems, links, contents, exports };

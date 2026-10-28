@@ -98,6 +98,36 @@ export async function importStill(store: Store, projectId: string, color: string
   );
 }
 
+/** Saves a sine-tone WAV as an audio asset (a stand-in voice-over take) with the given words. */
+export async function importTake(store: Store, projectId: string, seconds: number, transcript: string, now: number, frequency = 220): Promise<Asset> {
+  const id = randomUUID();
+  const relativePath = `media/${id}.wav`;
+  const path = resolveMediaPath(store.dataDir, relativePath);
+  await execute(
+    ffmpeg(),
+    ["-nostdin", "-v", "error", "-f", "lavfi", "-i", `sine=frequency=${frequency}:sample_rate=24000:duration=${seconds}`, "-c:a", "pcm_s16le", path],
+    { timeout: 30_000 },
+  );
+  const bytes = await readFile(path);
+  return store.assets.insert(
+    AssetSchema.parse({
+      id,
+      projectId,
+      kind: "audio",
+      mime: "audio/wav",
+      relativePath,
+      width: 0,
+      height: 0,
+      sha256: sha256(bytes),
+      provenance: upload(`take-${id.slice(0, 8)}.wav`, bytes),
+      state: { state: "active" },
+      audio: { durationSeconds: seconds, codec: "pcm_s16le", transcript },
+      revision: 0,
+      createdAt: now,
+    }),
+  );
+}
+
 /** The first `count` example beats with chosen on-screen text and lengths. */
 export function beatsWith(texts: string[], seconds: number[] = []): BeatInput[] {
   const base = ridgelineBeats();
@@ -118,6 +148,7 @@ export async function approvedContent(
   beats: BeatInput[],
   clips: (Asset | null)[],
   now: () => number,
+  voices: (Asset | null)[] = [],
 ): Promise<ContentPiece> {
   const script = store.scripts.create(createScript(randomUUID(), projectId, "Synthetic cut", beats, now()));
   let content = planShots(randomUUID(), script, "Synthetic ad", now(), randomUUID);
@@ -129,6 +160,10 @@ export async function approvedContent(
     if (!clip) continue;
     content = addCandidates(content, beat, "clip", [clip.id], now());
     content = approveCandidate(content, beat, "clip", clip.id, now()).content;
+    const voice = voices[index];
+    if (!voice) continue;
+    content = addCandidates(content, beat, "voice", [voice.id], now());
+    content = approveCandidate(content, beat, "voice", voice.id, now()).content;
   }
   return store.content.create(content);
 }

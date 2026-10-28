@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { ImagePlus, Link2, Sparkles, UserRound } from "lucide-react";
+import { ImagePlus, Link2, Mic, Sparkles, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CandidateGrid } from "@/components/cards/candidate-grid";
@@ -15,7 +15,7 @@ import { SetForm, SetList } from "@/components/library/set-form";
 import { PhotoUpload } from "@/components/references/photo-upload";
 import { ReferenceSlot } from "@/components/references/reference-slot";
 import { approveOwnSheet } from "@/lib/client/references";
-import { AssetThumb } from "@/components/media/asset-media";
+import { AssetMedia, AssetThumb } from "@/components/media/asset-media";
 import { pendingTiles, useProject } from "@/components/project/project-context";
 import { SheetChecklist, sheetChecklist } from "@/components/project/sheet-checklist";
 import { EmptyState } from "@/components/shell/page-header";
@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { callTool, errorMessage, getJson } from "@/lib/client/api";
+import { AUDIO_UPLOAD_TYPES, callTool, errorMessage, getJson, uploadVoice } from "@/lib/client/api";
 import type { Asset, CharacterItem, GenerationProposal, LibraryView, ProjectLink } from "@/lib/client/types";
 import { bibleFields, productFields } from "@/lib/client/library";
 import type { ProductItem } from "@/lib/domain/library";
@@ -37,6 +37,7 @@ export function AssetsTab() {
     const target = view.targets[asset.id];
     if (target && target.kind !== "loose") used.add(asset.id);
   }
+  for (const { item } of view.characters) if (item.bible.references.voiceAssetId) used.add(item.bible.references.voiceAssetId);
   const others = view.assets.filter((asset) => !used.has(asset.id));
   const loosePending = pendingTiles(jobs, (target) => target.kind === "loose", (id) => view.recipes[id] ?? id);
   return (
@@ -165,6 +166,7 @@ function CharacterSection({ item, link }: { item: CharacterItem; link: Character
           />
         </div>
       ) : null}
+      <VoiceSlot character={item} />
       {bodies.length || bodyPending.length ? (
         <div>
           <h3 className="mb-2 text-xs font-medium">Body candidates</h3>
@@ -236,6 +238,65 @@ function CharacterSection({ item, link }: { item: CharacterItem; link: Character
             />
           </>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The voice every voice-over is cloned from: a recording the creator uploads, or the audio of the
+ * first approved talking clip (which generate_voice_over also takes on its own).
+ */
+function VoiceSlot({ character }: { character: CharacterItem }) {
+  const { projectId, view, notify, refresh } = useProject();
+  const [busy, setBusy] = useState(false);
+  const voiceId = character.bible.references.voiceAssetId;
+  const voice = voiceId ? view.assets.find((asset) => asset.id === voiceId) : undefined;
+  const talkingClipApproved = view.contents.some((content) => {
+    const script = view.scripts.find((entry) => entry.id === content.scriptId);
+    return content.shots.some((shot) => shot.clip.state === "approved" && script?.beats[shot.beatIndex - 1]?.type === "talking");
+  });
+
+  async function run(work: () => Promise<unknown>) {
+    setBusy(true);
+    try {
+      await work();
+      await refresh();
+    } catch (cause) {
+      notify("error", errorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed p-3" data-testid="voice-slot">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-xs font-medium">Voice</h3>
+        <span className="text-[11px] text-muted-foreground">Voice-overs on b-roll beats are read in this voice.</span>
+      </div>
+      {voice ? <AssetMedia asset={voice} className="max-w-md" /> : <p className="text-xs text-muted-foreground">No voice sample yet. The first voice-over takes it from the first approved talking clip, or upload a recording of the creator.</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <PhotoUpload
+          label={voice ? "Use another recording" : "Use a recording"}
+          accept={AUDIO_UPLOAD_TYPES}
+          disabled={busy}
+          onFiles={([file]) =>
+            run(async () => {
+              const { asset } = await uploadVoice(file, projectId);
+              await callTool("select_reference", { characterId: character.id, slot: "voice", assetId: asset.id, archiveSiblings: false }, projectId);
+            })
+          }
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy || !talkingClipApproved}
+          title={talkingClipApproved ? "Lift the voice from the first approved talking clip" : "Approve a talking clip first"}
+          onClick={() => void run(() => callTool("extract_voice_sample", { projectId, characterId: character.id }, projectId))}
+        >
+          <Mic /> {voice ? "Take it from the approved clip again" : "Take it from the approved clip"}
+        </Button>
       </div>
     </div>
   );
@@ -389,15 +450,22 @@ function UseAs({ asset }: { asset: Asset }) {
   const { projectId, view, refresh, notify } = useProject();
   const [choice, setChoice] = useState("");
   const [busy, setBusy] = useState(false);
-  if (asset.kind !== "image") return null;
+  if (asset.kind !== "image" && asset.kind !== "audio") return null;
   const options: { value: string; label: string; apply: () => Promise<unknown> }[] = [];
   for (const { item } of view.characters) {
+    if (asset.kind === "audio") {
+      if (item.bible.references.voiceAssetId !== asset.id) {
+        options.push({ value: `voice:${item.id}`, label: `Voice of ${item.bible.name}`, apply: () => callTool("select_reference", { characterId: item.id, slot: "voice", assetId: asset.id, archiveSiblings: false }, projectId) });
+      }
+      continue;
+    }
     options.push({ value: `face:${item.id}`, label: `Face of ${item.bible.name}`, apply: () => callTool("select_reference", { characterId: item.id, slot: "face", assetId: asset.id, archiveSiblings: false }, projectId) });
     if (item.bible.references.faceAssetId) {
       options.push({ value: `body:${item.id}`, label: `Body of ${item.bible.name}`, apply: () => callTool("select_reference", { characterId: item.id, slot: "body", assetId: asset.id, archiveSiblings: false }, projectId) });
     }
   }
   for (const product of view.products) {
+    if (asset.kind !== "image") break;
     if (product.imageAssetIds.includes(asset.id)) continue;
     options.push({
       value: `product:${product.id}`,

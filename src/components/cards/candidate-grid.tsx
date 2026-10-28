@@ -29,17 +29,19 @@ export interface CandidateGridProps {
   pending?: PendingTile[];
   /** Extra controls under a card, for example "Use as" on a loose asset. */
   extra?: (asset: Asset) => React.ReactNode;
+  /** Short placeholder tiles, for audio takes rather than 9:16 images. */
+  compact?: boolean;
   className?: string;
 }
 
-export function CandidateGrid({ assets, approvedId, approveLabel = "Approve", onApprove, inspection, pending = [], extra, className }: CandidateGridProps) {
+export function CandidateGrid({ assets, approvedId, approveLabel = "Approve", onApprove, inspection, pending = [], extra, compact = false, className }: CandidateGridProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Asset | null>(null);
   if (assets.length === 0 && pending.length === 0) return null;
   return (
     <>
       <div className={cn("grid grid-cols-2 gap-3 lg:grid-cols-4", className)}>
-        {pending.map((tile) => <PendingCard key={tile.id} tile={tile} />)}
+        {pending.map((tile) => <PendingCard key={tile.id} tile={tile} compact={compact} />)}
         {assets.map((asset) => (
           <CandidateCard
             key={asset.id}
@@ -69,7 +71,7 @@ export function CandidateGrid({ assets, approvedId, approveLabel = "Approve", on
 }
 
 /** Where a candidate will appear: a spinner and the recipe while the job runs, the error when it failed. */
-function PendingCard({ tile }: { tile: PendingTile }) {
+function PendingCard({ tile, compact = false }: { tile: PendingTile; compact?: boolean }) {
   return (
     <div
       className={cn("flex flex-col overflow-hidden rounded-xl border bg-card text-xs", tile.failed ? "border-destructive/50" : "border-dashed")}
@@ -77,7 +79,7 @@ function PendingCard({ tile }: { tile: PendingTile }) {
       role="status"
       aria-live="polite"
     >
-      <div className="flex aspect-[9/16] max-h-64 w-full flex-col items-center justify-center gap-2 bg-muted/60 p-3 text-center">
+      <div className={cn("flex w-full flex-col items-center justify-center gap-2 bg-muted/60 p-3 text-center", compact ? "min-h-24" : "aspect-[9/16] max-h-64")}>
         {tile.failed ? <AlertTriangle className="size-5 text-destructive" aria-hidden /> : <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />}
         <span className={cn("font-medium", tile.failed && "text-destructive")}>{tile.failed ? "Failed" : tile.status}</span>
         <span className="line-clamp-4 text-muted-foreground">{tile.failed ?? "The result lands here."}</span>
@@ -114,6 +116,7 @@ function CandidateCard({
   const [instruction, setInstruction] = useState("");
   const recipe = asset.provenance.source === "generated" ? asset.provenance.recipeId : asset.provenance.source;
   const still = asset.kind === "image" || asset.kind === "sheet";
+  const audio = asset.kind === "audio";
 
   async function act(label: string, work: () => Promise<void>) {
     setBusy(label);
@@ -136,10 +139,16 @@ function CandidateCard({
       )}
       data-testid="candidate-card"
     >
-      <button type="button" onClick={onView} className="group relative aspect-[9/16] max-h-64 w-full bg-muted" aria-label="View full size">
-        <AssetMedia asset={asset} className="size-full" />
-        <Maximize2 className="absolute top-2 right-2 size-4 text-white opacity-0 drop-shadow group-hover:opacity-100" aria-hidden />
-      </button>
+      {audio ? (
+        <div className="p-2 pb-0">
+          <AssetMedia asset={asset} />
+        </div>
+      ) : (
+        <button type="button" onClick={onView} className="group relative aspect-[9/16] max-h-64 w-full bg-muted" aria-label="View full size">
+          <AssetMedia asset={asset} className="size-full" />
+          <Maximize2 className="absolute top-2 right-2 size-4 text-white opacity-0 drop-shadow group-hover:opacity-100" aria-hidden />
+        </button>
+      )}
       <div className="flex flex-col gap-2 p-2">
         <div className="flex items-center justify-between gap-1">
           <span className="truncate text-muted-foreground" title={recipe}>{recipe}</span>
