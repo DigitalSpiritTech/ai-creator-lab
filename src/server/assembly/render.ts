@@ -28,19 +28,26 @@ export const WORK_DIRECTORY = "export-work";
 
 const RENDER_TIMEOUT_MS = 600_000;
 
-const drawtextSupport = new Map<string, Promise<boolean>>();
+let drawtextKnownFor: string | null = null;
 
-/** Whether the configured ffmpeg was built with the `drawtext` filter (libfreetype). */
-export function supportsDrawtext(): Promise<boolean> {
+/**
+ * Whether the configured ffmpeg was built with the `drawtext` filter (libfreetype). A yes is
+ * remembered for the binary; a no is checked again next time, so installing a fuller FFmpeg
+ * takes effect without a restart.
+ */
+export async function supportsDrawtext(): Promise<boolean> {
   const binary = ffmpegPath();
-  let known = drawtextSupport.get(binary);
-  if (!known) {
-    known = execute(binary, ["-hide_banner", "-filters"], { env: childEnv(), timeout: 10_000, maxBuffer: 2_000_000 })
-      .then(({ stdout }) => /\sdrawtext\s/.test(stdout))
-      .catch(() => false);
-    drawtextSupport.set(binary, known);
-  }
-  return known;
+  if (drawtextKnownFor === binary) return true;
+  const supported = await execute(binary, ["-hide_banner", "-filters"], { env: childEnv(), timeout: 10_000, maxBuffer: 4_000_000 })
+    .then(({ stdout, stderr }) => /\sdrawtext\s/.test(`${stdout}\n${stderr}`))
+    .catch(() => false);
+  if (supported) drawtextKnownFor = binary;
+  return supported;
+}
+
+/** The ffmpeg this process runs, as a hint in messages: the configured path, or "ffmpeg on PATH". */
+function describeFfmpeg(): string {
+  return process.env.FFMPEG_PATH ? process.env.FFMPEG_PATH : "ffmpeg on PATH";
 }
 
 function wantsCaptions(record: ExportRecord): boolean {
@@ -59,7 +66,10 @@ export async function preflightRender(options: { captions: boolean; texts: strin
     fail("invalid", "Captions need the bundled font at assets/fonts/DejaVuSans-Bold.ttf, or CAPTION_FONT_PATH set to a TTF file. Turn captions off to export without them.");
   }
   if (!(await supportsDrawtext())) {
-    fail("invalid", "This FFmpeg build has no drawtext filter, so captions cannot be burned in. Install an FFmpeg built with libfreetype, or turn captions off.");
+    fail(
+      "invalid",
+      `The FFmpeg at ${describeFfmpeg()} has no drawtext filter, so captions cannot be burned in. Install an FFmpeg built with libfreetype (Homebrew's ffmpeg has it), or point FFMPEG_PATH at one, or turn captions off.`,
+    );
   }
   return font;
 }
