@@ -5,10 +5,12 @@
  * @packageDocumentation
  */
 import { NextResponse, type NextRequest } from "next/server";
+import { READ_ONLY_MESSAGE, READ_ONLY_METHODS, isReadOnly } from "@/server/demo";
 import { assertLocalRequest, errorResponse } from "@/server/http";
 
 /**
- * Checks host and origin before any private workspace data is rendered.
+ * Checks host and origin before any private workspace data is rendered, and in read-only demo
+ * mode refuses every request that could change something.
  * @param request - Framework request.
  * @returns Continuation for trusted local requests, otherwise an error response.
  * @throws No expected errors.
@@ -16,6 +18,9 @@ import { assertLocalRequest, errorResponse } from "@/server/http";
 export function proxy(request: NextRequest) {
   try {
     assertLocalRequest(request);
+    if (isReadOnly() && !READ_ONLY_METHODS.has(request.method)) {
+      return NextResponse.json({ error: READ_ONLY_MESSAGE }, { status: 403 });
+    }
     return NextResponse.next();
   } catch (error) { return errorResponse(error); }
 }

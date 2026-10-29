@@ -59,3 +59,33 @@ describe("local request guard", () => {
     await assert.rejects(readJson(request("POST", headers, undefined, "{nope")), (error: unknown) => error instanceof Response && error.status === 400);
   });
 });
+
+describe("read-only demo host", () => {
+  function withEnv<T>(values: Record<string, string | undefined>, run: () => T): T {
+    const previous: Record<string, string | undefined> = {};
+    for (const [key, value] of Object.entries(values)) {
+      previous[key] = process.env[key];
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    try { return run(); } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      }
+    }
+  }
+
+  test("the public host is accepted only with STUDIO_READ_ONLY=1, and only that host", () => {
+    const demo = () => assertLocalRequest(request("GET", { host: "demo.example.com", "sec-fetch-site": "none" }, "https://demo.example.com/projects"));
+    assert.equal(withEnv({ STUDIO_READ_ONLY: "1", STUDIO_PUBLIC_HOST: "demo.example.com" }, () => status(demo)), "ok");
+    assert.equal(withEnv({ STUDIO_READ_ONLY: undefined, STUDIO_PUBLIC_HOST: "demo.example.com" }, () => status(demo)), 403, "the host alone opens nothing");
+    assert.equal(withEnv({ STUDIO_READ_ONLY: "1", STUDIO_PUBLIC_HOST: "demo.example.com" }, () =>
+      status(() => assertLocalRequest(request("GET", { host: "other.example.com" }, "https://other.example.com/projects")))), 403);
+  });
+
+  test("behind an https proxy the browser origin still matches", () => {
+    withEnv({ STUDIO_READ_ONLY: "1", STUDIO_PUBLIC_HOST: "demo.example.com" }, () => {
+      assert.equal(status(() => assertLocalRequest(request("GET", { host: "demo.example.com", origin: "https://demo.example.com", "x-forwarded-proto": "https", "sec-fetch-site": "same-origin" }, "http://demo.example.com/api/projects"))), "ok");
+      assert.equal(status(() => assertLocalRequest(request("GET", { host: "demo.example.com", origin: "https://evil.example.com", "x-forwarded-proto": "https", "sec-fetch-site": "cross-site" }, "http://demo.example.com/api/projects"))), 403);
+    });
+  });
+});

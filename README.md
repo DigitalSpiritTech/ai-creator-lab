@@ -82,6 +82,10 @@ Any step can also be done by hand without the chat: pick a recipe, write a promp
 
 Every generation step shows a proposal first: the recipe, the prompt, the references, how many candidates, and the estimated cost. Nothing is submitted until you press Approve and generate (or turn on auto-approve, below).
 
+## Example outputs
+
+`docs/examples/` holds one complete run with the open-weights starter recipes: the face and body references, the reference sheet, the product photo, two start frames, and the finished 18 second ad with voice-overs and captions. The creator and the product are invented.
+
 ## What it costs
 
 Numbers as of October 2026, observed on a real Comfy Cloud account on October 26, 2026. Check https://comfy.org/pricing/ for current plans and prices; they change.

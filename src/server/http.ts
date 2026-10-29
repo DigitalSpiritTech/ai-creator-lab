@@ -6,6 +6,7 @@
  * @packageDocumentation
  */
 import { z } from "zod";
+import { publicHost } from "@/server/demo";
 import { ServiceFailureSchema } from "@/lib/domain/failure";
 
 /**
@@ -17,19 +18,25 @@ import { ServiceFailureSchema } from "@/lib/domain/failure";
 export function assertLocalRequest(request: Request): void {
   const url = new URL(request.url);
   const allowedHosts = ["localhost", "127.0.0.1", "[::1]"];
+  const demoHost = publicHost();
+  if (demoHost) allowedHosts.push(demoHost);
   const host = request.headers.get("host");
   let headerHostname: string | undefined;
   try { headerHostname = host ? new URL(`http://${host}`).hostname : undefined; }
   catch { throw Response.json({ error: "Invalid studio host." }, { status: 403 }); }
-  if (!allowedHosts.includes(url.hostname) ||
-      (headerHostname && !allowedHosts.includes(headerHostname))) {
+  // A read-only demo listens on all interfaces, so the framework's request URL carries the bind
+  // address; the Host header, which the platform proxy sets, is what identifies the demo there.
+  const urlHostOk = demoHost ? !!headerHostname : allowedHosts.includes(url.hostname);
+  if (!urlHostOk || (headerHostname && !allowedHosts.includes(headerHostname))) {
     throw Response.json({ error: "This edition is available on localhost only." }, { status: 403 });
   }
   const origin = request.headers.get("origin");
   const site = request.headers.get("sec-fetch-site");
   // Next.js can normalize request.url to localhost; the validated Host preserves
   // the actual browser origin (including 127.0.0.1 and the chosen port).
-  const expectedOrigin = host ? new URL(`${url.protocol}//${host}`).origin : url.origin;
+  // A read-only demo behind a platform proxy sees http inside while the browser speaks https.
+  const protocol = demoHost && request.headers.get("x-forwarded-proto") === "https" ? "https:" : url.protocol;
+  const expectedOrigin = host ? new URL(`${protocol}//${host}`).origin : url.origin;
   // A link to the app from another site (a README, a chat) is a top-level navigation: the page
   // loads in its own tab and the other site reads nothing. Every other cross-site request, a
   // form post, a fetch, an image or script load, is refused.

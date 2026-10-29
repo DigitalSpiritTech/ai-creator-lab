@@ -6,6 +6,7 @@
 "use client";
 
 import { Loader2, SendHorizonal, Square } from "lucide-react";
+import { useReadOnly } from "@/components/demo-mode";
 import { useEffect, useRef, useState } from "react";
 import { ProposalCard } from "@/components/cards/proposal-card";
 import type { ToolActivity } from "@/components/cards/tool-card";
@@ -36,6 +37,7 @@ export function groupSteps(items: ChatItem[]): RenderItem[] {
 }
 
 export function ChatPanel({ items, setItems }: { items: ChatItem[]; setItems: React.Dispatch<React.SetStateAction<ChatItem[]>> }) {
+  const readOnly = useReadOnly();
   const { projectId, view, refresh, submitted } = useProject();
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -148,19 +150,20 @@ export function ChatPanel({ items, setItems }: { items: ChatItem[]; setItems: Re
               void send();
             }
           }}
-          placeholder="Message the assistant"
+          placeholder={readOnly ? "The assistant is off in this read-only demo." : "Message the assistant"}
           rows={3}
           aria-label="Message the assistant"
           className="resize-none"
+          disabled={readOnly}
         />
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{view.autoApprove ? "Auto-approve is on: proposals run under your allowance." : "Every generation waits for your approval."}</span>
+          <span className="text-xs text-muted-foreground">{readOnly ? "Read-only demo." : view.autoApprove ? "Auto-approve is on: proposals run under your allowance." : "Every generation waits for your approval."}</span>
           {streaming ? (
             <Button type="button" size="sm" variant="outline" onClick={() => abort.current?.abort()}>
               <Square /> Stop
             </Button>
           ) : (
-            <Button type="submit" size="sm" disabled={!draft.trim()}>
+            <Button type="submit" size="sm" disabled={readOnly || !draft.trim()}>
               <SendHorizonal /> Send
             </Button>
           )}
