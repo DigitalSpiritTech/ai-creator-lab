@@ -47,7 +47,8 @@ export async function supportsDrawtext(): Promise<boolean> {
 
 /** The ffmpeg this process runs, as a hint in messages: the configured path, or "ffmpeg on PATH". */
 function describeFfmpeg(): string {
-  return process.env.FFMPEG_PATH ? process.env.FFMPEG_PATH : "ffmpeg on PATH";
+  const binary = ffmpegPath();
+  return binary === "ffmpeg" ? "ffmpeg on PATH" : binary;
 }
 
 function wantsCaptions(record: ExportRecord): boolean {
@@ -68,7 +69,7 @@ export async function preflightRender(options: { captions: boolean; texts: strin
   if (!(await supportsDrawtext())) {
     fail(
       "invalid",
-      `The FFmpeg at ${describeFfmpeg()} has no drawtext filter, so captions cannot be burned in. Install an FFmpeg built with libfreetype (Homebrew's ffmpeg has it), or point FFMPEG_PATH at one, or turn captions off.`,
+      `The FFmpeg at ${describeFfmpeg()} has no drawtext filter, so captions cannot be burned in. Install an FFmpeg built with libfreetype (on macOS: brew install ffmpeg-full, which the app finds by itself), or point FFMPEG_PATH and FFPROBE_PATH at one, or turn captions off.`,
     );
   }
   return font;

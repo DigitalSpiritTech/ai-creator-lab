@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { fail } from "@/lib/domain/failure";
+import { ffmpegPath, ffprobePath } from "@/server/executors/media";
 import { childEnv } from "@/server/process";
 
 const execute = promisify(execFile);
@@ -46,7 +47,7 @@ export interface ProbedVideo {
 }
 
 function executable(tool: "ffmpeg" | "ffprobe"): string {
-  return process.env[tool === "ffmpeg" ? "FFMPEG_PATH" : "FFPROBE_PATH"] || tool;
+  return tool === "ffmpeg" ? ffmpegPath() : ffprobePath();
 }
 
 /** Confirms ffmpeg and ffprobe respond before spending on a video. */

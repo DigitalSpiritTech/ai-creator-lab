@@ -1,10 +1,11 @@
 /**
  * Output verification and atomic commits: temp file, decode check, rename, SHA-256.
- * ffprobe and ffmpeg come from PATH unless FFPROBE_PATH or FFMPEG_PATH name them.
+ * ffprobe and ffmpeg come from FFPROBE_PATH or FFMPEG_PATH, else Homebrew's ffmpeg-full, else PATH.
  * @packageDocumentation
  */
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { promisify } from "node:util";
@@ -16,12 +17,28 @@ import { childEnv } from "@/server/process";
 
 const execute = promisify(execFile);
 
+/**
+ * Homebrew ships a lean `ffmpeg` on PATH and a keg-only `ffmpeg-full` (with drawtext for
+ * captions) beside it. When no path is configured and the full build is installed, it wins.
+ */
+const HOMEBREW_FULL = ["/opt/homebrew/opt/ffmpeg-full/bin", "/usr/local/opt/ffmpeg-full/bin"];
+
+function found(tool: "ffmpeg" | "ffprobe"): string {
+  const configured = process.env[tool === "ffmpeg" ? "FFMPEG_PATH" : "FFPROBE_PATH"]?.trim();
+  if (configured) return configured;
+  for (const directory of HOMEBREW_FULL) {
+    const candidate = `${directory}/${tool}`;
+    if (existsSync(candidate)) return candidate;
+  }
+  return tool;
+}
+
 export function ffprobePath(): string {
-  return process.env.FFPROBE_PATH?.trim() || "ffprobe";
+  return found("ffprobe");
 }
 
 export function ffmpegPath(): string {
-  return process.env.FFMPEG_PATH?.trim() || "ffmpeg";
+  return found("ffmpeg");
 }
 
 export function sha256(bytes: Uint8Array): string {

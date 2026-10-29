@@ -11,7 +11,7 @@ It is early software. One user, one machine, one content type (Ad). The first fu
   - Or credits only, no plan, using hosted models through Comfy Router. Router models draw from the same credit balance. The starter catalog includes Nano Banana 2.1 and Nano Banana Pro for stills and Kling 3.0 Omni for clips, and Settings lists every other Router model: switch one on and it joins the recipe pickers (FLUX by BFL, Kling, Seedance, MiniMax, Wan, LTX, Gemini and OpenAI image families have adapters today). Settings picks the default per step, and you can ask the assistant for a specific model on any proposal.
 - An Anthropic API key for the assistant. Usage is small compared with generation.
 - Node 22.13 or newer.
-- ffmpeg and ffprobe on your machine. Captions need an ffmpeg built with the `drawtext` filter.
+- ffmpeg and ffprobe on your machine. Captions need an ffmpeg built with the `drawtext` filter. On macOS, Homebrew's plain `ffmpeg` is a lean build without it; `brew install ffmpeg-full` adds the full build beside it and the app uses that one by itself.
 
 ## Install
 
@@ -92,7 +92,7 @@ Twenty-three open-weights workflows ship in `workflows/` (Z-Image, Qwen-Image 25
 - "Paid generation is off." Both the Settings allowance and `GENERATION_ALLOWANCE_USD` in `.env.local` must be above zero. Restart after editing `.env.local`.
 - Cloud workflows fail with an authorization or plan error. API access to Comfy Cloud is not part of the free tier. Use a paid plan, or use Router models, which need only credits.
 - Jobs wait in a queue. On the entry plan Comfy Cloud runs one workflow at a time. The app also submits one job at a time per target and shows queue position, so a batch of candidates arrives one after another.
-- The export says the FFmpeg build has no `drawtext` filter. Captions need an ffmpeg built with libfreetype. Check the one the app runs with `ffmpeg -filters | grep drawtext`; if `which -a ffmpeg` lists more than one, the first is the one used, so either put the fuller build first on PATH or set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local` to it (Homebrew's is `/opt/homebrew/bin/ffmpeg`). Or export with captions switched off.
+- The export says the FFmpeg build has no `drawtext` filter. Captions need an ffmpeg built with libfreetype. On macOS run `brew install ffmpeg-full` (Homebrew's plain `ffmpeg` is lean and lacks it); the app looks for `ffmpeg-full` on its own, no restart needed. Elsewhere, check the build with `ffmpeg -filters | grep drawtext`, install a fuller one, and if several are installed set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local` to the right pair. Or export with captions switched off.
 - ffmpeg or ffprobe not found. Install them, or set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local` to the full paths.
 - Captions use the wrong font or the font is missing. The app bundles DejaVu Sans Bold (`assets/fonts/DejaVuSans-Bold.ttf`). To use another TTF or OTF file, set `CAPTION_FONT_PATH` in `.env.local`.
 - The face does not look like a three-quarter view. The open Z-Image model ignores loose wording; the face-lock prompt states the head turn explicitly. Reject and regenerate, or edit the prompt on the proposal card.
