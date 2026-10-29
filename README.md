@@ -6,12 +6,36 @@ It is early software. One user, one machine, one content type (Ad). The first fu
 
 ## What you need
 
+Two accounts and three pieces of software. Everything else comes down with `npm ci`.
+
+### Accounts
+
 - A Comfy account and API key from https://platform.comfy.org. Two ways to use it:
-  - A Comfy Cloud plan with API access (the free tier does not include it). This unlocks the open-weights workflows that ship with the app: Z-Image for text to image, Qwen Image Edit for compositions, and LTX 2.5 for video.
+  - A Comfy Cloud plan with API access (the free tier does not include it). This unlocks the open-weights workflows that ship with the app: Z-Image for text to image, Qwen Image Edit for compositions, LTX 2.5 for video, and Chatterbox and Qwen3-TTS for voice-overs.
   - Or credits only, no plan, using hosted models through Comfy Router. Router models draw from the same credit balance. The starter catalog includes Nano Banana 2.1 and Nano Banana Pro for stills and Kling 3.0 Omni for clips, and Settings lists every other Router model: switch one on and it joins the recipe pickers (FLUX by BFL, Kling, Seedance, MiniMax, Wan, LTX, Gemini and OpenAI image families have adapters today). Settings picks the default per step, and you can ask the assistant for a specific model on any proposal.
-- An Anthropic API key for the assistant. Usage is small compared with generation.
-- Node 22.13 or newer.
-- ffmpeg and ffprobe on your machine. Captions need an ffmpeg built with the `drawtext` filter. On macOS, Homebrew's plain `ffmpeg` is a lean build without it; `brew install ffmpeg-full` adds the full build beside it and the app uses that one by itself.
+- An Anthropic API key for the assistant, from https://console.anthropic.com. Usage is small compared with generation. (Settings can also run the assistant through Comfy Router on your Comfy credits, with no Anthropic key.)
+
+### Software
+
+| Dependency | Version | Why | Install |
+| --- | --- | --- | --- |
+| Node.js and npm | Node 22.13 or newer (24 is fine) | Runs the app; the database uses Node's built-in `node:sqlite` | https://nodejs.org, or `brew install node`, or `winget install OpenJS.NodeJS.LTS` |
+| ffmpeg and ffprobe | 4.4 or newer, built with `drawtext` (libfreetype) | Checks every generated clip, lifts voice samples, levels and mixes audio, and assembles the export; `drawtext` burns in the captions | macOS: `brew install ffmpeg-full` (the plain `ffmpeg` formula is a lean build without `drawtext`; the app finds `ffmpeg-full` on its own). Debian and Ubuntu: `sudo apt install ffmpeg`. Windows: `winget install Gyan.FFmpeg`, which puts the full build on PATH. |
+| git | any | Cloning and updating | https://git-scm.com, or `brew install git` |
+
+The image library (`sharp`) and everything else in `package.json` install with `npm ci` as prebuilt packages on macOS, Linux and Windows, Intel and ARM; no compiler is needed. The caption font (DejaVu Sans Bold) is bundled in `assets/fonts/`.
+
+To check the software before you start:
+
+```
+node --version
+ffmpeg -version
+ffmpeg -hide_banner -filters | grep drawtext
+```
+
+The first should print v22.13.0 or higher. The last should print one line naming `drawtext`; if it prints nothing, your ffmpeg lacks captions (see Troubleshooting). On macOS with `ffmpeg-full` installed, test that build instead: `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg -hide_banner -filters | grep drawtext`.
+
+If ffmpeg is installed somewhere the app cannot see, or you have several, set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local` to the pair you want. Settings shows the ffmpeg and ffprobe the app is using and whether captions are available, so you can confirm from the browser.
 
 ## Install
 

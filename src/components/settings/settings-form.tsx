@@ -53,6 +53,20 @@ export function SettingsForm() {
   }, []);
   useLoad(checkConnection);
 
+  const [tools, setTools] = useState<VideoToolsView | null>(null);
+  const [checkingTools, setCheckingTools] = useState(false);
+  const checkTools = useCallback(async () => {
+    setCheckingTools(true);
+    try {
+      setTools(await getJson<VideoToolsView>("/api/settings/tools"));
+    } catch (cause) {
+      setTools({ ffmpeg: { path: "ffmpeg", version: null }, ffprobe: { path: "ffprobe", version: null }, captions: false, source: "path", message: errorMessage(cause), checkedAt: Date.now() });
+    } finally {
+      setCheckingTools(false);
+    }
+  }, []);
+  useLoad(checkTools);
+
   const load = useCallback(async () => {
     try {
       const next = await getJson<SettingsView>("/api/settings");
@@ -254,6 +268,33 @@ export function SettingsForm() {
         }}
       />
 
+      <section className="space-y-3 text-sm" aria-label="Video tools">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Video tools</h2>
+          <Button size="sm" variant="outline" disabled={checkingTools} onClick={() => void checkTools()}>
+            <RefreshCw className={checkingTools ? "animate-spin" : undefined} /> Recheck
+          </Button>
+        </div>
+        {tools ? (
+          <>
+            <Notice tone={tools.captions ? "ok" : tools.ffmpeg.version && tools.ffprobe.version ? "warn" : "error"}>{tools.message}</Notice>
+            <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+              <Stat label={`ffmpeg${tools.ffmpeg.version ? ` ${tools.ffmpeg.version}` : ""}`} value={tools.ffmpeg.path} />
+              <Stat label={`ffprobe${tools.ffprobe.version ? ` ${tools.ffprobe.version}` : ""}`} value={tools.ffprobe.path} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {tools.source === "environment"
+                ? "From FFMPEG_PATH and FFPROBE_PATH in .env.local."
+                : tools.source === "homebrew-full"
+                  ? "Homebrew's ffmpeg-full, found automatically. Set FFMPEG_PATH and FFPROBE_PATH in .env.local to use another."
+                  : "The first ffmpeg and ffprobe on PATH. Set FFMPEG_PATH and FFPROBE_PATH in .env.local to use another."}
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">Checking…</p>
+        )}
+      </section>
+
       <section className="space-y-2 text-sm">
         <h2 className="text-sm font-semibold">Data directory</h2>
         <code className="block rounded-md bg-muted px-2 py-1 text-xs">{view.dataDirectory}</code>
@@ -314,6 +355,15 @@ export function ProviderChoice({ value, fromEnvironment, disabled, onChange }: {
       {fromEnvironment ? <p className="text-xs text-muted-foreground">Set by LLM_PROVIDER in .env.local.</p> : null}
     </fieldset>
   );
+}
+
+interface VideoToolsView {
+  ffmpeg: { path: string; version: string | null };
+  ffprobe: { path: string; version: string | null };
+  captions: boolean;
+  source: "environment" | "homebrew-full" | "path";
+  message: string;
+  checkedAt: number;
 }
 
 interface RouterModelRow {
