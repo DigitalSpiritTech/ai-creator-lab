@@ -11,7 +11,6 @@ With `STUDIO_READ_ONLY=1`:
 - `STUDIO_PUBLIC_HOST` names the one hostname the local-only guard accepts besides localhost, so the app can sit behind a platform proxy without rewriting headers. The variable does nothing unless read-only mode is on.
 - The Docker image refuses to start unless both are set, and refuses to start at all if `COMFY_API_KEY`, `ANTHROPIC_API_KEY` or `GENERATION_ALLOWANCE_USD` is present. It also deletes any `secrets.json` in the data folder on start. A demo server never holds keys, so even a bug in the guard could not spend anything.
 
-Keep the startup recovery off (`STUDIO_RECOVERY=off`, set in the image) so the server does not try to resume old jobs.
 
 ## What to put in the data folder
 
@@ -43,3 +42,18 @@ The app sleeps when idle (`auto_stop_machines = "stop"`) and wakes on the first 
 ## Anywhere else
 
 The image works on any Docker host: mount a folder at `/data`, pass `STUDIO_READ_ONLY=1` and `STUDIO_PUBLIC_HOST`, put a TLS proxy in front that forwards the `Host` header as the browser sent it and sets `X-Forwarded-Proto: https`, and publish port 3000 only to that proxy.
+
+## A private judging copy
+
+For a handful of invited people to run real generations without a local install, the same image runs in judging mode: `STUDIO_JUDGE_PASSWORD` (12 characters or more) puts HTTP basic auth in front of every request, the operator's keys go in as secrets, and `GENERATION_ALLOWANCE_USD` is the most the copy can ever spend. The browser asks for the password once; any user name works. Use a separate Fly app and volume so the public read-only demo and the judging copy never share data, and a different hostname, so the public link stays read-only.
+
+```
+fly launch --config fly.judge.toml --copy-config --no-deploy
+fly volumes create judge_data --size 1 --region dfw --app ai-creator-lab-judging
+fly secrets set --app ai-creator-lab-judging \
+  STUDIO_JUDGE_PASSWORD='a long passphrase you will share with the judges' \
+  COMFY_API_KEY='...' ANTHROPIC_API_KEY='...' GENERATION_ALLOWANCE_USD=15
+fly deploy --config fly.judge.toml
+```
+
+Upload a data folder the same way as for the demo (a copy of a finished project is a good start, so judges have something to look at before they run anything), then open the hostname, enter the password, and check Settings: the keys show as set from the environment, the allowance tiles show the cap, and the workspace allowance must also be above zero (set it in Settings on the judging copy). Both the operator cap and the workspace allowance apply; the lower one is the hard stop. Rotate the password or set the allowance to zero when judging is over, or `fly apps destroy` the app.

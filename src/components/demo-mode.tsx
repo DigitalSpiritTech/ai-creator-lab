@@ -17,6 +17,17 @@ export function useReadOnly(): boolean {
   return useContext(DemoContext);
 }
 
+export function JudgeBanner({ repository }: { repository: string }) {
+  return (
+    <div role="status" className="border-b border-sky-500/40 bg-sky-500/10 px-4 py-2 text-center text-xs text-sky-900 dark:text-sky-200">
+      Judging copy. Generation runs on the author&apos;s Comfy account under a capped allowance; please keep to a few runs. Source:{" "}
+      <a className="underline" href={repository} target="_blank" rel="noreferrer">
+        {repository.replace(/^https?:\/\//, "")}
+      </a>
+    </div>
+  );
+}
+
 export function DemoBanner({ repository }: { repository: string }) {
   const readOnly = useReadOnly();
   if (!readOnly) return null;
