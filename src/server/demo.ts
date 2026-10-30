@@ -5,10 +5,10 @@
  * Read-only demo (`STUDIO_READ_ONLY=1`): an existing data folder for viewing. Every request that
  * could change anything is refused before it reaches a route, and the server holds no keys.
  *
- * Judging (`STUDIO_JUDGE_PASSWORD=<secret>`): a private copy where a few invited people can run
- * generations on the operator's account. Every request needs the password (HTTP basic auth), and
- * the operator's allowance (`GENERATION_ALLOWANCE_USD` plus the workspace allowance) is the hard
- * stop on spend, as always.
+ * Judging (`STUDIO_JUDGE_PASSWORD=<secret>`, or `STUDIO_JUDGE_OPEN=1` for no password): a copy
+ * where invited people, or anyone with the link, can run generations on the operator's account.
+ * With a password every request needs it (HTTP basic auth). Either way the operator's allowance
+ * (`GENERATION_ALLOWANCE_USD` plus the workspace allowance) is the hard stop on spend, as always.
  *
  * In either mode `STUDIO_PUBLIC_HOST` is the one hostname the local-only guard accepts besides
  * localhost, so the app can sit behind a platform proxy without header rewriting. Outside these
@@ -28,8 +28,13 @@ export function judgePassword(env: Env = process.env): string | undefined {
   return password && password.length >= 12 ? password : undefined;
 }
 
+/** Judging without a password (`STUDIO_JUDGE_OPEN=1`): anyone with the link can run under the allowance. */
+export function isJudgeOpen(env: Env = process.env): boolean {
+  return env.STUDIO_JUDGE_OPEN === "1";
+}
+
 export function isJudging(env: Env = process.env): boolean {
-  return !isReadOnly(env) && judgePassword(env) !== undefined;
+  return !isReadOnly(env) && (judgePassword(env) !== undefined || isJudgeOpen(env));
 }
 
 export type HostedMode = "read-only" | "judging" | null;

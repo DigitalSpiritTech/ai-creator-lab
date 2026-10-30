@@ -32,3 +32,10 @@ test("judging mode needs a 12 character password and is off when read-only is on
   assert.equal(authorized(null, "correct-horse-battery"), false);
   assert.equal(authorized("Bearer x", "correct-horse-battery"), false);
 });
+
+test("open judging needs no password", async () => {
+  const { isJudging, hostedMode } = await import("@/server/demo");
+  assert.equal(isJudging({ STUDIO_JUDGE_OPEN: "1" }), true);
+  assert.equal(hostedMode({ STUDIO_JUDGE_OPEN: "1", STUDIO_READ_ONLY: "1" }), "read-only");
+  assert.equal(publicHost({ STUDIO_JUDGE_OPEN: "1", STUDIO_PUBLIC_HOST: "judge.example.com" }), "judge.example.com");
+});
