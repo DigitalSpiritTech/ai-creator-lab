@@ -8,7 +8,7 @@ The repository follows git-flow.
 
 | Branch      | What lives there                                                                 | Who writes to it                                                                      |
 | ----------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `main`      | Released code only. Every commit on `main` is a tagged release.                  | Release merges from `develop` (or a `release/*` branch). Never commit to it directly. |
+| `main`      | Released code only. From `v0.1.0` on, `main` moves only by tagged releases.      | Release merges from `develop` (or a `release/*` branch). Never commit to it directly. |
 | `develop`   | The integration branch. Always builds and passes the tests.                      | Merges from `feature/*` and `fix/*` pull requests.                                    |
 | `feature/*` | One piece of work, branched from `develop`.                                      | You.                                                                                  |
 | `fix/*`     | A bug fix for `develop`, branched from `develop`.                                | You.                                                                                  |
