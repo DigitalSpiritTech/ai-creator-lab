@@ -28,6 +28,8 @@ B-roll example: `Close-up of two hands lifting a sweating steel bottle from a ca
 - Audio contains unintended speech on b-roll: say `no speech, ambient sound only`.
 - Text artifacts: always include `No text on screen.`
 
+For MiniMax H3 clips (longer talking beats, multi-shot scenes) see the minimax-h3-prompting skill; its prompts use a different structure and must not reuse these LTX constraints.
+
 ## Sources
 
 docs.ltx.io usage guides (text-to-video, image-to-video), the LTX 2.5 ComfyUI tutorial on docs.comfy.org, and Comfy MCP `get_prompting_guide` for the model family.
