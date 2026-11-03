@@ -19,7 +19,7 @@ Environment lives in `.env.local` (never committed). Variables: `COMFY_API_KEY`,
 ## How to run a build session
 
 1. Read `docs/TASKS.md` and pick the next unblocked tasks per workstream.
-2. Spawn one agent per workstream in parallel, each in its own worktree. Give each agent the task IDs, the acceptance checks, and the skills it needs. Agents own files in their workstream only; shared contracts in `src/lib/domain/` are changed by domain-engineer, and other agents request changes through a note in the task.
+2. Branch from `develop` as `feature/<task>` (see `CONTRIBUTING.md`; releases are tagged on `main` only). Spawn one agent per workstream in parallel, each in its own worktree. Give each agent the task IDs, the acceptance checks, and the skills it needs. Agents own files in their workstream only; shared contracts in `src/lib/domain/` are changed by domain-engineer, and other agents request changes through a note in the task.
 3. Every agent runs the definition-of-done commands before reporting. Reports list files changed, tests added, and anything not finished, with the task ID.
 4. Hand the combined diff to qa-reviewer before merging. qa-reviewer runs the verify-release skill and reports findings ranked by severity. Fix blockers before committing.
 5. Update `docs/TASKS.md` with [x] and the commit hash. Log any real provider run in `docs/VERIFICATION.md`.

@@ -178,6 +178,8 @@ Claude Desktop, in `claude_desktop_config.json`. Desktop does not start in the r
 
 Read `AGENTS.md` for the working agreements before changing scope.
 
+Branches, pull requests, and releases are described in [CONTRIBUTING.md](CONTRIBUTING.md): work happens on `feature/*` branches from `develop`, and releases are tagged on `main`.
+
 ## Credits
 
 - ComfyUI and Comfy Cloud, Comfy Router, and the Comfy API and SDK, from Comfy Org.
