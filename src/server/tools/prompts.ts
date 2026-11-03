@@ -190,6 +190,30 @@ export function facePrompt(bible: Pick<CharacterBible, "visualCore">, garment: s
 }
 
 /**
+ * The face lock prompt for Krea 2, whose Qwen3-VL text encoder reads natural descriptive sentences
+ * rather than comma-separated tags. Same content as {@link facePrompt}: the thirty-degree turn is
+ * still spelled out by its effects on the cheek, ear, and nose.
+ */
+export function kreaFacePrompt(bible: Pick<CharacterBible, "visualCore">, garment: string = FACE_GARMENT): string {
+  return [
+    sentence(bible.visualCore),
+    `This is a photographic head-and-shoulders portrait of the person wearing ${inline(garment)}.`,
+    "The head is turned about thirty degrees to the left, so the far cheek narrows, the near ear shows, and the nose sits just off the center of the face, while the eyes look back toward the camera.",
+    "The expression is neutral with a hint of a smile.",
+    `Soft natural window light falls across the face, and behind the person is ${BACKDROPS[backdropFor(garment)]}.`,
+    "There are no accessories beyond those described.",
+    "It looks like an 85mm portrait photograph, with natural skin texture and sharp focus on the eyes.",
+    CONTRAST,
+    NO_TEXT,
+  ].join(" ");
+}
+
+/** The face lock prompt written for a recipe: Krea 2 graphs get sentences, every other recipe the standard prompt. */
+export function faceLockPrompt(bible: Pick<CharacterBible, "visualCore">, recipeId: string | undefined, garment: string = FACE_GARMENT): string {
+  return recipeId?.startsWith("krea-2-") ? kreaFacePrompt(bible, garment) : facePrompt(bible, garment);
+}
+
+/**
  * The body reference prompt, an edit of the locked face (the only reference image). Navy
  * athleticwear on deep gray by default, or charcoal on the light background.
  */

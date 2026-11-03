@@ -15,6 +15,7 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "test:acceptance": "node --import tsx scripts/acceptance-smoke.ts",
     "spike": "node --import tsx scripts/spike/run.ts",
+    "spike:v02": "node --import tsx --conditions=react-server scripts/spike/v02.ts",
     "mcp": "node --import tsx scripts/mcp.ts",
     "live-check": "node --import tsx --conditions=react-server scripts/live-check.ts",
     "e2e-real": "node --import tsx --conditions=react-server scripts/e2e-real.ts",

@@ -42,5 +42,5 @@
     ],
     "multipleOf": 16
   },
-  "notes": "Krea 2 Turbo (fp8) with the Qwen3-VL 4B text encoder, 8 steps, CFG 1, from the official template with the prompt enhancer and style LoRA off."
+  "notes": "Krea 2 Turbo (fp8) with the Qwen3-VL 4B text encoder, 8 steps, CFG 1, from the official template with the prompt enhancer and style LoRA off. Graph facts: core nodes only, no partner (API) node class: UNETLoader krea2_turbo_fp8_scaled.safetensors, CLIPLoader qwen3vl_4b_fp8_scaled.safetensors with type krea2, VAELoader qwen_image_vae.safetensors, CLIPTextEncode, ConditioningZeroOut for the negative, EmptyLatentImage, KSampler (euler, simple), VAEDecode, SaveImage. So Cloud should bill it as plan compute (GPU time); the v0.2 spike confirms from object_info and the balance delta."
 }
