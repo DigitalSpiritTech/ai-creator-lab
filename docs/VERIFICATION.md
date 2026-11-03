@@ -60,6 +60,8 @@ Columns: date (America/Chicago), who, target (cloud, deployment, proxy, router),
 | 2026-10-26 15:34 | spike | cloud | z-image-turbo-t2i | prompt:face (1024x1024, seed 7) | .data/spike/face.png 1024x1024 png | 5496 / 5494 / 2 (0.94c) | 17s (queue 8.4s, exec 7.7s) | job f33eefc3-d88b-4a35-9f1a-3c9a0229c1b5; output recovered by job id after a client-side status bug |
 
 
+Pending v0.2 spike (TASKS B24 and B25), not yet run on a real account: three Krea 2 face locks with the Krea face prompt, H3 and LTX image to video with the same still and line, the H3 multi-frame graph (`minimax-h3-multiframe`, unverified), a two-segment H3 chain, and the Router H3 Max check, capped at 420 credits (2 USD) combined. The maintainer runs `npm run spike:v02` once the allowance is set; it writes ready-to-paste rows for the table above and a decisions checklist to `.data/spike/v02/<run>/`. No rows exist for it yet.
+
 Pending, not yet run on a real account: `router-wan-3-i2v`, `router-wan-3-flf2v` and `router-ltx-2.5-fast` (hosted alternatives) are unverified; their field maps were checked offline against Router's published schemas. `ltx-2.5-flf2v` was verified live on October 26 (the live-flf row). Add a row above when a first real run happens.
 
 ## Spike results (October 26, evening)

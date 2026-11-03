@@ -16,7 +16,7 @@ import {
   type GenerationTarget,
   type JobInput,
 } from "@/lib/domain/job";
-import { DEFAULT_RECIPE_IDS } from "@/server/catalog/defaults";
+import { DEFAULT_RECIPE_IDS, purposeRecipe } from "@/server/catalog/defaults";
 import type { EstimateOutcome, ExecutorSet } from "@/server/executors";
 import type { RunDeps } from "@/server/executors/run";
 import type { ToolContext } from "@/server/tools/registry";
@@ -152,16 +152,31 @@ export function nearestAspect(width: number, height: number): AspectRatio {
   return best;
 }
 
+/** A face lock from text: the step whose purpose default is `character_start`. */
+export function isFaceLock(spec: Pick<ProposalSpec, "capability" | "target">): boolean {
+  return spec.capability === "text_to_image" && spec.target.kind === "character_reference" && spec.target.slot === "face";
+}
+
+/**
+ * The recipe a proposal runs: the requested one, else the workspace default, else the purpose
+ * default (`character_start` for a face lock, when configured and verified), else the capability's.
+ */
+export async function proposalRecipe(context: ToolContext, spec: Pick<ProposalSpec, "capability" | "recipeId" | "target">, references: number): Promise<Recipe> {
+  const generation = requireGeneration(context);
+  const recipes = await generation.recipes();
+  return pickRecipe(recipes, generation.executors, spec.capability, references, [
+    spec.recipeId,
+    context.store.workspace.get().defaultRecipes[spec.capability],
+    isFaceLock(spec) ? purposeRecipe(recipes, "character_start")?.id : undefined,
+  ]);
+}
+
 /** Builds and estimates a proposal. Nothing is submitted. */
 export async function buildProposal(context: ToolContext, spec: ProposalSpec): Promise<GenerationProposal> {
   const generation = requireGeneration(context);
   context.store.projects.getRequired(spec.projectId);
   const assets = referenceAssets(context, spec.projectId, spec.references);
-  const recipes = await generation.recipes();
-  const recipe = pickRecipe(recipes, generation.executors, spec.capability, assets.filter((asset) => asset.kind !== "audio").length, [
-    spec.recipeId,
-    context.store.workspace.get().defaultRecipes[spec.capability],
-  ]);
+  const recipe = await proposalRecipe(context, spec, assets.filter((asset) => asset.kind !== "audio").length);
   const id = context.newId();
   const executor = generation.executors.forRecipe(recipe)!;
   const slots = recipe.kind === "workflow" ? Object.fromEntries(Object.entries(spec.slots ?? {}).filter(([name]) => name in recipe.sidecar.slots)) : {};

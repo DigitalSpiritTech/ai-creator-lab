@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { AspectRatioSchema, CapabilitySchema } from "@/lib/catalog/capabilities";
 import { SlotSidecarSchema } from "@/lib/catalog/slots";
+import { RecipeTagsSchema } from "@/lib/catalog/tags";
 
 export const RecipeIdSchema = z.string().regex(/^[a-z0-9][a-z0-9.-]{1,79}$/);
 export const RouterModelIdSchema = z.string().regex(/^[\w.-]+\/[\w.-]+$/).max(200);
@@ -49,6 +50,7 @@ const commonFields = {
   limits: RecipeLimitsSchema,
   defaults: RecipeDefaultsSchema,
   notes: z.string().max(600).optional(),
+  tags: RecipeTagsSchema.optional(),
 };
 
 const FieldTargetSchema = z

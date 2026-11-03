@@ -11,7 +11,8 @@ import type { Project } from "@/lib/domain/project";
 import type { Script } from "@/lib/domain/script";
 import type { Store } from "@/server/store";
 import { checklistText } from "@/server/agent/prompts/checklists";
-import { BACKDROP_NAMES, BODY_REFERENCE, FACE_LOCK, backdropFor, bodyPrompt, facePrompt } from "@/server/tools/prompts";
+import { purposeRecipeId } from "@/server/catalog/defaults";
+import { BACKDROP_NAMES, BODY_REFERENCE, FACE_LOCK, backdropFor, bodyPrompt, faceLockPrompt } from "@/server/tools/prompts";
 
 export interface ProjectSnapshot {
   project: Project;
@@ -171,7 +172,7 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
       id: "face",
       step: 5,
       title: "Face lock",
-      guidance: `${UPLOAD_FACE} Otherwise propose the face lock: propose_candidates with projectId ${project.id}, capability "${FACE_LOCK.capability}", count ${FACE_LOCK.count}, aspectRatio "${FACE_LOCK.aspectRatio}", target {"kind":"character_reference","characterId":"${item.id}","slot":"face"}, and exactly this prompt:\n${facePrompt(item.bible)}`,
+      guidance: `${UPLOAD_FACE} Otherwise propose the face lock: propose_candidates with projectId ${project.id}, capability "${FACE_LOCK.capability}", count ${FACE_LOCK.count}, aspectRatio "${FACE_LOCK.aspectRatio}", target {"kind":"character_reference","characterId":"${item.id}","slot":"face"}, and exactly this prompt:\n${faceLockPrompt(item.bible, purposeRecipeId("character_start"))}`,
     };
   }
   if (!bodyAssetId) {

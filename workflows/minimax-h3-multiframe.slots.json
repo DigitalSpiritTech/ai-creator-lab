@@ -1,0 +1,81 @@
+{
+  "workflow": "minimax-h3-multiframe.api.json",
+  "capability": "references_to_video",
+  "openWeights": true,
+  "maxReferences": 3,
+  "outputNode": "92",
+  "slots": {
+    "prompt": {
+      "node": "136",
+      "input": "prompt"
+    },
+    "width": {
+      "node": "136",
+      "input": "width"
+    },
+    "height": {
+      "node": "136",
+      "input": "height"
+    },
+    "length": {
+      "node": "136",
+      "input": "length"
+    },
+    "seed": {
+      "node": "129",
+      "input": "noise_seed"
+    },
+    "image1": {
+      "node": "164",
+      "input": "image",
+      "kind": "image"
+    },
+    "image2": {
+      "node": "157",
+      "input": "image",
+      "kind": "image"
+    },
+    "image3": {
+      "node": "159",
+      "input": "image",
+      "kind": "image"
+    },
+    "image2Frame": {
+      "node": "147",
+      "input": "frame_idx",
+      "kind": "number"
+    },
+    "image3Frame": {
+      "node": "162",
+      "input": "frame_idx",
+      "kind": "number"
+    }
+  },
+  "limits": {
+    "sizes": [
+      [
+        736,
+        1312
+      ],
+      [
+        1312,
+        736
+      ],
+      [
+        1024,
+        1024
+      ],
+      [
+        928,
+        1152
+      ]
+    ],
+    "multipleOf": 32,
+    "length": {
+      "default": 124,
+      "rule": "17n+5"
+    },
+    "fps": 24
+  },
+  "notes": "MiniMax H3 multi-frame reference to video with sound, from the official video_minimax_h3_multiframe_reference template (Reference to Video plus chained Add Guide for MiniMax H3). image1 (node 164) is ref_images slot 1, <Picture 1>: the identity and, through the prompt, the first frame; the template pins no guide at 0 s. image2 (157) and image3 (159) are pinned by Add Guide at image2Frame and image3Frame, frames at 24 fps (round(seconds x 24), each below length), and are also ref_images slots 2 and 3 so the prompt can name them <Picture 2> and <Picture 3>. The template's fourth guide, resolution selector, duration and frame-index math nodes are baked into literal inputs. Lightning 4-step LoRA on (the template default is off): to turn it off, point node 126's model at node 127 and set node 124's steps to 20. ref_image_size match."
+}

@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { CapabilitySchema } from "@/lib/catalog/capabilities";
+import { RecipeTagsSchema } from "@/lib/catalog/tags";
 
 export const SlotBindingSchema = z
   .object({
@@ -42,6 +43,8 @@ export const SlotSidecarSchema = z.object({
   slots: z.record(z.string().regex(/^[A-Za-z][\w]*$/), SlotSchema),
   limits: SlotLimitsSchema.default({}),
   notes: z.string().optional(),
+  /** Purposes such as `character_start`; the curated catalog table can override them. */
+  tags: RecipeTagsSchema.optional(),
 });
 export type SlotSidecar = z.infer<typeof SlotSidecarSchema>;
 
