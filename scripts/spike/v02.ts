@@ -30,7 +30,8 @@ import { WorkflowGraphSchema, type Recipe, type WorkflowGraph } from "@/lib/cata
 import { adapterFor } from "@/server/catalog/router-adapters";
 import { createCatalogPort, RouterCatalog } from "@/server/catalog/router-catalog";
 import { tagModel } from "@/server/catalog/tagging";
-import { CREDITS_PER_BALANCE_CENT, CREDITS_PER_USD, readAllowanceUsd } from "@/server/executors/allowance";
+import { z } from "zod";
+import { CREDITS_PER_BALANCE_CENT, CREDITS_PER_USD, readAllowanceUsd, readCreditBalance } from "@/server/executors/allowance";
 import { ffmpegPath } from "@/server/executors/media";
 import { importImage } from "@/server/media/images";
 import { checkVideoTools, probeVideo } from "@/server/media/video";
@@ -62,8 +63,10 @@ function loadEnvLocal(): boolean {
   const path = resolve(root, ".env.local");
   if (!existsSync(path)) return false;
   for (const line of readFileSync(path, "utf8").split("\n")) {
-    const match = line.match(/^([A-Z_]+)=(.*)$/);
-    if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim();
+    const match = line.match(/^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!match || process.env[match[1]]) continue;
+    const quoted = match[2].match(/^(["'])(.*)\1$/);
+    process.env[match[1]] = quoted ? quoted[2] : match[2];
   }
   return true;
 }
@@ -74,23 +77,23 @@ function cloudOrigin(): string | undefined {
   return /^https:\/\/cloud\.comfy\.org\/?$/.test(base) ? "https://cloud.comfy.org" : undefined;
 }
 
+/** The Cloud balance in credits, through the app's reader (timeout, schema, no redirects). */
 async function balanceCredits(apiKey: string): Promise<number> {
-  const response = await fetch("https://cloud.comfy.org/api/billing/balance", { headers: { "X-API-Key": apiKey } });
-  if (!response.ok) throw new Error(`balance read failed with HTTP ${response.status}`);
-  const body = (await response.json()) as { effective_balance_cents?: number };
-  if (typeof body.effective_balance_cents !== "number") throw new Error("balance read returned no effective_balance_cents");
-  return Math.round(body.effective_balance_cents * CREDITS_PER_BALANCE_CENT * 100) / 100;
+  const { cents } = await readCreditBalance(apiKey);
+  return Math.round(cents * CREDITS_PER_BALANCE_CENT * 100) / 100;
 }
 
-interface Ledger {
-  spentCredits: number;
-  runs: number;
-}
+const LedgerSchema = z.object({ spentCredits: z.number().nonnegative(), runs: z.number().int().nonnegative() });
+type Ledger = z.infer<typeof LedgerSchema>;
 
 const ledgerPath = resolve(v02Dir, "ledger.json");
 
+/** The spend carried across invocations. A ledger that does not parse stops the spike rather than resetting to zero. */
 function readLedger(): Ledger {
-  return existsSync(ledgerPath) ? (JSON.parse(readFileSync(ledgerPath, "utf8")) as Ledger) : { spentCredits: 0, runs: 0 };
+  if (!existsSync(ledgerPath)) return { spentCredits: 0, runs: 0 };
+  const parsed = LedgerSchema.safeParse(JSON.parse(readFileSync(ledgerPath, "utf8")));
+  if (!parsed.success) throw new Error(`${ledgerPath} is not a valid spike ledger; fix or remove it after checking the balance.`);
+  return parsed.data;
 }
 
 /**
@@ -98,9 +101,10 @@ function readLedger(): Ledger {
  * ceilings of runs not yet settled must stay under the cap before a run starts.
  */
 class Budget {
-  private start = 0;
   private last = 0;
   private pendingCredits = 0;
+  /** Charged in this invocation: each run's balance drop, or its ceiling when the balance has not moved yet. */
+  private charged = 0;
   private readonly noticed = new Set<number>();
   readonly ledger: Ledger;
 
@@ -113,19 +117,21 @@ class Budget {
   }
 
   async open(): Promise<number> {
-    this.start = await this.read();
-    this.last = this.start;
-    log(`balance ${this.start.toFixed(0)} credits; spike spent so far ${this.ledger.spentCredits.toFixed(0)} of ${this.capCredits}`);
-    return this.start;
+    this.last = await this.read();
+    log(`balance ${this.last.toFixed(0)} credits; spike spent so far ${this.ledger.spentCredits.toFixed(0)} of ${this.capCredits}`);
+    return this.last;
   }
 
   get balance(): number {
     return this.last;
   }
 
-  /** Spent across every spike invocation, settled from the balance. */
+  /**
+   * Spent across every spike invocation. A run whose balance drop has not shown yet (the balance
+   * lags) is charged at its ceiling, so a lagging read can over-count but never under-count.
+   */
   get spent(): number {
-    return this.ledger.spentCredits + Math.max(0, this.start - this.last);
+    return this.ledger.spentCredits + this.charged;
   }
 
   allows(ceilingCredits: number): boolean {
@@ -136,10 +142,21 @@ class Budget {
     this.pendingCredits += ceilingCredits;
   }
 
-  /** Waits out the balance lag, reads it, and returns the new balance. */
-  async settle(): Promise<number> {
+  /** Waits out the balance lag, reads it, charges the run (its drop, or its ceiling if none shows), and returns the new balance. */
+  async settle(ceilingCredits: number): Promise<number> {
     await new Promise((done) => setTimeout(done, this.settleMs));
-    this.last = await this.read();
+    const before = this.last;
+    try {
+      this.last = await this.read();
+    } catch (cause) {
+      this.charged += ceilingCredits;
+      this.pendingCredits = 0;
+      writeFileSync(ledgerPath, JSON.stringify({ spentCredits: this.spent, runs: this.ledger.runs }, null, 2));
+      throw cause;
+    }
+    const drop = before - this.last;
+    if (drop <= 0) log(`the balance has not moved yet; charging this run its ceiling (${ceilingCredits} credits) so the cap stays safe`);
+    this.charged += drop > 0 ? drop : ceilingCredits;
     this.pendingCredits = 0;
     const total = this.spent;
     writeFileSync(ledgerPath, JSON.stringify({ spentCredits: total, runs: this.ledger.runs }, null, 2));
@@ -330,13 +347,13 @@ async function paidRun(session: Session, step: PlannedStep, run: PlannedRun, pro
   } catch (cause) {
     // The request may have left the process, so the spend is unknown: settle and stop, never resend.
     gate.close();
-    await budget.settle();
+    await budget.settle(run.ceilingCredits).catch(() => undefined);
     throw new StopSpike(`${run.label}: submit_proposal failed (${cause instanceof Error ? cause.message : String(cause)}); check the jobs in ${session.store.dataDir} before running again.`);
   } finally {
     gate.close();
   }
   const durationMs = Date.now() - started;
-  const after = await budget.settle();
+  const after = await budget.settle(run.ceilingCredits);
   const record: RunRecord = {
     step: step.id,
     label: run.label,

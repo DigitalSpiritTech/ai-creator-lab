@@ -142,8 +142,8 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
   "minimax-h3-multiframe": {
     title: "MiniMax H3 multi-frame, three keyframes, on Comfy Cloud",
     verified: null,
-    costHint: "Expected about 20 to 30 credits for 124 frames at 736x1312 with sound (4-step Lightning LoRA, three references); not yet measured.",
-    ceilingUsd: 0.24,
+    costHint: "Expected about 50 to 60 credits for 124 frames at 736x1312 with sound (20 steps, no Lightning LoRA, three references); not yet measured.",
+    ceilingUsd: 0.4,
     fitImages: true,
     defaults: { width: 736, height: 1312, length: 124 },
     notes:

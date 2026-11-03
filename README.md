@@ -139,6 +139,7 @@ Scripts (all in `package.json`):
 - `npm run lint`, `npm run typecheck`, `npm test` are the checks. `npm run test:acceptance` runs the whole flow against the mock executor with no credits.
 - `npm run --silent mcp` starts the MCP server on stdio (see below).
 - `npm run spike`, `npm run live-check`, `npm run e2e-real`, `npm run e2e-photos`, `npm run live-premium` call real providers and spend credits. They need the key and a nonzero allowance.
+- `npm run spike:v02` runs the v0.2 spike (Krea 2 character start and the MiniMax H3 checks) under a 420-credit cap; `DRY_RUN=1 npm run spike:v02` prints the plan and its ceilings without a key or any network call. See `docs/TASKS.md` B24 and B25 for its inputs.
 
 Where things live:
 

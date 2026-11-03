@@ -202,7 +202,7 @@ test("the first-and-last LTX sidecar binds both frames, both lengths, and both g
   assert.deepEqual(DEFAULT_RECIPE_IDS.first_last_to_video, { primary: "ltx-2.5-flf2v", hosted: "router-kling-3-omni-flf2v", mock: "mock-first-last-to-video" });
 });
 
-test("the H3 multi-frame graph keeps the template's wiring: identity reference, two chained guides, Lightning LoRA on", async () => {
+test("the H3 multi-frame graph keeps the template's wiring: identity reference, two chained guides, template default of 20 steps without the turbo LoRA", async () => {
   const sidecar = SlotSidecarSchema.parse(read("minimax-h3-multiframe.slots.json"));
   const graph = WorkflowGraphSchema.parse(read(sidecar.workflow));
   assert.deepEqual(sidecarProblems(sidecar, graph), []);
@@ -218,11 +218,12 @@ test("the H3 multi-frame graph keeps the template's wiring: identity reference, 
   );
   assert.deepEqual([graph["147"].class_type, graph["147"].inputs.positive, graph["147"].inputs.image], ["MiniMaxH3AddGuide", ["136", 0], ["157", 0]]);
   assert.deepEqual([graph["162"].class_type, graph["162"].inputs.positive, graph["162"].inputs.image], ["MiniMaxH3AddGuide", ["147", 0], ["159", 0]]);
-  assert.deepEqual(graph["126"].inputs, { model: ["145", 0], conditioning: ["162", 0] }, "the last guide feeds the guider through the Lightning LoRA");
-  assert.equal(graph["124"].inputs.steps, 4);
+  assert.deepEqual(graph["126"].inputs, { model: ["127", 0], conditioning: ["162", 0] }, "the last guide feeds the guider on the base model, no turbo LoRA");
+  assert.equal(graph["124"].inputs.steps, 20);
+  assert.equal(graph["145"], undefined, "no Lightning LoRA node");
   assert.deepEqual(
-    [graph["127"].inputs.unet_name, graph["128"].inputs.clip_name, graph["119"].inputs.vae_name, graph["120"].inputs.vae_name, graph["145"].inputs.lora_name],
-    ["minimax_h3_ref2va_pruned_int8_convrot.safetensors", "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", "minimax_h3_video_vae_int8_convrot.safetensors", "minimax_h3_audio_vae_fp32.safetensors", "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"],
+    [graph["127"].inputs.unet_name, graph["128"].inputs.clip_name, graph["119"].inputs.vae_name, graph["120"].inputs.vae_name],
+    ["minimax_h3_ref2va_pruned_int8_convrot.safetensors", "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", "minimax_h3_video_vae_int8_convrot.safetensors", "minimax_h3_audio_vae_fp32.safetensors"],
   );
   for (const node of ["147", "162"]) assert.ok(Number(graph[node].inputs.frame_idx) < Number(r2v.inputs.length), `guide ${node} sits inside the default clip`);
   const writes: [string, string, unknown][] = [];
@@ -230,7 +231,7 @@ test("the H3 multi-frame graph keeps the template's wiring: identity reference, 
   assert.deepEqual(writes, [["147", "frame_idx", 84], ["162", "frame_idx", 144], ["136", "length", 192], ["129", "noise_seed", 3]]);
 
   const recipe = (await defaultRecipes(workflowsDir, { mocks: false })).find((entry) => entry.id === "minimax-h3-multiframe");
-  assert.ok(recipe?.kind === "workflow" && recipe.verified === null && recipe.fitImages && recipe.ceilingUsd === 0.24);
+  assert.ok(recipe?.kind === "workflow" && recipe.verified === null && recipe.fitImages && recipe.ceilingUsd === 0.4);
   assert.match(recipe.costHint, /Expected/);
 });
 
