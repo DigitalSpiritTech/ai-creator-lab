@@ -82,6 +82,7 @@ export const proposeCandidates = defineTool({
       aspectRatio: AspectRatioSchema.optional(),
       durationSeconds: z.number().positive().max(60).optional(),
       slots: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().describe("Extra named workflow slots the recipe accepts, such as imageStrength."),
+      seed: z.number().int().min(0).max(4_294_967_295).optional().describe("A fixed seed for workflow recipes, to compare prompts or settings on the same noise; omit for a seed per job."),
     })
     .strict(),
   output: GenerationProposalSchema,
@@ -97,6 +98,7 @@ export const proposeCandidates = defineTool({
       aspectRatio: input.aspectRatio,
       durationSeconds: input.durationSeconds,
       slots: input.slots,
+      seed: input.seed,
     }),
 });
 
@@ -406,7 +408,6 @@ export const generateClip = defineTool({
       capability: firstLast ? "first_last_to_video" : speech ? "speech_to_video" : "image_to_video",
       recipeId: input.recipeId,
       prompt: clipPrompt(beat, {
-        wardrobe: beat.type === "talking" ? cast.character?.link.wardrobe : undefined,
         product: cast.product ? { name: cast.product.name, appearance: cast.product.appearance || undefined } : undefined,
         speech,
       }),

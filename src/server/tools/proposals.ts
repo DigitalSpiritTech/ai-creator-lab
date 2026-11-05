@@ -35,6 +35,8 @@ export interface ProposalSpec {
   durationSeconds?: number;
   /** Extra named workflow slots, such as a voice sample's transcript for a cloning model. */
   slots?: Record<string, string | number | boolean>;
+  /** A fixed workflow seed, so two proposals can differ only in prompt or settings. */
+  seed?: number;
 }
 
 /** How many reference images a recipe accepts, as [min, max]. */
@@ -115,7 +117,7 @@ export function referenceAssets(context: ToolContext, projectId: string, referen
   return assets;
 }
 
-function generationInput(spec: Pick<ProposalSpec, "prompt" | "aspectRatio" | "durationSeconds" | "slots">, assets: Asset[]): GenerationInput {
+function generationInput(spec: Pick<ProposalSpec, "prompt" | "aspectRatio" | "durationSeconds" | "slots" | "seed">, assets: Asset[]): GenerationInput {
   const voice = assets.find((asset) => asset.kind === "audio");
   return {
     prompt: spec.prompt,
@@ -124,6 +126,7 @@ function generationInput(spec: Pick<ProposalSpec, "prompt" | "aspectRatio" | "du
     ...(spec.aspectRatio ? { aspectRatio: spec.aspectRatio } : {}),
     ...(spec.durationSeconds ? { durationSeconds: spec.durationSeconds } : {}),
     ...(spec.slots && Object.keys(spec.slots).length ? { slots: spec.slots } : {}),
+    ...(spec.seed !== undefined ? { seed: spec.seed } : {}),
   };
 }
 
@@ -192,6 +195,7 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
     aspectRatio: spec.aspectRatio,
     durationSeconds: spec.durationSeconds,
     ...(Object.keys(slots).length ? { slots } : {}),
+    ...(spec.seed !== undefined && recipe.kind === "workflow" ? { seed: spec.seed } : {}),
     count: spec.count,
     target: spec.target,
     estimate: summarizeEstimate(estimate),

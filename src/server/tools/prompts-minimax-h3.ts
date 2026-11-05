@@ -16,6 +16,11 @@
  * describes the product only by the card's appearance line, never names it, adds no on-screen text,
  * and states what should appear rather than listing negatives (H3 runs at cfg 1 with no negative
  * branch, so a ban list adds the banned concept).
+ *
+ * The base modes anchor rather than describe: when <Picture 1> shows a subject, the subject's
+ * description, wardrobe, the product's look, and the setting and light are carried by the image and
+ * referred to with a preservation clause, as in MiniMax's own I2VA example. Restating them gave the
+ * model a second instruction to render the same traits, and H3 exaggerated them (2026-11-04 spike).
  * @packageDocumentation
  */
 import { z } from "zod";
@@ -117,9 +122,12 @@ export const H3SubjectSchema = z
     id: SubjectIdSchema,
     /** The short name actions use ("Avery"); full-reference prompts swap it for the subject's label. */
     name: line(60),
-    /** The bible's visual core, verbatim. The renderer adds no identity detail of its own. */
+    /**
+     * The bible's visual core, verbatim. The renderer adds no identity detail of its own. Full-reference
+     * mode defines the subject with it; the base modes leave it out when <Picture 1> shows the subject.
+     */
     description: line(600),
-    /** The project's wardrobe words, repeated in every shot so clothing does not drift. */
+    /** The project's wardrobe words: repeated in every full-reference shot, and in the base modes only for a subject <Picture 1> does not show. */
     wardrobe: line(200),
     /** How the voice sounds, from the bible (timbre, pace), stated at the first line the subject speaks. */
     voice: line(200).optional(),
@@ -716,21 +724,27 @@ function renderBase(spec: H3ShotSpec, options: BaseOptions = {}): string {
   const opening = options.continues ? `continues from <Picture 1>, the last frame of the previous segment` : "begins from <Picture 1>";
   const parts: string[] = [
     `[Shot 1] ${capitalize(clause(spec.style))} style, ${withArticle(clause(shot.framing))} ${opening}, showing ${continuing(voice.rewrite(first.shows!), voice.names)}.`,
-    `The setting is ${continuing(voice.rewrite(shot.setting), voice.names)}, ${continuing(voice.rewrite(shot.lighting), voice.names)}.`,
   ];
+  // The first frame carries identity, wardrobe, product, set, and light: point at it, never restate it.
   for (const id of shot.subjects) {
     const subject = spec.subjects.find((candidate) => candidate.id === id)!;
     if (first.subject === id) {
-      parts.push(sentence(subject.description), `${subject.name}, wearing ${clause(subject.wardrobe)}, keeps the face, hair, clothing, and position established by <Picture 1>.`);
+      parts.push(`${subject.name} shown in <Picture 1> keeps the face, hair, clothing, and position exactly as in <Picture 1>.`);
     } else {
       parts.push(sentence(subject.description), `${subject.name} wears ${clause(subject.wardrobe)}.`);
     }
   }
+  parts.push("The setting and light stay exactly as in <Picture 1>.");
   parts.push(sentence(voice.rewrite(shot.action)));
-  const product = productSentence(spec, shot, voice);
-  if (product) parts.push(product);
+  if (shot.product && spec.product) parts.push(`The product shown in <Picture 1> keeps its shape and proportions, ${continuing(voice.rewrite(shot.product), voice.names)}.`);
   parts.push(cameraSentence(shot.camera, voice.rewrite));
   parts.push(...dialogueSentences(spec, 1, voice, new Set()));
+  // Without an on-camera line, H3 still tends to mouth words; keep the lips shut.
+  for (const id of shot.subjects) {
+    const speaks = spec.dialogue.some((entry) => entry.speaker === id && !entry.offscreen);
+    const voiceover = spec.dialogue.some((entry) => entry.speaker === id && entry.offscreen);
+    if (!speaks && !voiceover) parts.push(`${spec.subjects.find((candidate) => candidate.id === id)!.name}'s lips remain closed throughout.`);
+  }
   if (shot.sound) parts.push(sentence(voice.rewrite(shot.sound)));
   if (last) parts.push(`The motion settles into the pose, framing, and composition established by Picture 2 at the end of the shot, showing ${continuing(voice.rewrite(last.shows!), voice.names)}.`);
   if (options.next) parts.push(`In the last second the motion eases into a steady pose with the same framing, clothing, and light, setting up the next moment: ${clause(voice.rewrite(options.next))}.`);

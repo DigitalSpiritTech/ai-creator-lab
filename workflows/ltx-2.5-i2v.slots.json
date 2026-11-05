@@ -38,6 +38,10 @@
     "imageStrength": {
       "node": "24",
       "input": "strength"
+    },
+    "imgCompression": {
+      "node": "23",
+      "input": "img_compression"
     }
   },
   "limits": {

@@ -15,7 +15,12 @@
  * default 65 s); a run whose ceiling would cross the cap is not started; notes print at 50 and 80
  * percent. A paid submit is never retried: the allowance admits exactly one job per planned run, so
  * the app's automatic black-output retry is refused. Inputs: STILL, KEYFRAMES, KEYFRAME_NOTES,
- * KEYFRAME_SECONDS, MULTIFRAME_SECONDS, SHEET (files under .data/spike/ unless absolute).
+ * KEYFRAME_SECONDS, MULTIFRAME_SECONDS, SHEET (files under .data/spike/ unless absolute), and
+ * SPIKE_SEED (default 42), the one seed every video run uses so the A/B steps (h3-traits against
+ * h3-dialogue, ltx-variants against ltx-dialogue) differ only in prompt or setting.
+ * SPIKE_STORE=app writes into the app's data directory (STUDIO_DATA_DIR, default .data) instead of a
+ * fresh one, reusing a "v0.2 spike" project, so the outputs show in the UI; the app's own allowance
+ * (the lower of Settings and GENERATION_ALLOWANCE_USD, against its whole ledger) then applies too.
  * Results go to .data/spike/v02/<run>/ with ready-to-paste VERIFICATION rows and a decisions checklist.
  */
 import { Comfy } from "@comfyorg/sdk";
@@ -36,6 +41,8 @@ import { ffmpegPath } from "@/server/executors/media";
 import { importImage } from "@/server/media/images";
 import { checkVideoTools, probeVideo } from "@/server/media/video";
 import { childEnv } from "@/server/process";
+import { effectiveAllowanceUsd } from "@/lib/domain/workspace";
+import { dataDirectory } from "@/server/runtime";
 import { openStore, type Store } from "@/server/store";
 import { callTool, createGenerationContext, createToolContext, type ToolContext } from "@/server/tools";
 import { averyBible } from "../../tests/support/domain-fixtures";
@@ -410,6 +417,7 @@ function proposeVideo(session: Session, run: PlannedRun, referenceAssetIds: stri
       aspectRatio: run.aspectRatio,
       ...(run.durationSeconds ? { durationSeconds: run.durationSeconds } : {}),
       ...(run.slots ? { slots: run.slots } : {}),
+      ...(run.seed !== undefined ? { seed: run.seed } : {}),
       target: { kind: "loose" },
     });
 }
@@ -454,10 +462,15 @@ async function runKrea(session: Session, step: PlannedStep, record: StepRecord, 
   }
 }
 
-async function runSingle(session: Session, step: PlannedStep, record: StepRecord, name: string): Promise<void> {
-  const run = step.runs[0];
+/** Each run of the step in order; one run is saved as `<step>.mp4`, several as `<step>-<label>.mp4`. */
+async function runSingle(session: Session, step: PlannedStep, record: StepRecord): Promise<void> {
+  for (const run of step.runs) await runOne(session, step, record, run, step.runs.length === 1 ? `${step.id}.mp4` : `${step.id}-${run.label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.mp4`);
+}
+
+async function runOne(session: Session, step: PlannedStep, record: StepRecord, run: PlannedRun, name: string): Promise<void> {
   const ids = await referenceIds(session, run);
-  const done = await paidRun(session, step, run, proposeVideo(session, run, ids), `${run.images.join(" + ")}, ${run.frames} frames at ${run.width}x${run.height}`);
+  const settings = [run.slots ? Object.entries(run.slots).map(([key, value]) => `${key}=${value}`).join(" ") : "", run.seed !== undefined ? `seed ${run.seed}` : ""].filter(Boolean).join(", ");
+  const done = await paidRun(session, step, run, proposeVideo(session, run, ids), `${run.images.join(" + ")}, ${run.frames} frames at ${run.width}x${run.height}${settings ? `, ${settings}` : ""}`);
   const copied = await copyOut(session, done, name);
   record.runs.push(done);
   if (copied && step.id === "h3-multiframe" && run.slots && run.frames) {
@@ -558,6 +571,8 @@ function decisions(steps: StepRecord[]): string {
     "",
     `- [ ] Talking beats over 5 s: native H3 multi-shot / chaining. Multi-frame: ${brief("h3-multiframe")}. ${facts("h3-multiframe").join(" ")} Chain: ${brief("h3-chain")}. ${facts("h3-chain").join(" ")}`,
     `- [ ] Microdrama on H3: yes / no. H3 dialogue: ${brief("h3-dialogue")}. LTX baseline: ${brief("ltx-dialogue")}. Compare speech clarity, lip sync and identity by ear and eye.`,
+    `- [ ] Restated traits exaggerate on H3: yes / no (same still and seed). Reference-only: ${brief("h3-dialogue")}. With traits: ${brief("h3-traits")}. If yes, first-frame prompts stay reference-only everywhere.`,
+    `- [ ] LTX start-image prompt and settings: keep the new prompt yes / no; strength 0.85 / 0.7; CRF 0 / 18 (change workflows/ltx-2.5-i2v.api.json node 24 strength and node 23 img_compression). New prompt at 0.85 and CRF 0: ${brief("ltx-dialogue")}. Variants: ${brief("ltx-variants")}.`,
     `- [ ] Krea 2 as the default character start: yes / no. ${brief("krea")}. ${facts("krea").join(" ")} If yes: in src/server/catalog/defaults.ts add character_start: "${KREA_RECIPE}" to DEFAULT_PURPOSE_RECIPE_IDS, and tags: ["character_start"] plus the suggested ceilingUsd to Krea's WORKFLOW_META entry.`,
     `- [ ] Krea billing: plan compute / partner model. ${facts("krea").filter((fact) => /billing|classes|per execution/.test(fact)).join(" ")} Credits per execution second: ${runs("krea").flatMap((run) => run.notes).join(", ") || "n/a"}.`,
     `- [ ] H3 Max reference to video on Router: ${steps.find((step) => step.id === "h3-max-router")?.reason ?? "not run"}. ${facts("h3-max-router").join(" ")}`,
@@ -602,13 +617,19 @@ async function main(): Promise<void> {
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
   const outDir = resolve(v02Dir, runId);
   mkdirSync(outDir, { recursive: true });
-  const store = openStore(join(outDir, "studio"));
+  const appStore = process.env.SPIKE_STORE === "app";
+  const store = openStore(appStore ? dataDirectory() : join(outDir, "studio"));
+  if (appStore) log(`writing into the app's data directory ${store.dataDir}`);
   const budget = new Budget(cap, () => balanceCredits(apiKey), Number(process.env.BALANCE_SETTLE_MS ?? 65_000));
-  const gate = new SubmitGate(cap / CREDITS_PER_USD);
+  // In the app's store its allowance gates too, against the app's whole ledger; the spike cap still holds through Budget.
+  const gate = new SubmitGate(appStore ? effectiveAllowanceUsd(store.workspace.get(), allowanceUsd) : cap / CREDITS_PER_USD);
   const context = createToolContext(store, { ...createGenerationContext(store, { workflowsDir }), allowanceUsd: gate.allowance });
   const now = Date.now();
-  const project = store.projects.create({ id: randomUUID(), appId: "ugc-creator", name: "v0.2 spike", brief: null, revision: 0, createdAt: now, updatedAt: now });
-  const { character } = await tool<{ character: { id: string } }>(context, "save_character_bible", { projectId: project.id, bible: averyBible() });
+  const project =
+    (appStore ? store.projects.list().find((p) => p.name === "v0.2 spike") : undefined) ??
+    store.projects.create({ id: randomUUID(), appId: "ugc-creator", name: "v0.2 spike", brief: null, revision: 0, createdAt: now, updatedAt: now });
+  const existingCharacter = appStore ? store.library.list({ kind: "character" }).find((item) => item.kind === "character" && item.bible.name === averyBible().name) : undefined;
+  const { character } = await tool<{ character: { id: string } }>(context, "save_character_bible", { projectId: project.id, bible: averyBible(), ...(existingCharacter ? { characterId: existingCharacter.id } : {}) });
   const session: Session = {
     store,
     context,
@@ -658,7 +679,7 @@ async function main(): Promise<void> {
         if (step.id === "krea") await runKrea(session, step, record, info);
         else if (step.id === "h3-chain") await runChain(session, step, record);
         else if (step.id === "h3-max-router") await runRouter(session, record);
-        else await runSingle(session, step, record, `${step.id}.mp4`);
+        else await runSingle(session, step, record);
         if (record.runs.some((run) => run.outcome === "failed")) record.status = "failed";
       } catch (cause) {
         if (cause instanceof StopSpike) {

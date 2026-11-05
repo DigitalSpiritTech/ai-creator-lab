@@ -142,4 +142,10 @@ describe("purpose defaults", () => {
     const kreaByName = await face({ recipeId: KREA });
     assert.equal(kreaByName.prompt, kreaFacePrompt(averyBible()), "naming Krea picks its prompt variant even when it is not the default");
   });
+
+  test("a pinned seed is kept on a workflow proposal and dropped for a hosted model, which has no seed slot", async () => {
+    const { propose } = await faceSetup(await defaultRecipes(workflowsDir, { mocks: true }));
+    assert.equal((await propose({ kind: "loose" }, { recipeId: "z-image-turbo-t2i", seed: 42 })).seed, 42);
+    assert.equal((await propose({ kind: "loose" }, { recipeId: "z-image-turbo-t2i" })).seed, undefined);
+  });
 });

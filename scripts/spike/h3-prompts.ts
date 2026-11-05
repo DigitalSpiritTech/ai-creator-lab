@@ -17,8 +17,17 @@ export const DIALOGUE_LINE = "Twenty-four hours later it was still cold. I check
 /** The two halves of the chained talking beat (about 10 s in two 5 s segments). */
 export const CHAIN_LINES = ["I filled this before my commute yesterday morning.", DIALOGUE_LINE] as const;
 
-/** The person in the approved still, as the prompts describe her (from the bible's visual core). */
-export const PERSON =
+/**
+ * The person, by reference only. <Picture 1> carries her identity; a face description on top of it
+ * (freckles, hair) made H3 exaggerate those features and could contradict the still (2026-11-04 run).
+ */
+export const PERSON = "the woman";
+
+/**
+ * The trait description the 2026-11-04 run used, kept only for the h3-traits A/B: the same still
+ * and seed with and without it shows whether restating traits is what exaggerates them.
+ */
+export const PERSON_WITH_TRAITS =
   "a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings";
 
 /** The product by appearance only; its name never reaches a video prompt. */
@@ -41,11 +50,11 @@ function i2va(description: string, soundscape: string): string {
   return [I2VA_ALIGNMENT, "", `integrated_multimodal_description: ${description}`, "", `overall_soundscape: ${soundscape}`, "", "non_diegetic_music: N/A"].join("\n");
 }
 
-/** Step 1: H3 image to video from the approved still, one shot, the line spoken to camera. */
-export function h3DialoguePrompt(line: string = DIALOGUE_LINE): string {
+/** Step 1: H3 image to video from the approved still, one shot, the line spoken to camera; `person` is the A/B's only variable. */
+export function h3DialoguePrompt(line: string = DIALOGUE_LINE, person: string = PERSON): string {
   return i2va(
     [
-      `[Shot 1] Live-action, candid vertical phone video, ${PERSON} shown in <Picture 1> stands at a bright kitchen counter by a window holding ${BOTTLE}, preserving her face, hair, earrings, clothing, and the kitchen layout from <Picture 1>.`,
+      `[Shot 1] Live-action, candid vertical phone video, ${person} shown in <Picture 1> stands at a bright kitchen counter by a window holding ${BOTTLE}, preserving her face, hair, earrings, clothing, and the kitchen layout from <Picture 1>.`,
       "The camera holds a static shot at chest height.",
       `She looks into the lens with an easy smile, and ${VOICE} says: <d>[English] ${line}</d>`,
       "She taps the side of the bottle once with a fingertip, nods slightly, and closes her lips into a relaxed smile.",
@@ -94,7 +103,7 @@ export function h3MultiframePrompt(seconds: readonly [number, number], notes: re
   const [second, third] = seconds;
   return [
     "subject_definitions:",
-    `<Subject 1> is the woman in <Picture 1>, ${PERSON}.`,
+    "<Subject 1> is the woman in <Picture 1>.",
     `<Picture 1> is the first frame of [Shot 1], showing <Subject 1> at a bright kitchen counter by a window holding ${BOTTLE}.`,
     `<Picture 2> is the keyframe of [Shot 2], showing ${notes[0]}.`,
     `<Picture 3> is the keyframe of [Shot 3], showing ${notes[1]}.`,
@@ -103,7 +112,7 @@ export function h3MultiframePrompt(seconds: readonly [number, number], notes: re
     `[keyframe completion + reference generation] A three-shot vertical UGC video of <Subject 1>. It begins with <Picture 1> as she speaks to the camera in the kitchen, cuts to match <Picture 2>, then cuts to match <Picture 3>.`,
     "",
     "retention_analysis:",
-    "<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - her face, freckles, hazel eyes, tied-back dark hair, silver hoop earrings, and clothing are the same in every shot.",
+    "<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - her face, hair, earrings, and clothing are the same as in <Picture 1> in every shot.",
     "<Picture 1> ([Shot 1] first frame): fully_preserved - the video starts exactly from its framing, pose, and kitchen.",
     "<Picture 2> ([Shot 2] keyframe): fully_preserved - the shot matches its composition, setting, and light.",
     "<Picture 3> ([Shot 3] keyframe): fully_preserved - the shot matches its composition, setting, and light.",

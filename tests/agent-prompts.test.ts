@@ -7,7 +7,7 @@ import { stagePrompt } from "@/server/agent/prompts/creative-director";
 import { AGENT_TOOLS, INTERNAL_TOOLS, TOOLS, type ToolContext, callTool, toolsToJsonSchema } from "@/server/tools";
 import { PROMPT_LIMIT, backdropFor, backdropOf, facePrompt, onlyDescribedObjects, withoutProductName } from "@/server/tools/prompts";
 import { averyBible, clock, seedProject, tempStore } from "./support/domain-fixtures";
-import { promptCases } from "./support/prompt-cases";
+import { fixtureBible, promptCases } from "./support/prompt-cases";
 
 /** Snapshots of every template for the Avery Lane bible and the Ridgeline script. */
 const EXPECTED: Record<string, string> = {
@@ -40,11 +40,11 @@ const EXPECTED: Record<string, string> = {
   stillTextcardWithSet:
     "Simple uncluttered composition with calm empty space in the upper third for a caption added later. The bottle on the kitchen counter in soft window light. Setting: the location in reference image 2, bright kitchen counter by a window. The product in reference image 1 is a 32 oz insulated bottle, clearly visible, true to its shape, color, and materials, no text, lettering, or logo on the product. Only the objects described; no additional phones or props, and no bottles beyond those described. No faces in frame. Vertical 9:16 phone photo, natural light, candid UGC look. The photo itself, full frame, not a screenshot: no camera app interface, buttons, icons, or phone frame. No text, captions, logos, or watermarks in the image.",
   clipTalking:
-    "Avery in the driver's seat holding the bottle, morning light, speaking to the camera with an easy smile, small natural head movement, static phone camera. Wearing Olive utility jacket over a white tee. The product is a 32 oz insulated bottle, no text, lettering, or logo on the product. Quiet ambient sound of a car interior. The person says, \"I stopped buying bottled water the day this fit my cup holder.\" No text on screen. The person's face and clothing stay consistent.",
+    "Use the provided start image as the first frame. The person in the start image looks into the phone camera, smiles easily, and says in a relaxed, natural voice, \"I stopped buying bottled water the day this fit my cup holder.\" A small nod follows the last word. The product keeps the shape and proportions it has in the start image, its front toward the camera. Handheld phone framing with a subtle natural sway, no cuts, natural real-time speed. Quiet ambient sound of a car interior, no music.",
   clipBroll:
-    "Hands pulling a warm plastic bottle from a hot car console, one simple motion, slow push-in. Ambient sound of a car interior, no speech, ambient sound only. No faces in frame. No text on screen.",
+    "Use the provided start image as the first frame. Hands pulling a warm plastic bottle from a hot car console. One simple motion, no cuts, natural real-time speed. The camera pushes in slowly and stops on a steady close-up. Ambient sound of a car interior, no dialogue, no music.",
   clipTextcard:
-    "The bottle on the kitchen counter in soft window light, almost still with very subtle natural motion, static camera. The product is a 32 oz insulated bottle, no text, lettering, or logo on the product. Soft ambient sound of a bright kitchen counter by a window, no speech, ambient sound only. No text on screen.",
+    "Use the provided start image as the first frame. The scene stays almost still with very subtle natural motion. The product keeps the shape and proportions it has in the start image, its front toward the camera. The camera holds a static shot, no cuts, natural real-time speed. Soft ambient sound of a bright kitchen counter by a window, no dialogue, no music.",
   productPhoto:
     "Product photograph of a matte dark green steel bottle with a black screw cap, standing upright on a light wooden kitchen counter by a window, soft morning light, plain uncluttered background, true to its shape, color, and materials, no text, lettering, or logo on the product. Only the product; no additional bottles, phones, or props. No text, captions, logos, or watermarks in the image.",
   refineStill:
@@ -127,9 +127,10 @@ describe("prompt templates", () => {
   test("image and video prompts describe the product by look, never by name, and forbid text on it", () => {
     const cases = promptCases();
     for (const [name, prompt] of Object.entries(cases)) assert.doesNotMatch(prompt, /Ridgeline/, name);
-    for (const name of ["stillTalkingSheet", "stillTalkingFaceBody", "stillTextcardWithSet", "clipTalking", "clipTextcard", "productPhoto"]) {
+    for (const name of ["stillTalkingSheet", "stillTalkingFaceBody", "stillTextcardWithSet", "productPhoto"]) {
       assert.match(cases[name], /(is|of) (a|an) [^.]*, no text, lettering, or logo on the product\./, name);
     }
+    for (const name of ["clipTalking", "clipTextcard"]) assert.match(cases[name], /The product keeps the shape and proportions it has in the start image/, `${name} holds the product by reference to the still`);
     assert.match(cases.stillBroll, /The product in reference image 1 stays out of this shot\./, "a beat without the product does not invite it in");
     assert.match(cases.productPhoto, /^Product photograph of a matte dark green steel bottle with a black screw cap,/);
     assert.equal(withoutProductName("Avery holding the Ridgeline bottle", { name: "Ridgeline 32 oz insulated bottle" }), "Avery holding the bottle");
@@ -145,12 +146,22 @@ describe("prompt templates", () => {
     assert.equal(onlyDescribedObjects("A phone and a bottle on the dashboard, a few props."), "Only the objects described; no bottles, phones, or props beyond those described.");
   });
 
-  test("clips quote the spoken line on talking beats, keep b-roll ambient, and always forbid text", () => {
+  test("clips anchor to the start image and carry only change: action, camera, line, ambience", () => {
     const cases = promptCases();
-    assert.match(cases.clipTalking, /The person says, "I stopped buying bottled water the day this fit my cup holder\."/);
-    assert.match(cases.clipBroll, /no speech, ambient sound only/);
-    assert.match(cases.clipTextcard, /no speech, ambient sound only/);
-    for (const name of ["clipTalking", "clipBroll", "clipTextcard"]) assert.match(cases[name], /No text on screen\./, name);
+    assert.match(cases.clipTalking, /says in a relaxed, natural voice, "I stopped buying bottled water the day this fit my cup holder\."/, "a delivery cue before the quoted line");
+    assert.match(cases.clipBroll, /no dialogue, no music\.$/);
+    assert.match(cases.clipTextcard, /no dialogue, no music\.$/);
+    const bible = fixtureBible();
+    for (const name of ["clipTalking", "clipBroll", "clipTextcard"]) {
+      const prompt = cases[name];
+      assert.ok(prompt.startsWith("Use the provided start image as the first frame. "), name);
+      assert.match(prompt, /no cuts, natural real-time speed/, name);
+      assert.doesNotMatch(prompt, /\b(freckles?|hazel|earrings?|jacket|tee|wearing|Avery)\b/i, `${name} restates nothing the still shows`);
+      assert.doesNotMatch(prompt, /No text|stay consistent|No faces/, `${name} has no negatives: they do nothing at CFG 1`);
+      assert.ok(!prompt.includes(bible.visualCore), name);
+      const words = prompt.split(/\s+/).length;
+      assert.ok(words <= 110, `${name} is ${words} words; LTX first-frame prompts stay at or under 110`);
+    }
   });
 });
 

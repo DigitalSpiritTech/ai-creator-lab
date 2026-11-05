@@ -26,9 +26,9 @@ import { ExecutorFailure } from "@/server/executors/jobs";
 import { planWorkflow, scaleByLength } from "@/server/executors/workflow";
 import { FACE_LOCK, clipPrompt, faceLockPrompt } from "@/server/tools/prompts";
 import { averyBible } from "../../tests/support/domain-fixtures";
-import { BOTTLE, CHAIN_LINES, DEFAULT_KEYFRAME_NOTES, DIALOGUE_LINE, h3ChainPrompts, h3DialoguePrompt, h3MultiframePrompt } from "./h3-prompts";
+import { BOTTLE, CHAIN_LINES, DEFAULT_KEYFRAME_NOTES, DIALOGUE_LINE, PERSON_WITH_TRAITS, h3ChainPrompts, h3DialoguePrompt, h3MultiframePrompt } from "./h3-prompts";
 
-export const STEP_IDS = ["krea", "h3-dialogue", "ltx-dialogue", "h3-multiframe", "h3-chain", "h3-max-router"] as const;
+export const STEP_IDS = ["krea", "h3-dialogue", "h3-traits", "ltx-dialogue", "ltx-variants", "h3-multiframe", "h3-chain", "h3-max-router"] as const;
 export type StepId = (typeof STEP_IDS)[number];
 
 /** The spike's combined budget: 2 USD at the ledger's 210 credits per USD. */
@@ -54,6 +54,8 @@ export interface SpikeInputs {
   multiframeSeconds: number;
   /** The project's character reference sheet, for a reference-to-video model on Router. */
   sheet?: string;
+  /** One seed for every video run, so the A/B steps differ only in prompt or setting. */
+  seed: number;
 }
 
 function pair(value: string | undefined, fallback: readonly [string, string], separator = ","): [string, string] {
@@ -71,6 +73,7 @@ export function spikeInputsFromEnv(env: Record<string, string | undefined> = pro
     keyframeSeconds: seconds,
     multiframeSeconds: Number(env.MULTIFRAME_SECONDS ?? "8"),
     sheet: env.SHEET?.trim() || undefined,
+    seed: Number(env.SPIKE_SEED ?? "42"),
   };
 }
 
@@ -95,6 +98,7 @@ export interface PlannedRun {
   aspectRatio: AspectRatio;
   durationSeconds?: number;
   slots?: Record<string, number>;
+  seed?: number;
   width?: number;
   height?: number;
   frames?: number;
@@ -153,6 +157,7 @@ interface RunDraft {
   aspectRatio: AspectRatio;
   durationSeconds?: number;
   slots?: Record<string, number>;
+  seed?: number;
 }
 
 async function graphOf(recipe: WorkflowRecipe, workflowsDir: string, cache: Map<string, WorkflowGraph>): Promise<WorkflowGraph> {
@@ -175,7 +180,7 @@ async function planRun(draft: RunDraft, recipes: Recipe[], workflowsDir: string,
   const graph = await graphOf(recipe, workflowsDir, cache);
   let plan: ReturnType<typeof planWorkflow>;
   try {
-    plan = planWorkflow(recipe, { prompt: draft.prompt, images: draft.images, aspectRatio: draft.aspectRatio, durationSeconds: draft.durationSeconds, slots: draft.slots }, graph, 1);
+    plan = planWorkflow(recipe, { prompt: draft.prompt, images: draft.images, aspectRatio: draft.aspectRatio, durationSeconds: draft.durationSeconds, slots: draft.slots, seed: draft.seed }, graph, 1);
   } catch (cause) {
     return { problems: [`${draft.label}: ${failureMessage(cause)}`] };
   }
@@ -223,6 +228,17 @@ function ltxDialoguePrompt(line: string): string {
   return clipPrompt(beat, { product: { name: "Ridgeline 32 oz insulated bottle", appearance: BOTTLE } });
 }
 
+/**
+ * The LTX prompt the app wrote before the first-frame rewrite (the scene re-described, the product
+ * look, a wardrobe-consistency line, and negatives that do nothing at CFG 1), for the ltx-variants A/B.
+ */
+export function legacyLtxDialoguePrompt(line: string): string {
+  return `A woman at a bright kitchen counter by a window, holding the bottle, speaking to the camera with an easy smile, small natural head movement, static phone camera. The product is ${BOTTLE}, no text, lettering, or logo on the product. Quiet ambient sound of a bright kitchen counter by a window. The person says, "${line}" No text on screen. The person's face and clothing stay consistent.`;
+}
+
+/** The LTX distilled graph's start-image settings today: strength 0.85, no CRF round trip. */
+export const LTX_DEFAULT_SETTINGS = { imageStrength: 0.85, imgCompression: 0 } as const;
+
 /** The run drafts and free work of one step, before validation. */
 function stepDrafts(id: StepId, inputs: SpikeInputs): Omit<PlannedStep, "runs" | "ceilingUsd" | "ceilingCredits" | "problems"> & { drafts: RunDraft[] } {
   const bible = CharacterBibleSchema.parse({ ...averyBible(), references: { faceAssetId: null, bodyAssetId: null }, version: 1 });
@@ -247,17 +263,60 @@ function stepDrafts(id: StepId, inputs: SpikeInputs): Omit<PlannedStep, "runs" |
         id,
         title: "H3 image to video with spoken dialogue",
         question: "Speech clarity, cost and time against LTX on the same still and line.",
-        drafts: [{ label: "h3 dialogue", via: "propose_candidates", recipeId: "minimax-h3-i2v", prompt: h3DialoguePrompt(DIALOGUE_LINE), images: [inputs.still], aspectRatio: "9:16", durationSeconds: 5 }],
+        drafts: [{ label: "h3 dialogue", via: "propose_candidates", recipeId: "minimax-h3-i2v", prompt: h3DialoguePrompt(DIALOGUE_LINE), images: [inputs.still], aspectRatio: "9:16", durationSeconds: 5, seed: inputs.seed }],
         local: ["ffprobe of the clip"],
+      };
+    case "h3-traits":
+      return {
+        id,
+        title: "H3 trait A/B: the h3-dialogue prompt with the bible's face description restated",
+        question: "On the same still and seed as h3-dialogue, does restating traits (freckles, hair) exaggerate them? If so, first-frame prompts stay reference-only.",
+        drafts: [
+          {
+            label: "h3 dialogue with traits",
+            via: "propose_candidates",
+            recipeId: "minimax-h3-i2v",
+            prompt: h3DialoguePrompt(DIALOGUE_LINE, PERSON_WITH_TRAITS),
+            images: [inputs.still],
+            aspectRatio: "9:16",
+            durationSeconds: 5,
+            seed: inputs.seed,
+          },
+        ],
+        local: ["ffprobe of the clip", "compare face close-ups against h3-dialogue.mp4 at the same frames"],
       };
     case "ltx-dialogue":
       return {
         id,
         title: "LTX 2.5 image to video with the same still and line (baseline)",
         question: "The baseline for the H3 dialogue comparison.",
-        drafts: [{ label: "ltx dialogue", via: "propose_candidates", recipeId: "ltx-2.5-i2v", prompt: ltxDialoguePrompt(DIALOGUE_LINE), images: [inputs.still], aspectRatio: "9:16", durationSeconds: 5 }],
+        drafts: [{ label: "ltx dialogue", via: "propose_candidates", recipeId: "ltx-2.5-i2v", prompt: ltxDialoguePrompt(DIALOGUE_LINE), images: [inputs.still], aspectRatio: "9:16", durationSeconds: 5, seed: inputs.seed }],
         local: ["ffprobe of the clip"],
       };
+    case "ltx-variants": {
+      const ltx = (label: string, prompt: string, slots: Record<string, number>): RunDraft => ({
+        label,
+        via: "propose_candidates",
+        recipeId: "ltx-2.5-i2v",
+        prompt,
+        images: [inputs.still],
+        aspectRatio: "9:16",
+        durationSeconds: 5,
+        slots,
+        seed: inputs.seed,
+      });
+      return {
+        id,
+        title: "LTX 2.5 A/B against ltx-dialogue: the old prompt, then one start-image setting at a time",
+        question: "Against ltx-dialogue (new prompt, strength 0.85, CRF 0) on the same seed: does the start-image prompt beat the old one, and do Lightricks' defaults (strength 0.7, CRF 18) give more motion without losing identity?",
+        drafts: [
+          ltx("ltx old prompt", legacyLtxDialoguePrompt(DIALOGUE_LINE), { ...LTX_DEFAULT_SETTINGS }),
+          ltx("ltx strength 0.7", ltxDialoguePrompt(DIALOGUE_LINE), { ...LTX_DEFAULT_SETTINGS, imageStrength: 0.7 }),
+          ltx("ltx crf 18", ltxDialoguePrompt(DIALOGUE_LINE), { ...LTX_DEFAULT_SETTINGS, imgCompression: 18 }),
+        ],
+        local: ["ffprobe of each clip", "watch for a frozen start, identity drift, and dead air against ltx-dialogue.mp4"],
+      };
+    }
     case "h3-multiframe":
       return {
         id,
@@ -272,6 +331,7 @@ function stepDrafts(id: StepId, inputs: SpikeInputs): Omit<PlannedStep, "runs" |
             images: [inputs.still, ...inputs.keyframes],
             aspectRatio: "9:16",
             durationSeconds: inputs.multiframeSeconds,
+            seed: inputs.seed,
             slots: { image2Frame: frameIndex(inputs.keyframeSeconds[0]), image3Frame: frameIndex(inputs.keyframeSeconds[1]) },
           },
         ],
@@ -284,8 +344,8 @@ function stepDrafts(id: StepId, inputs: SpikeInputs): Omit<PlannedStep, "runs" |
         title: "H3 two-segment chain from the last frame, stitched locally",
         question: "Seam quality of a chained talking beat (the alternative to native multi-shot).",
         drafts: [
-          { label: "h3 chain segment 1", via: "propose_candidates", recipeId: "minimax-h3-i2v", prompt: first, images: [inputs.still], aspectRatio: "9:16", durationSeconds: 5 },
-          { label: "h3 chain segment 2", via: "propose_candidates", recipeId: "minimax-h3-i2v", prompt: second, images: [DERIVED_IMAGE], aspectRatio: "9:16", durationSeconds: 5 },
+          { label: "h3 chain segment 1", via: "propose_candidates", recipeId: "minimax-h3-i2v", prompt: first, images: [inputs.still], aspectRatio: "9:16", durationSeconds: 5, seed: inputs.seed },
+          { label: "h3 chain segment 2", via: "propose_candidates", recipeId: "minimax-h3-i2v", prompt: second, images: [DERIVED_IMAGE], aspectRatio: "9:16", durationSeconds: 5, seed: inputs.seed },
         ],
         local: ["ffmpeg: segment 1's last frame as segment 2's start", "ffmpeg: hard-cut and 0.25 s crossfade stitches", "ffmpeg: contact sheet of the seam", "seam difference between the two frames"],
       };
@@ -343,8 +403,9 @@ export function formatPlan(plan: SpikePlan): string {
       const size = run.width && run.height ? `${run.width}x${run.height}` : "default size";
       const frames = run.frames ? `, ${run.frames} frames` : "";
       const slots = run.slots ? `, ${Object.entries(run.slots).map(([name, value]) => `${name}=${value}`).join(" ")}` : "";
+      const seed = run.seed !== undefined ? `, seed ${run.seed}` : "";
       const images = run.images.length ? `, images ${run.images.join(" + ")}` : "";
-      lines.push(`  - ${run.label}: ${run.recipeId} via ${run.via}, ${size}${frames}${slots}${images}; ceiling ${run.ceilingUsd} USD (${run.ceilingCredits} credits)`);
+      lines.push(`  - ${run.label}: ${run.recipeId} via ${run.via}, ${size}${frames}${slots}${seed}${images}; ceiling ${run.ceilingUsd} USD (${run.ceilingCredits} credits)`);
     }
     for (const work of step.local) lines.push(`  - free: ${work}`);
     lines.push(`  step ceiling: ${step.ceilingUsd} USD (${step.ceilingCredits} credits)`);

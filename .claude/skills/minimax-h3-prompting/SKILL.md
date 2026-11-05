@@ -15,6 +15,12 @@ Prompts are rendered per model from a shot spec, never copied from an LTX prompt
 
 Each returns `{ ok: true, prompt, frames, anchors }` or `{ ok: false, errors }`; nothing throws on bad input.
 
+Scope: MiniMax H3 (open weights on Comfy, and the v2 `/v2/video_generation` API that Comfy Router forwards unchanged). Not Hailuo 02 or 2.3 (v1): their bracketed camera commands (`[Push in]`, `[Static shot]`) and `prompt_optimizer` belong to that grammar, and how H3 reads brackets is unverified, so never send them to H3. H3 has no negative prompt, seed, or prompt-optimizer field in the API schema. On H3-Max, set `prompt_expansion_mode: disabled` so a rewrite cannot add appearance description; inspect any H3-Context-IR output for trait lists before using it.
+
+## Anchor, do not describe
+
+When `<Picture 1>` is the first frame, it carries the person, wardrobe, product, set, and light. The base renderers point at it (`Avery shown in <Picture 1> keeps the face, hair, clothing, and position exactly as in <Picture 1>.`, `The setting and light stay exactly as in <Picture 1>.`, `The product shown in <Picture 1> keeps its shape and proportions, held in ...`) and never restate the bible's visual core, the wardrobe, or the product's look. Restating traits gives H3 a second instruction to render them: on 2026-11-04 the spike's freckles came out exaggerated with the face description in the prompt. The `h3-traits` spike step tests this on the same still and seed. Keep the face large in frame (H3 distorts faces in wide shots), keep motion subtle, and leave out intensity words (ultra-detailed, 8k, vibrant).
+
 ## Prompt shape
 
 - Base modes: one fixed alignment line, a blank line, then three fields: `integrated_multimodal_description` (all visuals, actions, camera, dialogue, and in-scene sound, shot by shot), `overall_soundscape` (ambience and physical sounds, one to four sentences), `non_diegetic_music` (score only, or `N/A`). The alignment line differs for image to video and first and last frame; copy it exactly from the renderer, including the em dash in the first-and-last form, which states the effective duration to two decimals.
@@ -30,6 +36,7 @@ Each returns `{ ok: true, prompt, frames, anchors }` or `{ ok: false, errors }`;
 - In full-reference mode a speaking subject is `<Subject 1> (S1)`.
 - End each line with `.`, `?`, or `!` before `</d>`. Ellipses make speech mushy; the renderer refuses them.
 - A voice-over uses the phrase `says in an off-screen voiceover`; if the speaker is in frame, say right after that their lips stay closed.
+- In the base modes, a subject in frame with no line at all gets `<name>'s lips remain closed throughout.` (b-roll), so H3 does not mouth stray words.
 - After an on-camera line the renderer says the speaker finishes and goes quiet with lips closed, to stop the mouth moving into silence.
 - Tie lines to what is happening in the shot, not to timecodes. Lines that cross a cut (`<scenetrans>`) or get cut off by the end (`<cutoff>`) exist in the guide but are not rendered; keep each line inside one shot.
 - Pace: at most 2.5 words per second of the shot (`WORDS_PER_SECOND`). That is stricter than save_script's 3 words per second ceiling, so a 13 to 15 word line on a 5 s beat passes the script but is refused here: shorten it or lengthen the shot.
@@ -54,7 +61,7 @@ Each returns `{ ok: true, prompt, frames, anchors }` or `{ ok: false, errors }`;
 5. Weights and steps. Reference mode uses the `ref2va` model, not the `fl2va` one used by i2v and flf2v. The 4-step reference turbo LoRA weakens identity and audio adherence; use 20 to 25 steps when identity must hold.
 6. Voices. A reference audio clip carries timbre, not words. With two speakers H3 can give a line to the wrong person; use one audio reference per speaker when it matters.
 7. Fill both sound fields every time (`N/A` for music) so H3 does not invent speech or score.
-8. Product and identity. The product is described only by the card's appearance line and never named. People are described only by the bible's visual core and the project wardrobe, and the wardrobe words repeat in every shot. In full-reference mode the subject's short name in actions becomes its `<Subject N>` label.
+8. Product and identity. The product is never named. In full-reference mode it is described by the card's appearance line, people by the bible's visual core and the project wardrobe (the wardrobe words repeat in every shot), and the subject's short name in actions becomes its `<Subject N>` label. In the base modes the first frame carries all of that (see Anchor, do not describe); only a subject `<Picture 1>` does not show gets a description.
 
 ## Known and still to measure
 

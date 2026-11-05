@@ -341,7 +341,7 @@ describe("store-backed tools", () => {
     const clipProposal = await ok<{ prompt: string; capability: string; durationSeconds: number }>(tools, "generate_clip", { contentId: content.id, beatIndex: 1 });
     assert.equal(clipProposal.capability, "image_to_video");
     assert.equal(clipProposal.durationSeconds, 5);
-    assert.match(clipProposal.prompt, /The person says, "I stopped buying bottled water the day this fit my cup holder\."/);
+    assert.match(clipProposal.prompt, /says in a relaxed, natural voice, "I stopped buying bottled water the day this fit my cup holder\."/);
     const clips = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: clipProposal, wait: true });
     const clipId = clips.results[0].assetIds[0];
     assert.equal(store.assets.getRequired(clipId).kind, "storyboard");

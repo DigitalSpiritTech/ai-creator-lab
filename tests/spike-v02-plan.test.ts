@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { describe, test } from "node:test";
 import { kreaFacePrompt } from "@/server/tools/prompts";
-import { CHAIN_LINES, DIALOGUE_LINE, I2VA_ALIGNMENT, cutTime, h3ChainPrompts, h3DialoguePrompt, h3MultiframePrompt } from "../scripts/spike/h3-prompts";
-import { DEFAULT_CAP_CREDITS, DERIVED_IMAGE, STEP_IDS, buildSpikePlan, followsRule, formatPlan, frameIndex, parseSteps, spikeInputsFromEnv } from "../scripts/spike/v02-plan";
+import { CHAIN_LINES, DIALOGUE_LINE, I2VA_ALIGNMENT, PERSON_WITH_TRAITS, cutTime, h3ChainPrompts, h3DialoguePrompt, h3MultiframePrompt } from "../scripts/spike/h3-prompts";
+import { DEFAULT_CAP_CREDITS, DERIVED_IMAGE, STEP_IDS, buildSpikePlan, followsRule, formatPlan, frameIndex, legacyLtxDialoguePrompt, parseSteps, spikeInputsFromEnv } from "../scripts/spike/v02-plan";
 import { averyBible } from "./support/domain-fixtures";
 
 const workflowsDir = fileURLToPath(new URL("../workflows/", import.meta.url));
@@ -36,6 +36,24 @@ describe("v0.2 spike plan", () => {
     assert.deepEqual(h3.images, ltx.images, "both dialogue steps start from the same still");
     assert.ok(h3.prompt.includes(DIALOGUE_LINE) && ltx.prompt.includes(DIALOGUE_LINE), "and say the same line");
     assert.ok(followsRule(h3.frames!, "17n+5") && followsRule(ltx.frames!, "8n+1"));
+    assert.ok(ltx.prompt.startsWith("Use the provided start image as the first frame. "));
+
+    // A/B steps: each differs from its baseline in exactly one thing, on the same still and seed.
+    const [traits] = runs["h3-traits"];
+    assert.equal(traits.prompt, h3DialoguePrompt(DIALOGUE_LINE, PERSON_WITH_TRAITS));
+    assert.match(traits.prompt, /light freckles/);
+    assert.doesNotMatch(h3.prompt, /freckles|hazel|hoop/, "the baseline points at <Picture 1> instead");
+    assert.deepEqual([traits.recipeId, traits.images, traits.seed], [h3.recipeId, h3.images, h3.seed]);
+    const variants = runs["ltx-variants"];
+    assert.deepEqual(variants.map((run) => run.slots), [
+      { imageStrength: 0.85, imgCompression: 0 },
+      { imageStrength: 0.7, imgCompression: 0 },
+      { imageStrength: 0.85, imgCompression: 18 },
+    ]);
+    assert.equal(variants[0].prompt, legacyLtxDialoguePrompt(DIALOGUE_LINE));
+    assert.ok(variants.slice(1).every((run) => run.prompt === ltx.prompt), "the settings runs keep the new prompt");
+    for (const run of [...variants, ...runs["h3-chain"], ...runs["h3-multiframe"]]) assert.equal(run.seed, 42, run.label);
+    assert.equal(spikeInputsFromEnv({ SPIKE_SEED: "7" }).seed, 7);
 
     const [multi] = runs["h3-multiframe"];
     assert.equal(multi.recipeId, "minimax-h3-multiframe");
