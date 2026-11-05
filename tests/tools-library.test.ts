@@ -122,7 +122,7 @@ describe("Library linking", () => {
 });
 
 describe("prompt wiring", () => {
-  test("compose_still references the matching set and generate_clip repeats the wardrobe", async () => {
+  test("compose_still references the matching set and generate_clip anchors to the still instead of repeating it", async () => {
     const context = setup();
     const { store, now, tools, project } = context;
     const { characterId } = await earlierCharacter(context);
@@ -157,12 +157,12 @@ describe("prompt wiring", () => {
     const clip = await ok<GenerationProposal>(tools, "generate_clip", { contentId: content.id, beatIndex: 1 });
     assert.equal(
       clip.prompt,
-      "Avery at a kitchen counter, bottle open, condensation, speaking to the camera with an easy smile, small natural head movement, static phone camera. " +
-        "Wearing Olive utility jacket over a white tee. " +
-        "The product is a matte dark green 32 oz insulated steel bottle with a black screw cap, no text, lettering, or logo on the product. " +
-        "Quiet ambient sound of a bright kitchen counter by a window. " +
-        'The person says, "Twenty-four hours later it was still cold. I checked." ' +
-        "No text on screen. The person's face and clothing stay consistent.",
+      "Use the provided start image as the first frame. " +
+        'The person in the start image looks into the phone camera, smiles easily, and says in a relaxed, natural voice, "Twenty-four hours later it was still cold. I checked." A small nod follows the last word. ' +
+        "The product keeps the shape and proportions it has in the start image, its front toward the camera. " +
+        "Handheld phone framing with a subtle natural sway, no cuts, natural real-time speed. " +
+        "Quiet ambient sound of a bright kitchen counter by a window, no music.",
+      "the still carries the person, wardrobe, product look, and set; the clip prompt carries only change",
     );
   });
 });

@@ -190,6 +190,30 @@ export function facePrompt(bible: Pick<CharacterBible, "visualCore">, garment: s
 }
 
 /**
+ * The face lock prompt for Krea 2, whose Qwen3-VL text encoder reads natural descriptive sentences
+ * rather than comma-separated tags. Same content as {@link facePrompt}: the thirty-degree turn is
+ * still spelled out by its effects on the cheek, ear, and nose.
+ */
+export function kreaFacePrompt(bible: Pick<CharacterBible, "visualCore">, garment: string = FACE_GARMENT): string {
+  return [
+    sentence(bible.visualCore),
+    `This is a photographic head-and-shoulders portrait of the person wearing ${inline(garment)}.`,
+    "The head is turned about thirty degrees to the left, so the far cheek narrows, the near ear shows, and the nose sits just off the center of the face, while the eyes look back toward the camera.",
+    "The expression is neutral with a hint of a smile.",
+    `Soft natural window light falls across the face, and behind the person is ${BACKDROPS[backdropFor(garment)]}.`,
+    "There are no accessories beyond those described.",
+    "It looks like an 85mm portrait photograph, with natural skin texture and sharp focus on the eyes.",
+    CONTRAST,
+    NO_TEXT,
+  ].join(" ");
+}
+
+/** The face lock prompt written for a recipe: Krea 2 graphs get sentences, every other recipe the standard prompt. */
+export function faceLockPrompt(bible: Pick<CharacterBible, "visualCore">, recipeId: string | undefined, garment: string = FACE_GARMENT): string {
+  return recipeId?.startsWith("krea-2-") ? kreaFacePrompt(bible, garment) : facePrompt(bible, garment);
+}
+
+/**
  * The body reference prompt, an edit of the locked face (the only reference image). Navy
  * athleticwear on deep gray by default, or charcoal on the light background.
  */
@@ -285,52 +309,64 @@ export function stillPrompt(parts: StillPromptParts): string {
 }
 
 export interface ClipPromptParts {
-  /** Repeating the still's wardrobe words keeps LTX from drifting the clothing. */
-  wardrobe?: string | null;
-  /** The project's product: its name is removed from the visual, and visible products are described by look. */
+  /** The project's product: its name is removed from the visual, and a visible product is held steady by reference to the still. */
   product?: ProductLook;
   /** The speech comes from a recording (speech to video), so the prompt describes the delivery and never quotes the line. */
   speech?: boolean;
 }
 
 /**
- * An LTX image-to-video prompt for one beat: subject and one action, camera, sound, the spoken line
- * in quotes for talking beats, and the closing constraints. B-roll and text cards get ambient sound
- * only, so LTX does not invent speech.
+ * Opens every LTX image-to-video prompt. The still carries the person, wardrobe, product, set, and
+ * light, so the prompt carries only what changes; re-describing what is visible makes the model
+ * render it twice (the official LTX I2V guidance: describe what happens next).
+ */
+export const START_IMAGE = "Use the provided start image as the first frame.";
+
+/** LTX's duration predictor adds no pauses or slow motion of its own when told the pace. */
+const REAL_TIME = "no cuts, natural real-time speed";
+
+/**
+ * An LTX image-to-video prompt for one beat, written as one present-tense paragraph: the start-image
+ * anchor, one action, the camera once, the spoken line in quotes after a delivery cue on talking
+ * beats, then ambience and music. It names no traits, wardrobe, or product look (the still shows
+ * them) and no negatives: the distilled graph samples at CFG 1, where a negative prompt does nothing.
  */
 export function clipPrompt(beat: Beat, parts: ClipPromptParts = {}): string {
   const ambient = beat.setting ? clause(beat.setting) : "the room";
   const { product } = parts;
   const visual = product ? withoutProductName(beat.visual, product) : beat.visual;
-  const productLine = product && beat.productVisible ? `The product is ${productAppearance(product)}, ${NO_PRODUCT_TEXT}.` : "";
+  const hold = product && beat.productVisible ? "The product keeps the shape and proportions it has in the start image, its front toward the camera." : "";
   if (beat.type === "talking") {
     const line = /[.!?]$/.test(beat.spokenLine.trim()) ? beat.spokenLine.trim() : `${beat.spokenLine.trim()}.`;
     return [
-      `${clause(visual)}, speaking to the camera with an easy smile, small natural head movement, static phone camera.`,
-      parts.wardrobe ? `Wearing ${clause(parts.wardrobe)}.` : "",
-      productLine,
-      parts.speech ? "The person talks naturally, mouth and expression following the voice." : `Quiet ambient sound of ${ambient}.`,
-      parts.speech ? "" : `The person says, "${line}"`,
-      "No text on screen. The person's face and clothing stay consistent.",
+      START_IMAGE,
+      parts.speech
+        ? "The person in the start image looks into the phone camera and talks naturally, mouth and expression following the voice, with small natural head movement."
+        : `The person in the start image looks into the phone camera, smiles easily, and says in a relaxed, natural voice, "${line}" A small nod follows the last word.`,
+      hold,
+      `Handheld phone framing with a subtle natural sway, ${REAL_TIME}.`,
+      parts.speech ? "" : `Quiet ambient sound of ${ambient}, no music.`,
     ]
       .filter(Boolean)
       .join(" ");
   }
   if (beat.type === "broll") {
     return [
-      `${clause(visual)}, one simple motion, slow push-in.`,
-      productLine,
-      `Ambient sound of ${ambient}, no speech, ambient sound only.`,
-      "No faces in frame. No text on screen.",
+      START_IMAGE,
+      `${sentence(visual)} One simple motion, ${REAL_TIME}.`,
+      hold,
+      "The camera pushes in slowly and stops on a steady close-up.",
+      `Ambient sound of ${ambient}, no dialogue, no music.`,
     ]
       .filter(Boolean)
       .join(" ");
   }
   return [
-    `${clause(visual)}, almost still with very subtle natural motion, static camera.`,
-    productLine,
-    `Soft ambient sound of ${ambient}, no speech, ambient sound only.`,
-    "No text on screen.",
+    START_IMAGE,
+    "The scene stays almost still with very subtle natural motion.",
+    hold,
+    `The camera holds a static shot, ${REAL_TIME}.`,
+    `Soft ambient sound of ${ambient}, no dialogue, no music.`,
   ]
     .filter(Boolean)
     .join(" ");

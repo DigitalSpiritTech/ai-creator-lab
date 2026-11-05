@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 import { resolve } from "node:path";
-import { MockRecipeSchema, RouterRecipeSchema, type Capability, type MockRecipe, type Recipe, type RouterRecipe } from "@/lib/catalog";
+import { MockRecipeSchema, RouterRecipeSchema, type Capability, type MockRecipe, type Recipe, type RecipeTag, type RouterRecipe } from "@/lib/catalog";
 import { loadWorkflowRecipes, type WorkflowMeta } from "@/server/catalog/workflows";
 
 export const WORKFLOW_META: Record<string, WorkflowMeta> = {
@@ -138,6 +138,16 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
     ceilingUsd: 0.16,
     fitImages: true,
     defaults: { width: 736, height: 1312, length: 124 },
+  },
+  "minimax-h3-multiframe": {
+    title: "MiniMax H3 multi-frame, three keyframes, on Comfy Cloud",
+    verified: null,
+    costHint: "Expected about 50 to 60 credits for 124 frames at 736x1312 with sound (20 steps, no Lightning LoRA, three references); not yet measured.",
+    ceilingUsd: 0.4,
+    fitImages: true,
+    defaults: { width: 736, height: 1312, length: 124 },
+    notes:
+      "Reference to video with Add Guide keyframes. image1 is the identity and the opening frame (<Picture 1>); image2 and image3 are pinned at the frames in image2Frame and image3Frame (round(seconds x 24)) and are also <Picture 2> and <Picture 3>. 24 fps, 17n+5 frames.",
   },
   "wan-2.2-s2v": {
     title: "Wan 2.2 S2V speech to video on Comfy Cloud",
@@ -431,6 +441,43 @@ export const DEFAULT_RECIPE_IDS: Partial<Record<Capability, { primary: string; s
   speech_to_video: { primary: "wan-2.2-s2v", mock: "mock-speech-to-video" },
   text_to_speech: { primary: "chatterbox-turbo-tts", siblings: ["qwen3-tts-voice-clone"], mock: "mock-text-to-speech" },
 };
+
+/**
+ * The default recipe per purpose, used before the capability's starter primary (after a recipe the
+ * user requested or set as the workspace default). A purpose default only counts while its recipe
+ * is in the catalog, verified, and tagged with the purpose; otherwise the capability default runs.
+ *
+ * `character_start` is the face lock's text-to-image recipe. It stays unset until the v0.2 Krea 2
+ * spike (TASKS B24) passes its three measured runs. The flip is two edits in this file: add
+ * `character_start: "krea-2-turbo-t2i",` here and `tags: ["character_start"],` to Krea's
+ * WORKFLOW_META entry, with its ceilingUsd set to about 1.5 times the measured cost.
+ */
+export const DEFAULT_PURPOSE_RECIPE_IDS: Partial<Record<RecipeTag, string>> = {};
+
+/** The purpose default among loaded recipes, when it is configured, verified, and tagged. */
+export function purposeRecipe(recipes: readonly Recipe[], purpose: RecipeTag, ids: Partial<Record<RecipeTag, string>> = DEFAULT_PURPOSE_RECIPE_IDS): Recipe | undefined {
+  const id = ids[purpose];
+  const recipe = id ? recipes.find((entry) => entry.id === id) : undefined;
+  return recipe?.verified && recipe.tags?.includes(purpose) ? recipe : undefined;
+}
+
+/**
+ * The same check from the curated tables alone, for callers without the loaded catalog (the
+ * assistant's stage guidance picks the face prompt variant with it).
+ */
+export function purposeRecipeId(
+  purpose: RecipeTag,
+  ids: Partial<Record<RecipeTag, string>> = DEFAULT_PURPOSE_RECIPE_IDS,
+  meta: Record<string, WorkflowMeta> = WORKFLOW_META,
+  router: readonly RouterRecipe[] = ROUTER_RECIPES,
+): string | undefined {
+  const id = ids[purpose];
+  if (!id) return undefined;
+  const hosted = router.find((recipe) => recipe.id === id);
+  const verified = meta[id]?.verified ?? hosted?.verified;
+  const tags = meta[id]?.tags ?? hosted?.tags;
+  return verified && tags?.includes(purpose) ? id : undefined;
+}
 
 /**
  * Whether the mock recipes are listed. They exist for tests and the acceptance smoke, not for

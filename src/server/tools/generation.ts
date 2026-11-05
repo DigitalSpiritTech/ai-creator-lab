@@ -22,8 +22,8 @@ import { assembleAd as assembleExport } from "@/server/assembly";
 import { defaultRecipes, recipesFor } from "@/server/catalog/defaults";
 import { runToCompletion, startGeneration } from "@/server/executors/run";
 import type { Store } from "@/server/store";
-import { BODY_REFERENCE, FACE_LOCK, bodyPrompt, clipPrompt, facePrompt, productPhotoPrompt, referenceSheetPrompt, refinePrompt, stillPrompt, type StillPromptParts } from "@/server/tools/prompts";
-import { buildProposal, candidateRequestId, nearestAspect, proposalRequest, runDeps } from "@/server/tools/proposals";
+import { BODY_REFERENCE, FACE_LOCK, bodyPrompt, clipPrompt, faceLockPrompt, productPhotoPrompt, referenceSheetPrompt, refinePrompt, stillPrompt, type StillPromptParts } from "@/server/tools/prompts";
+import { buildProposal, candidateRequestId, nearestAspect, proposalRecipe, proposalRequest, runDeps } from "@/server/tools/proposals";
 import { defineTool } from "@/server/tools/registry";
 import { referenceableIn } from "@/server/tools/shared";
 
@@ -82,6 +82,7 @@ export const proposeCandidates = defineTool({
       aspectRatio: AspectRatioSchema.optional(),
       durationSeconds: z.number().positive().max(60).optional(),
       slots: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().describe("Extra named workflow slots the recipe accepts, such as imageStrength."),
+      seed: z.number().int().min(0).max(4_294_967_295).optional().describe("A fixed seed for workflow recipes, to compare prompts or settings on the same noise; omit for a seed per job."),
     })
     .strict(),
   output: GenerationProposalSchema,
@@ -97,6 +98,7 @@ export const proposeCandidates = defineTool({
       aspectRatio: input.aspectRatio,
       durationSeconds: input.durationSeconds,
       slots: input.slots,
+      seed: input.seed,
     }),
 });
 
@@ -119,14 +121,19 @@ export const generateFaceCandidates = defineTool({
     if (!link || link.kind !== "character") fail("not_found", "Link this character to the project first.");
     const item = store.library.getRequired(input.characterId);
     if (item.kind !== "character") fail("invalid", "Choose a character from the Library.");
-    return buildProposal(context, {
-      projectId: input.projectId,
+    const spec = {
       capability: FACE_LOCK.capability,
       recipeId: input.recipeId,
-      prompt: facePrompt(item.bible),
+      target: { kind: "character_reference", characterId: item.id, slot: "face" },
+    } as const;
+    // The prompt follows the recipe that will run: Krea 2 reads sentences, the rest the standard prompt.
+    const recipe = await proposalRecipe(context, spec, 0);
+    return buildProposal(context, {
+      ...spec,
+      projectId: input.projectId,
+      prompt: faceLockPrompt(item.bible, recipe.id),
       references: [],
       count: input.count,
-      target: { kind: "character_reference", characterId: item.id, slot: "face" },
       aspectRatio: FACE_LOCK.aspectRatio,
     });
   },
@@ -401,7 +408,6 @@ export const generateClip = defineTool({
       capability: firstLast ? "first_last_to_video" : speech ? "speech_to_video" : "image_to_video",
       recipeId: input.recipeId,
       prompt: clipPrompt(beat, {
-        wardrobe: beat.type === "talking" ? cast.character?.link.wardrobe : undefined,
         product: cast.product ? { name: cast.product.name, appearance: cast.product.appearance || undefined } : undefined,
         speech,
       }),

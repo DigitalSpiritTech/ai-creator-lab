@@ -309,6 +309,8 @@ export const GenerationProposalSchema = z
     durationSeconds: z.number().positive().max(60).optional(),
     /** Extra named workflow slots the recipe accepts, such as a voice sample's transcript. */
     slots: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+    /** A fixed workflow seed; absent means one seed per job. */
+    seed: z.number().int().min(0).max(4_294_967_295).optional(),
     count: z.number().int().min(1).max(8),
     target: GenerationTargetSchema,
     /** Estimate for one run; the total is this times `count`. */

@@ -4,7 +4,7 @@
  */
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { sidecarProblems, SlotSidecarSchema, WorkflowGraphSchema, WorkflowRecipeSchema, type WorkflowRecipe } from "@/lib/catalog";
+import { sidecarProblems, SlotSidecarSchema, WorkflowGraphSchema, WorkflowRecipeSchema, type RecipeTag, type WorkflowRecipe } from "@/lib/catalog";
 
 /** Curated facts the sidecar format does not carry: title, verification date, cost, defaults. */
 export interface WorkflowMeta {
@@ -15,6 +15,8 @@ export interface WorkflowMeta {
   fitImages?: boolean;
   defaults?: WorkflowRecipe["defaults"];
   notes?: string;
+  /** Purposes such as `character_start`; when set they replace the sidecar's tags. */
+  tags?: RecipeTag[];
 }
 
 export interface LoadedWorkflows {
@@ -57,6 +59,7 @@ export async function loadWorkflowRecipes(directory: string, meta: Record<string
           },
           defaults: info?.defaults ?? {},
           notes: info?.notes ?? sidecar.notes?.slice(0, 600),
+          tags: info?.tags ?? sidecar.tags,
           file: sidecar.workflow,
           target: "cloud",
           sidecar,

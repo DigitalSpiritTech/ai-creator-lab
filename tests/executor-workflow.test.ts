@@ -315,6 +315,8 @@ test("planWorkflow rejects wrong reference counts, unsupported sizes, and broken
   assert.deepEqual(plan.images, [{ slot: "image1", path: "a.png" }, { slot: "image2", path: "b.png" }]);
   assert.equal(plan.values.width, 768);
   assert.equal(plan.values.seed, 9);
+  const pinned = planWorkflow(ltx, { prompt: "Move", images: ["a.png"], seed: 42, slots: { imageStrength: 0.7, imgCompression: 18 } }, ltxGraph, 1);
+  assert.deepEqual([pinned.values.seed, pinned.values.imageStrength, pinned.values.imgCompression], [42, 0.7, 18], "a pinned seed beats the per-job seed, and LTX takes its CRF as a slot");
 });
 
 test("LTX first-and-last fits both frames to one canvas, binds each to its loader, and verifies the MP4", () =>
