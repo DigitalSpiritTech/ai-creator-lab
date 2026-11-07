@@ -141,6 +141,9 @@ function audioChain(index: number, input: number, segment: Segment): string {
     "aformat=sample_fmts=fltp:channel_layouts=stereo",
     ...(tempo > 1 ? [`atempo=${tempo.toFixed(2)}`] : []),
     `adelay=${Math.round(VOICE_LEAD_SECONDS * 1000)}:all=1`,
+    // After loudnorm and aresample, adelay's lead-in frames carry no timestamps (FFmpeg 9), so
+    // the asetpts below would shift the take back to zero. Count timestamps from the samples.
+    "asetpts=N/SR/TB",
     "apad",
     length,
     `afade=t=out:st=${fadeStart}:d=${VOICE_FADE_SECONDS}[take${index}]`,

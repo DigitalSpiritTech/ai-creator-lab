@@ -16,6 +16,7 @@ import sharp from "sharp";
 import type { Recipe } from "@/lib/catalog";
 import { defaultRecipes } from "@/server/catalog/defaults";
 import { MemoryJobStore, admitJob } from "./support/memory-job-store";
+import { ffmpegPath } from "@/server/executors/media";
 import { pollAndRetrieve } from "@/server/executors/run";
 import type { GenerationInput, Job } from "@/server/executors/types";
 import {
@@ -278,7 +279,7 @@ test("LTX fits the start frame to 576x1024, binds length on both nodes, and veri
   withTemp(async (directory) => {
     const start = await png(join(directory, "start.png"), 1000, 800);
     const clip = join(directory, "clip.mp4");
-    await run(process.env.FFMPEG_PATH || "ffmpeg", [
+    await run(ffmpegPath(), [
       "-nostdin", "-v", "error", "-f", "lavfi", "-i", "testsrc=s=576x1024:r=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
       "-frames:v", "121", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", clip,
     ]);
@@ -324,7 +325,7 @@ test("LTX first-and-last fits both frames to one canvas, binds each to its loade
     const first = await png(join(directory, "start.png"), 1000, 800);
     const last = await png(join(directory, "end.png"), 700, 1200);
     const clip = join(directory, "clip.mp4");
-    await run(process.env.FFMPEG_PATH || "ffmpeg", [
+    await run(ffmpegPath(), [
       "-nostdin", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=576x1024:r=24", "-f", "lavfi", "-i", "sine=frequency=330:sample_rate=48000",
       "-frames:v", "121", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", clip,
     ]);
