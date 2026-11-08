@@ -16,6 +16,7 @@ import sharp from "sharp";
 import type { Recipe } from "@/lib/catalog";
 import { defaultRecipes } from "@/server/catalog/defaults";
 import { MemoryJobStore, admitJob } from "./support/memory-job-store";
+import { ffmpegPath } from "@/server/executors/media";
 import { pollAndRetrieve } from "@/server/executors/run";
 import type { GenerationInput, Job } from "@/server/executors/types";
 import {
@@ -278,7 +279,7 @@ test("LTX fits the start frame to 576x1024, binds length on both nodes, and veri
   withTemp(async (directory) => {
     const start = await png(join(directory, "start.png"), 1000, 800);
     const clip = join(directory, "clip.mp4");
-    await run(process.env.FFMPEG_PATH || "ffmpeg", [
+    await run(ffmpegPath(), [
       "-nostdin", "-v", "error", "-f", "lavfi", "-i", "testsrc=s=576x1024:r=24", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
       "-frames:v", "121", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", clip,
     ]);
@@ -315,6 +316,8 @@ test("planWorkflow rejects wrong reference counts, unsupported sizes, and broken
   assert.deepEqual(plan.images, [{ slot: "image1", path: "a.png" }, { slot: "image2", path: "b.png" }]);
   assert.equal(plan.values.width, 768);
   assert.equal(plan.values.seed, 9);
+  const pinned = planWorkflow(ltx, { prompt: "Move", images: ["a.png"], seed: 42, slots: { imageStrength: 0.7, imgCompression: 18 } }, ltxGraph, 1);
+  assert.deepEqual([pinned.values.seed, pinned.values.imageStrength, pinned.values.imgCompression], [42, 0.7, 18], "a pinned seed beats the per-job seed, and LTX takes its CRF as a slot");
 });
 
 test("LTX first-and-last fits both frames to one canvas, binds each to its loader, and verifies the MP4", () =>
@@ -322,7 +325,7 @@ test("LTX first-and-last fits both frames to one canvas, binds each to its loade
     const first = await png(join(directory, "start.png"), 1000, 800);
     const last = await png(join(directory, "end.png"), 700, 1200);
     const clip = join(directory, "clip.mp4");
-    await run(process.env.FFMPEG_PATH || "ffmpeg", [
+    await run(ffmpegPath(), [
       "-nostdin", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=576x1024:r=24", "-f", "lavfi", "-i", "sine=frequency=330:sample_rate=48000",
       "-frames:v", "121", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", clip,
     ]);

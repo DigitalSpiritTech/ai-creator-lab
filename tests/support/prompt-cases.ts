@@ -56,7 +56,7 @@ export function promptCases(): Record<string, string> {
     sheetFromPhoto: referenceSheetPrompt(bible, WARDROBE, { photographed: true }),
     stillBroll: stillPrompt({ beat: problem, product: { name: PRODUCT, image: 1 } }),
     stillTextcardWithSet: stillPrompt({ beat: cta, product: { name: PRODUCT, image: 1 }, set: { name: "Bright kitchen counter by a window", image: 2 } }),
-    clipTalking: clipPrompt(hook, { wardrobe: WARDROBE, product: { name: PRODUCT } }),
+    clipTalking: clipPrompt(hook, { product: { name: PRODUCT } }),
     clipBroll: clipPrompt(problem, { product: { name: PRODUCT } }),
     clipTextcard: clipPrompt(cta, { product: { name: PRODUCT } }),
     productPhoto: productPhotoPrompt({ name: PRODUCT, appearance: "a matte dark green steel bottle with a black screw cap" }),

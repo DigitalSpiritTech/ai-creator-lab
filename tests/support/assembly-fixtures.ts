@@ -11,15 +11,16 @@ import sharp from "sharp";
 import { type Asset, AssetSchema } from "@/lib/domain/asset";
 import { type ContentPiece, addCandidates, approveCandidate, planShots } from "@/lib/domain/content";
 import { type BeatInput, createScript } from "@/lib/domain/script";
-import { probeVideo } from "@/server/executors/media";
+import { ffmpegPath, probeVideo } from "@/server/executors/media";
 import { resolveMediaPath, sha256 } from "@/server/media/paths";
 import type { Store } from "@/server/store";
 import { ridgelineBeats } from "./domain-fixtures";
 
 const execute = promisify(execFile);
 
+/** The same ffmpeg the app uses: FFMPEG_PATH, else Homebrew's ffmpeg-full, else PATH. */
 export function ffmpeg(): string {
-  return process.env.FFMPEG_PATH?.trim() || "ffmpeg";
+  return ffmpegPath();
 }
 
 export interface ClipSpec {

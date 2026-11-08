@@ -52,7 +52,6 @@ async function main() {
       if (!result.ok) throw new Error(`${name}: ${result.failure.code} ${result.failure.message}`);
       return result.output as T;
     };
-    store.workspace.update({ allowanceUsd: 5 }, Date.now());
     let project = store.projects.list().find((p) => p.name === "Workflow checks");
     if (!project) {
       const now = Date.now();

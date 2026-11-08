@@ -16,7 +16,7 @@ import sharp from "sharp";
 import { ROUTER_RECIPES } from "@/server/catalog/defaults";
 import { MockExecutor, RouterExecutor } from "@/server/executors";
 import { ExecutorFailure } from "@/server/executors/jobs";
-import { commitOutput, EMPTY_OUTPUT_MESSAGE, EMPTY_OUTPUT_NOTICE, looksEmpty, sampleLuma } from "@/server/executors/media";
+import { commitOutput, EMPTY_OUTPUT_MESSAGE, EMPTY_OUTPUT_NOTICE, ffmpegPath, looksEmpty, sampleLuma } from "@/server/executors/media";
 import type { MediaPorts } from "@/server/executors/router-download";
 import type { RouterModelsPort } from "@/server/executors/router";
 import { type RunDeps, retryNotice, retryRequestId, runToCompletion, startGeneration } from "@/server/executors/run";
@@ -24,7 +24,7 @@ import { importImage } from "@/server/media/images";
 import { clock, seedProject, tempStore } from "./support/domain-fixtures";
 
 const run = promisify(execFile);
-const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
+const ffmpeg = ffmpegPath();
 const results = JSON.parse(readFileSync(new URL("./fixtures/router/results.json", import.meta.url), "utf8"));
 
 const cleanups: (() => void | Promise<void>)[] = [];
