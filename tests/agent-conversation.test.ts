@@ -107,7 +107,7 @@ describe("conversation store", () => {
     assert.throws(() => conversations.append(message(randomUUID(), "user", [text("no project")])));
   });
 
-  test("migration 2 upgrades a version 1 database and keeps its data", () => {
+  test("later migrations upgrade a version 1 database and keep its data", () => {
     const dir = tempDir();
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
     const raw = new DatabaseSync(join(dir, DATABASE_FILE));
@@ -119,8 +119,7 @@ describe("conversation store", () => {
 
     const store = openStore(dir);
     try {
-      assert.equal(SCHEMA_VERSION, 2);
-      assert.equal(Object.values(store.database.prepare("PRAGMA user_version").get()!)[0], 2);
+      assert.equal(Object.values(store.database.prepare("PRAGMA user_version").get()!)[0], SCHEMA_VERSION);
       assert.equal(store.projects.getRequired(project.id).name, project.name);
       const saved = conversationsOf(store).append(message(project.id, "user", [text("hello")]));
       assert.equal(conversationsOf(store).listByProject(project.id)[0].id, saved[0].id);

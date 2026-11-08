@@ -9,6 +9,7 @@ import { MEDIA_DIRECTORIES } from "@/server/media/paths";
 import { assetRepository } from "@/server/store/assets";
 import { openDatabase, transaction } from "@/server/store/connection";
 import { contentRepository } from "@/server/store/content";
+import { documentRepository } from "@/server/store/documents";
 import { jobRepository } from "@/server/store/jobs";
 import { libraryRepository } from "@/server/store/library";
 import { projectRepository } from "@/server/store/projects";
@@ -31,6 +32,8 @@ export interface Store {
   readonly jobs: ReturnType<typeof jobRepository>;
   readonly scripts: ReturnType<typeof scriptRepository>;
   readonly content: ReturnType<typeof contentRepository>;
+  /** Version history of the brief, character bibles, and product cards. */
+  readonly documents: ReturnType<typeof documentRepository>;
   /** Runs synchronous store work atomically; nested calls become savepoints. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -54,6 +57,7 @@ export function openStore(dataDir: string): Store {
     jobs: jobRepository(database),
     scripts: scriptRepository(database),
     content: contentRepository(database),
+    documents: documentRepository(database),
     transaction: (work) => transaction(database, work),
     close: () => database.close(),
   };

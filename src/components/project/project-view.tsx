@@ -1,6 +1,6 @@
 /**
- * The project page: chat (or manual mode) on the left, the workspace with Script, Shots, Assets,
- * and Export tabs on the right, and a job strip while generations run.
+ * The project page: chat (or manual mode) on the left, the workspace with Documents, Script, Shots,
+ * Assets, and Export tabs on the right, and a job strip while generations run.
  * @packageDocumentation
  */
 "use client";
@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { AssetsTab } from "@/components/project/assets-tab";
 import { ChatPanel } from "@/components/project/chat-panel";
+import { DocumentsTab } from "@/components/project/documents-tab";
 import { ExportTab } from "@/components/project/export-tab";
 import { ManualPanel } from "@/components/project/manual-panel";
 import { type ChatItem, ProjectContext, type ProjectContextValue, localId } from "@/components/project/project-context";
@@ -25,14 +26,14 @@ import { type StoredMessage, historyToItems } from "@/lib/client/chat";
 import { useJobPolling } from "@/lib/client/use-job-polling";
 import { cn } from "@/lib/utils";
 
-const TABS = ["Script", "Shots", "Assets", "Export"] as const;
+const TABS = ["Documents", "Script", "Shots", "Assets", "Export"] as const;
 type Tab = (typeof TABS)[number];
 
 export function ProjectView({ projectId }: { projectId: string }) {
   const [view, setView] = useState<ProjectViewData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [items, setItems] = useState<ChatItem[]>([]);
-  const [tab, setTab] = useState<Tab>("Script");
+  const [tab, setTab] = useState<Tab>("Documents");
   const [mode, setMode] = useState<"chat" | "manual">("chat");
 
   const refresh = useCallback(async () => {
@@ -155,6 +156,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
               ))}
             </div>
             <div className={cn("min-h-0 flex-1 overflow-y-auto p-5")}>
+              {tab === "Documents" ? <DocumentsTab openScript={() => setTab("Script")} /> : null}
               {tab === "Script" ? <ScriptTab /> : null}
               {tab === "Shots" ? <ShotsTab /> : null}
               {tab === "Assets" ? <AssetsTab /> : null}

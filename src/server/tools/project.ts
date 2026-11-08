@@ -19,6 +19,8 @@ import {
 } from "@/lib/domain/library";
 import { BriefSchema, ProjectSchema, saveBrief } from "@/lib/domain/project";
 import { ScriptSchema } from "@/lib/domain/script";
+import { briefContent } from "@/lib/domain/document";
+import { recordDocument } from "@/server/tools/documents";
 import { defineTool } from "@/server/tools/registry";
 import { checkRevision } from "@/server/tools/shared";
 
@@ -66,7 +68,7 @@ export const getProjectState = defineTool({
 export const saveBriefTool = defineTool({
   name: "save_brief",
   description:
-    "Save the project brief: what is being sold (productSummary), who buys it (audience), where the ad runs (platforms, e.g. TikTok, Instagram Reels), and the tone. Replaces the previous brief.",
+    "Save the project brief: what is being sold (productSummary), who buys it (audience), where the ad runs (platforms, e.g. TikTok, Instagram Reels), and the tone. Replaces the previous brief; the previous one stays in the brief's version history.",
   input: z
     .object({
       projectId: IdSchema,
@@ -75,10 +77,12 @@ export const saveBriefTool = defineTool({
     })
     .strict(),
   output: ProjectSchema,
-  run: ({ store, now }, { projectId, brief, revision }) =>
-    store.transaction(() => {
-      const project = store.projects.getRequired(projectId);
+  run: (context, { projectId, brief, revision }) =>
+    context.store.transaction(() => {
+      const project = context.store.projects.getRequired(projectId);
       checkRevision(project.revision, revision, "project");
-      return store.projects.update(saveBrief(project, brief, now()));
+      const saved = context.store.projects.update(saveBrief(project, brief, context.now()));
+      recordDocument(context, "brief", saved.id, briefContent(saved.brief!));
+      return saved;
     }),
 });

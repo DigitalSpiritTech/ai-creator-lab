@@ -29,7 +29,9 @@ import {
   setCharacterReference,
   updateProduct,
 } from "@/lib/domain/library";
+import { bibleContent, productContent } from "@/lib/domain/document";
 import type { Store } from "@/server/store";
+import { recordDocument } from "@/server/tools/documents";
 import { defineTool } from "@/server/tools/registry";
 import { archiveUnselected, checkRevision, jobSiblings, libraryItemAssetIds, requireActiveAsset } from "@/server/tools/shared";
 
@@ -60,8 +62,9 @@ export const saveCharacterBible = defineTool({
     .strict()
     .refine((input) => input.wardrobe === undefined || input.projectId !== undefined, "A wardrobe needs a projectId."),
   output: z.object({ character: CharacterItemSchema, link: CharacterLinkSchema.nullable() }),
-  run: ({ store, now, newId }, input) =>
-    store.transaction(() => {
+  run: (context, input) =>
+    context.store.transaction(() => {
+      const { store, now, newId } = context;
       const time = now();
       let character: CharacterItem;
       if (input.characterId) {
@@ -71,6 +74,7 @@ export const saveCharacterBible = defineTool({
       } else {
         character = store.library.create(createCharacter(newId(), input.bible, time)) as CharacterItem;
       }
+      recordDocument(context, "bible", character.id, bibleContent(character));
       if (!input.projectId) return { character, link: null };
       store.projects.getRequired(input.projectId);
       const linked = store.library.link(linkToProject(input.projectId, character, time));
@@ -117,8 +121,9 @@ export const saveProduct = defineTool({
     })
     .strict(),
   output: z.object({ product: ProductItemSchema, link: ProjectLinkSchema.nullable() }),
-  run: ({ store, now, newId }, input) =>
-    store.transaction(() => {
+  run: (context, input) =>
+    context.store.transaction(() => {
+      const { store, now, newId } = context;
       const time = now();
       for (const assetId of input.product.imageAssetIds ?? []) requireActiveAsset(store, assetId, ["image"]);
       let product: ProductItem;
@@ -129,6 +134,7 @@ export const saveProduct = defineTool({
       } else {
         product = store.library.create(createProduct(newId(), input.product, time)) as ProductItem;
       }
+      recordDocument(context, "product", product.id, productContent(product));
       if (!input.projectId) return { product, link: null };
       store.projects.getRequired(input.projectId);
       return { product, link: store.library.link(linkToProject(input.projectId, product, time)) };

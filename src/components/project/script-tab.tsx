@@ -1,6 +1,6 @@
 /**
  * Script tab: the beats table with editable fields saved through `save_script` as a new version,
- * version history, and planning shots for the current version.
+ * version history with restore (`restore_document_version`), and planning shots for the current version.
  * @packageDocumentation
  */
 "use client";
@@ -163,6 +163,30 @@ export function ScriptTab() {
     }
   }
 
+  async function restoreVersion(version: number) {
+    if (!script) return;
+    if (!window.confirm(`Restore version ${version} as the newest version? Beats whose visual, line, or length differ lose their approvals.`)) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await callTool<{ document: { version: number }; change: { stillInvalidated: number[]; clipInvalidated: number[]; voiceInvalidated: number[] } | null }>(
+        "restore_document_version",
+        { kind: "script", subjectId: script.id, version },
+        projectId,
+      );
+      const lost = result.change ? [...new Set([...result.change.stillInvalidated, ...result.change.clipInvalidated, ...result.change.voiceInvalidated])].sort((a, b) => a - b) : [];
+      setMessage({
+        tone: lost.length ? "warn" : "ok",
+        text: `Restored version ${version} as version ${result.document.version}.${lost.length ? ` Beats ${lost.join(", ")} need new approvals.` : ""}`,
+      });
+      await refresh();
+    } catch (cause) {
+      setMessage({ tone: "error", text: errorMessage(cause) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function loadVersions() {
     if (!script) return;
     try {
@@ -220,14 +244,19 @@ export function ScriptTab() {
               <li key={version.version} className="flex items-center gap-2">
                 <span>v{version.version} · {version.beats.length} beats · {new Date(version.updatedAt).toLocaleString()}</span>
                 {version.version !== script?.version ? (
-                  <Button size="xs" variant="ghost" onClick={() => { setBeats(toDraft(version)); setTitle(version.title); }}>
-                    Load into editor
-                  </Button>
+                  <>
+                    <Button size="xs" variant="ghost" onClick={() => { setBeats(toDraft(version)); setTitle(version.title); }}>
+                      Load into editor
+                    </Button>
+                    <Button size="xs" variant="ghost" disabled={busy} onClick={() => void restoreVersion(version.version)}>
+                      <RotateCcw /> Restore
+                    </Button>
+                  </>
                 ) : <span className="text-muted-foreground">current</span>}
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-muted-foreground">Loading an older version and saving makes it the newest version.</p>
+          <p className="mt-2 text-muted-foreground">Restore saves an older version as the newest one, withdrawing approvals the way the same edit would. Load into editor lets you change it first.</p>
         </div>
       ) : null}
       <div className="overflow-x-auto rounded-lg border">

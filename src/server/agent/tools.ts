@@ -136,6 +136,14 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     "Regenerate from here: withdraw the approved still and clip of beat fromBeatIndex and every later beat (candidates stay); then compose new stills for the first one.",
     'Example: the user says "redo everything from beat 3", so reset from beat 3 and propose its stills.',
   ].join(" "),
+  list_document_versions: [
+    "List every saved version of one document, oldest first: kind brief (subjectId is the project id), bible or product (the Library item id), or script (the script id). Each version shows who saved it, assistant or user, and current marks the one in use.",
+    'Example: the user asks "what did the brief say before I changed it?", so list the brief\'s versions.',
+  ].join(" "),
+  restore_document_version: [
+    "Restore an earlier version of a document as its newest version; later steps read it at once. A restored bible keeps the locked face, body, and voice; a restored script withdraws approvals the way an edit would, so say which beats need new approvals.",
+    'Example: the user says "go back to the bible from before the hair change", so list the bible\'s versions and restore that one.',
+  ].join(" "),
 };
 
 /** The `tools` array for the assistant: the roster, with model-facing descriptions. */
