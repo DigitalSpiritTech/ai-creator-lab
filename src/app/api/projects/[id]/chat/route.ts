@@ -36,7 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { message } = ChatBodySchema.parse(await readJson(request, 32 * 1024));
     await withStore((store) => store.projects.getRequired(projectId));
     const store = getStore();
-    const context = toolContextFor(store);
+    const context = toolContextFor(store, "assistant");
     const model = assistantModel(readSecrets(store.dataDir));
     const encoder = new TextEncoder();
     const abort = new AbortController();

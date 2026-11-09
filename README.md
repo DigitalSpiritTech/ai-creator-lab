@@ -65,7 +65,7 @@ The example below uses an invented creator, Avery Lane, and an invented product,
 
 1. Connect. Save your two keys in Settings and set an allowance (above).
 2. New project. On Projects, create one from UGC Creator and name it, for example "Ridgeline launch". The chat opens on the left.
-3. Brief. The assistant asks what you are selling, who buys it, where it will run, and the tone. It saves a brief card you can edit.
+3. Brief. The assistant asks what you are selling, who buys it, where it will run, and the tone. It saves the brief to the Documents tab beside the chat, where you can edit it.
 4. Character. Build the bible together: name, age range, look, wardrobe, voice, boundaries. Avery Lane is early 30s, warm and direct, light freckles, dark shoulder-length hair tied back, small silver hoop earrings, never hype, no health claims, no competitor names. If you already have a Character in the Library, pick it and skip ahead.
 5. Face lock. The assistant proposes four 3/4-view headshots. Pick one and name the character. The rest go to the Archive.
 6. Body reference. From the locked face, the assistant proposes 3/4 full-body references in neutral athleticwear. Approve one.
@@ -79,6 +79,8 @@ The example below uses an invented creator, Avery Lane, and an invented product,
 14. Next piece. Start another ad in the same project, or a new project with the same character and a fresh sheet if the wardrobe changes.
 
 Any step can also be done by hand without the chat: pick a recipe, write a prompt, generate, approve.
+
+The brief, the character bible, the product card, and the script are documents: edit them in the Documents and Script tabs, and the assistant works from what you saved. Every save keeps the previous version. Open a document's Versions list to see who changed it and when, and press Restore to bring an earlier version back as the newest one. A restored bible keeps the locked face and body, and the next stills use it.
 
 Every generation step shows a proposal first: the recipe, the prompt, the references, how many candidates, and the estimated cost. Nothing is submitted until you press Approve and generate (or turn on auto-approve, below).
 

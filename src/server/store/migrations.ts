@@ -95,6 +95,42 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX conversation_messages_project ON conversation_messages(project_id, seq);
   `,
+  // Version 3: document history for the artifact panel (brief, bible, product). The subject is a
+  // project or a Library item, so there is no foreign key. Existing documents start at version 1.
+  `
+  CREATE TABLE document_versions (
+    kind TEXT NOT NULL CHECK (kind IN ('brief', 'bible', 'product')),
+    subject_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    data TEXT NOT NULL CHECK (json_valid(data)
+      AND json_extract(data, '$.kind') = kind
+      AND json_extract(data, '$.subjectId') = subject_id
+      AND json_extract(data, '$.version') = version),
+    PRIMARY KEY (kind, subject_id, version)
+  );
+  INSERT INTO document_versions(kind, subject_id, version, data)
+    SELECT 'brief', id, 1, json_object(
+      'kind', 'brief', 'subjectId', id, 'version', 1, 'author', NULL, 'restoredFrom', NULL,
+      'createdAt', json_extract(data, '$.updatedAt'), 'content', json(json_extract(data, '$.brief')))
+    FROM projects WHERE json_type(data, '$.brief') = 'object';
+  INSERT INTO document_versions(kind, subject_id, version, data)
+    SELECT 'bible', id, 1, json_object(
+      'kind', 'bible', 'subjectId', id, 'version', 1, 'author', NULL, 'restoredFrom', NULL,
+      'createdAt', json_extract(data, '$.updatedAt'),
+      'content', json_remove(json_extract(data, '$.bible'), '$.references', '$.version'))
+    FROM library_items WHERE kind = 'character';
+  INSERT INTO document_versions(kind, subject_id, version, data)
+    SELECT 'product', id, 1, json_object(
+      'kind', 'product', 'subjectId', id, 'version', 1, 'author', NULL, 'restoredFrom', NULL,
+      'createdAt', json_extract(data, '$.updatedAt'),
+      'content', json_object(
+        'name', json_extract(data, '$.name'),
+        'appearance', coalesce(json_extract(data, '$.appearance'), ''),
+        'link', json_extract(data, '$.link'),
+        'allowedClaims', json(coalesce(json_extract(data, '$.allowedClaims'), '[]')),
+        'imageAssetIds', json(coalesce(json_extract(data, '$.imageAssetIds'), '[]'))))
+    FROM library_items WHERE kind = 'product';
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

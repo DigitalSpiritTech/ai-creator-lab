@@ -185,7 +185,7 @@ describe("creative director prompt", () => {
     ]) {
       assert.ok(CREATIVE_DIRECTOR_PROMPT.includes(phrase), phrase);
     }
-    assert.ok(CREATIVE_DIRECTOR_PROMPT.length < 12_000, `${CREATIVE_DIRECTOR_PROMPT.length} characters`);
+    assert.ok(CREATIVE_DIRECTOR_PROMPT.length < 12_400, `${CREATIVE_DIRECTOR_PROMPT.length} characters`);
   });
 
   test("stage guidance follows project state and hands the model the exact face prompt", async () => {

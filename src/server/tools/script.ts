@@ -8,14 +8,17 @@ import { ContentPieceSchema, type Slot, planShots as planContentShots, syncShots
 import { nextRevision } from "@/lib/domain/common";
 import { fail } from "@/lib/domain/failure";
 import {
+  type BeatInput,
   BeatInputSchema,
+  type Script,
+  type ScriptChange,
   ScriptChangeSchema,
   ScriptSchema,
   createScript,
   diffScripts,
   reviseScript,
 } from "@/lib/domain/script";
-import { defineTool } from "@/server/tools/registry";
+import { type ToolContext, defineTool } from "@/server/tools/registry";
 import { checkRevision } from "@/server/tools/shared";
 
 export const saveScript = defineTool({
@@ -47,17 +50,31 @@ export const saveScript = defineTool({
       const current = store.scripts.getRequired(input.scriptId);
       if (current.projectId !== input.projectId) fail("invalid", "This script belongs to another project.");
       checkRevision(current.version, input.baseVersion, "script");
-      const revised = reviseScript(current, input.title, input.beats, time);
-      const script = store.scripts.saveVersion(revised.script);
-      const updatedContentIds: string[] = [];
-      for (const content of store.content.listByScript(script.id)) {
-        if (content.scriptVersion !== current.version) continue;
-        store.content.update(syncShotsToScript(content, script, revised.change, time, newId));
-        updatedContentIds.push(content.id);
-      }
-      return { script, change: revised.change, updatedContentIds };
+      return saveScriptRevision({ store, now: () => time, newId }, current, input.title, input.beats);
     }),
 });
+
+/**
+ * Saves the next version of a script and brings every Ad that used the previous version up to
+ * it, withdrawing approvals only where `diffScripts` says so. Run inside a store transaction.
+ */
+export function saveScriptRevision(
+  { store, now, newId }: Pick<ToolContext, "store" | "now" | "newId">,
+  current: Script,
+  title: string,
+  beats: BeatInput[],
+): { script: Script; change: ScriptChange; updatedContentIds: string[] } {
+  const time = now();
+  const revised = reviseScript(current, title, beats, time);
+  const script = store.scripts.saveVersion(revised.script);
+  const updatedContentIds: string[] = [];
+  for (const content of store.content.listByScript(script.id)) {
+    if (content.scriptVersion !== current.version) continue;
+    store.content.update(syncShotsToScript(content, script, revised.change, time, newId));
+    updatedContentIds.push(content.id);
+  }
+  return { script, change: revised.change, updatedContentIds };
+}
 
 export const planShots = defineTool({
   name: "plan_shots",

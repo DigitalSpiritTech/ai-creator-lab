@@ -37,6 +37,8 @@ const ROSTER = [
   "create_set",
   "set_cut_order",
   "reset_shots",
+  "list_document_versions",
+  "restore_document_version",
 ];
 
 const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));

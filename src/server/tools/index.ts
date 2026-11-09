@@ -5,6 +5,7 @@
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
 import { z } from "zod";
 import { type ServiceFailure, toFailure } from "@/lib/domain/failure";
+import { listDocumentVersions, restoreDocumentVersion } from "@/server/tools/documents";
 import { approve, archiveAssetTool, deleteAssetEverywhereTool, listAssets } from "@/server/tools/assets";
 import {
   assembleAd,
@@ -41,7 +42,8 @@ export { createGenerationContext } from "@/server/tools/generation-context";
  * save_character_bible, propose_candidates, select_reference, generate_reference_sheet,
  * save_product, save_script, plan_shots, compose_still, refine_still, generate_clip, extract_voice_sample, generate_voice_over, approve,
  * archive_asset, delete_asset_everywhere, assemble_ad, list_assets, list_recipes, then the Library
- * tools link_library_item, unlink_library_item, archive_library_item, create_set, set_cut_order, and reset_shots.
+ * tools link_library_item, unlink_library_item, archive_library_item, create_set, set_cut_order, reset_shots,
+ * and the document tools list_document_versions and restore_document_version.
  */
 export const TOOLS: readonly Tool[] = [
   getProjectState,
@@ -73,6 +75,8 @@ export const TOOLS: readonly Tool[] = [
   createSetTool,
   setCutOrder,
   resetShots,
+  listDocumentVersions,
+  restoreDocumentVersion,
 ];
 
 /** Tools the UI calls but the assistant is not offered (the spending gate). */

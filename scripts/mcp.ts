@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   const envFile = resolve(process.cwd(), ".env.local");
   if (existsSync(envFile)) process.loadEnvFile(envFile);
   const store = openStore(resolve(process.env.STUDIO_DATA_DIR || ".data"));
-  const server = createMcpServer(createToolContext(store, createGenerationContext(store)), { log });
+  const server = createMcpServer(createToolContext(store, createGenerationContext(store), "assistant"), { log });
   const shutdown = async () => {
     await server.close().catch(() => undefined);
     store.close();

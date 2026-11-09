@@ -8,8 +8,11 @@ import { IdSchema, RecipeIdSchema, text } from "@/lib/domain/common";
 import { ContentPieceSchema, approveCandidate } from "@/lib/domain/content";
 import { fail } from "@/lib/domain/failure";
 import { CharacterLinkSchema, approveReferenceSheet } from "@/lib/domain/library";
+import { productContent } from "@/lib/domain/document";
+import type { ProductItem } from "@/lib/domain/library";
 import { AssetUsageSchema } from "@/lib/domain/usage";
 import { archiveStoredAsset, deleteAssetEverywhere, restoreStoredAsset } from "@/server/media/lifecycle";
+import { recordDocument } from "@/server/tools/documents";
 import { defineTool } from "@/server/tools/registry";
 import { archiveUnselected, jobSiblings, requireActiveAsset } from "@/server/tools/shared";
 
@@ -91,7 +94,18 @@ export const deleteAssetEverywhereTool = defineTool({
     })
     .strict(),
   output: z.object({ asset: AssetSchema, usage: z.array(AssetUsageSchema) }),
-  run: ({ store, now }, input) => deleteAssetEverywhere(store, input.assetId, { force: input.force, now: now() }),
+  run: async (context, input) => {
+    const result = await deleteAssetEverywhere(context.store, input.assetId, { force: input.force, now: context.now() });
+    // A product photo removed here changes the product card, so the panel's history records it.
+    const productIds = new Set(result.usage.flatMap((use) => (use.kind === "library_image" ? [use.itemId] : [])));
+    context.store.transaction(() => {
+      for (const id of productIds) {
+        const item = context.store.library.get(id);
+        if (item?.kind === "product") recordDocument(context, "product", id, productContent(item as ProductItem));
+      }
+    });
+    return result;
+  },
 });
 
 export const listAssets = defineTool({

@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
 import { z } from "zod";
 import type { Recipe } from "@/lib/catalog";
+import type { DocumentAuthor } from "@/lib/domain/document";
 import { fail } from "@/lib/domain/failure";
 import type { ExecutorSet } from "@/server/executors";
 import type { Store } from "@/server/store";
@@ -27,10 +28,13 @@ export interface ToolContext {
   newId(): string;
   /** Absent in contexts that only read and edit; generation tools then fail with "invalid". */
   generation?: GenerationContext;
+  /** Who is calling, recorded on document versions: the assistant, or a person in the app. */
+  author?: DocumentAuthor;
 }
 
-export function createToolContext(store: Store, generation?: GenerationContext): ToolContext {
-  return { store, now: () => Date.now(), newId: () => randomUUID(), generation };
+/** A tool context; `author` defaults to "user" (the app's own routes) and is "assistant" for the chat and MCP. */
+export function createToolContext(store: Store, generation?: GenerationContext, author: DocumentAuthor = "user"): ToolContext {
+  return { store, now: () => Date.now(), newId: () => randomUUID(), generation, author };
 }
 
 export function requireGeneration(context: ToolContext): GenerationContext {

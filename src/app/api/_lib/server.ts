@@ -7,6 +7,7 @@
 import "server-only";
 import { z } from "zod";
 import { IdSchema } from "@/lib/domain/common";
+import type { DocumentAuthor } from "@/lib/domain/document";
 import { errorResponse, readJson } from "@/server/http";
 import { getStore, withStore } from "@/server/runtime";
 import { readSecrets } from "@/server/secrets";
@@ -38,8 +39,8 @@ export function generationFor(store: Store): GenerationContext {
   return generation;
 }
 
-export function toolContextFor(store: Store): ToolContext {
-  return createToolContext(store, generationFor(store));
+export function toolContextFor(store: Store, author: DocumentAuthor = "user"): ToolContext {
+  return createToolContext(store, generationFor(store), author);
 }
 
 /** Runs a handler and turns thrown Responses, Zod errors, and service failures into safe responses. */
