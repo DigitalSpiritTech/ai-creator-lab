@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Start by reading `AGENTS.md`, then `docs/PLAN.md`, `docs/PRODUCT.md`, and `docs/TASKS.md`. Those four files are the contract for this repository.
+Start by reading `AGENTS.md`, then `docs/PLAN.md`, `docs/PRODUCT.md`, and `docs/TASKS.md`. Those four files are the contract for this repository. this repository is public.
 
 ## Commands
 
