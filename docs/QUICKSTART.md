@@ -26,7 +26,7 @@ npm ci
 npx ai-creator-lab
 ```
 
-The first start builds the app, which takes a minute or two; later starts are quick (and build again only after `git pull` brings new code). When it prints `AI Creator Lab is running at http://127.0.0.1:3000`, open that address in your browser. It listens on this computer only. Add `--open` to open the browser for you, `--port 4000` for another port, or `--data <folder>` to keep your work somewhere other than `.data` in the clone. Ctrl+C stops it.
+The first start builds the app, which takes a minute or two; later starts are quick (and build again only after `git pull` brings new code). When it prints `AI Creator Lab is running at http://127.0.0.1:3000`, open that address in your browser (if port 3000 is taken, it picks the next free one up to 3019 and prints that address instead). It listens on this computer only. It reads `.env.local` first, like `npm start`, so a `STUDIO_DATA_DIR` set there is the folder it uses; the startup lines say which data folder it chose and why. Add `--open` to open the browser for you, `--port 4000` for another port, or `--data <folder>` to keep your work somewhere other than `.data` in the clone. Ctrl+C stops it.
 
 ### Try it free first (optional)
 

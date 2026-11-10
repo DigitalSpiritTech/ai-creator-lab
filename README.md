@@ -29,7 +29,7 @@ The image library (`sharp`), the ffmpeg and ffprobe binaries, and everything els
 
 To check before you start, `node --version` should print v22.13.0 or higher. After `npm ci`, `node_modules/ffmpeg-static/ffmpeg -hide_banner -filters | grep drawtext` prints one line naming `drawtext`, the filter that burns in captions.
 
-Which ffmpeg runs, first match wins: `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local`, then the bundled pair, then Homebrew's `ffmpeg-full` (if the bundled download was skipped, for example with `npm ci --ignore-scripts`), then whatever is on PATH. Settings shows the ffmpeg and ffprobe the app is using and whether captions are available, so you can confirm from the browser.
+Which ffmpeg runs, first match wins: `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local`, then the bundled pair (each checked against the SHA-256 recorded for its release before it first runs; see SECURITY.md), then Homebrew's `ffmpeg-full` (if the bundled download was skipped, for example with `npm ci --ignore-scripts`), then whatever is on PATH. Settings shows the ffmpeg and ffprobe the app is using and whether captions are available, so you can confirm from the browser.
 
 ## Install
 
@@ -40,7 +40,7 @@ npm ci
 npx ai-creator-lab
 ```
 
-Those are the clone, the move into the folder, the dependency install, and the start. `npx ai-creator-lab` checks your Node version, prepares the data folder, builds the app the first time (and again after `git pull` brings new code), and serves it on http://127.0.0.1:3000 (the next free port if 3000 is taken). Open that address in your browser. Options: `--open`, `--port 4000`, `--data <folder>`, `--rebuild`, `--no-build`. `npm run build` then `npm start` does the same by hand, and is the way to use `HOST` (next section). By default the app only listens on your own machine (127.0.0.1), only answers requests addressed to localhost or 127.0.0.1, and asks for no password. To use it from another computer, see the next section.
+Those are the clone, the move into the folder, the dependency install, and the start. `npx ai-creator-lab` checks your Node version, reads `.env.local` like `npm start` does, prepares the data folder (and says which one and why), builds the app the first time (and again after `git pull` brings new code), and serves it on http://127.0.0.1:3000 (the next free port if 3000 is taken). Open that address in your browser. Options: `--open`, `--port 4000`, `--data <folder>`, `--rebuild`, `--no-build`. `npm run build` then `npm start` does the same by hand, and is the way to use `HOST` (next section). By default the app only listens on your own machine (127.0.0.1), only answers requests addressed to localhost or 127.0.0.1, and asks for no password. To use it from another computer, see the next section.
 
 ### On a network, with a password
 

@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "dev": "node apps/creator/scripts/serve.mjs dev",
-    "build": "next build apps/creator --webpack",
+    "build": "next build apps/creator --webpack && node apps/creator/scripts/build-stamp.mjs",
     "start": "node apps/creator/scripts/serve.mjs start",
     "lint": "eslint .",
     "typecheck": "next typegen apps/creator && tsc --noEmit",

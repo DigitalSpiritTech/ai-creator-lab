@@ -18,20 +18,24 @@
  * build), --open (open the browser), --help. Keys go in Settings (stored in the data folder) or in
  * `.env.local` in a clone.
  *
- * Plain JavaScript with no dependencies, so it runs before anything else is checked.
+ * `.env.local` (and the other env files) are loaded first, the way `serve.mjs` and Next.js do, so a
+ * STUDIO_DATA_DIR or PORT set there is honored and the startup line says where the data folder
+ * setting came from. HOST is never honored: this launcher is for this computer only.
+ *
+ * Plain JavaScript with no dependencies beyond Next.js, so it runs before anything else is checked.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
-import { homedir, platform } from "node:os";
-import { join, resolve } from "node:path";
+import { platform } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chooseDataDir, gitHead, isLoopbackHost, loadLocalEnv, readBuildStamp, writeBuildStamp } from "./launch-config.mjs";
 
 const MINIMUM = [22, 13];
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const appDir = join(root, "apps", "creator");
-const buildStamp = join(appDir, ".next", "creator-lab-build.json");
 
 function say(message) {
   console.log(`[ai-creator-lab] ${message}`);
@@ -80,19 +84,6 @@ function isClone() {
   return existsSync(join(root, ".git"));
 }
 
-function gitHead() {
-  const result = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" });
-  return result.status === 0 ? result.stdout.trim() : null;
-}
-
-function builtFor() {
-  try {
-    return JSON.parse(readFileSync(buildStamp, "utf8")).commit ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /** Whether `next build` can run here: the CSS toolchain is a dev dependency, present in a clone after `npm ci`. */
 function canBuild() {
   try {
@@ -108,8 +99,9 @@ function canBuild() {
 function ensureBuild(options) {
   const built = existsSync(join(appDir, ".next", "BUILD_ID"));
   const clone = isClone();
-  const head = clone ? gitHead() : null;
-  const stale = built && clone && head !== null && builtFor() !== head;
+  const head = clone ? gitHead(root) : null;
+  // `npm run build` and this launcher stamp the commit they built; another commit means rebuild.
+  const stale = built && clone && head !== null && readBuildStamp(root) !== head;
   if (built && !options.rebuild && (!stale || !options.build)) return;
   if (!options.build) stop("There is no production build yet. Run without --no-build, or run npm run build first.");
   if (!canBuild()) {
@@ -119,14 +111,13 @@ function ensureBuild(options) {
   const next = createRequire(join(appDir, "package.json")).resolve("next/dist/bin/next");
   const result = spawnSync(process.execPath, [next, "build", appDir, "--webpack"], { cwd: root, stdio: "inherit", env: { ...process.env, NODE_ENV: "production" } });
   if (result.status !== 0) stop("The build failed; the messages above say why.");
-  writeFileSync(buildStamp, `${JSON.stringify({ commit: head, builtAt: new Date().toISOString() })}\n`);
+  writeBuildStamp(root, head);
 }
 
-function prepareDataDir(options) {
-  const chosen = options.data ?? process.env.STUDIO_DATA_DIR?.trim();
-  const dataDir = resolve(root, chosen || (isClone() ? ".data" : join(homedir(), ".ai-creator-lab")));
-  mkdirSync(dataDir, { recursive: true, mode: 0o700 });
-  return dataDir;
+function prepareDataDir(options, sources) {
+  const chosen = chooseDataDir({ option: options.data, env: process.env, sources, root, clone: isClone() });
+  mkdirSync(chosen.dir, { recursive: true, mode: 0o700 });
+  return chosen;
 }
 
 function portFree(port) {
@@ -166,14 +157,17 @@ function openBrowser(url) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   await checkNode();
-  if (process.env.HOST && !["127.0.0.1", "localhost", "::1"].includes(process.env.HOST.trim())) {
-    say(`Ignoring HOST=${process.env.HOST}: this launcher serves this computer only. For a server, use HOST=... npm start or the Docker image.`);
+  // The env files first, as `npm start` reads them, so STUDIO_DATA_DIR there finds your projects.
+  const { sources } = loadLocalEnv(root);
+  if (!isLoopbackHost(process.env.HOST)) {
+    const where = sources.HOST && sources.HOST !== "environment" ? ` (from ${sources.HOST})` : "";
+    say(`Ignoring HOST=${process.env.HOST}${where}: this launcher serves this computer only. For a server, use HOST=... npm start or the Docker image.`);
   }
-  const dataDir = prepareDataDir(options);
+  const { dir: dataDir, source } = prepareDataDir(options, sources);
   ensureBuild(options);
   const port = await choosePort(options);
   const base = `http://127.0.0.1:${port}`;
-  say(`Data folder: ${dataDir}`);
+  say(`Data folder: ${dataDir} (from ${source})`);
   const child = spawn(process.execPath, [join(appDir, "scripts", "serve.mjs"), "start", "--port", String(port)], {
     cwd: root,
     stdio: "inherit",

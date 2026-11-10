@@ -6,6 +6,9 @@
 docs
 tests
 apps/creator/scripts
+# npm run build runs the build stamp after next build.
+!apps/creator/scripts/build-stamp.mjs
+!apps/creator/scripts/launch-config.mjs
 .git
 *.md
 !README.md
