@@ -2,7 +2,8 @@
  * Acceptance smoke: the whole UGC Creator flow with the mock executor, on a temporary data
  * directory, then a Quick Ad (a two-line brief, three approvals: the frame, the clip, the export),
  * then a Social Post (a plugin content type: brief, copy, a 4:5 still through the gate,
- * approval, and export), then a restart and a relocated restore. No provider is called: every proposal names a
+ * approval, and export), then a 10 s talking take made as two chained segments on a 5 s mock model
+ * (stitched, approved, and exported), then a restart and a relocated restore. No provider is called: every proposal names a
  * mock recipe, the operator ceiling (GENERATION_ALLOWANCE_USD) is zero, and the Comfy and Anthropic
  * keys are placeholders. A monthly budget is saved and an extension is refused at the zero ceiling.
  *
@@ -43,8 +44,10 @@ import { SOCIAL_POST_APP, SOCIAL_POST_TOOLS } from "@creator-lab/content-social-
 // Scripts run from the repository root; the Next.js app is apps/creator.
 const ROOT = resolve(process.cwd());
 const APP = join(ROOT, "apps", "creator");
-// The smoke runs on the mock recipes, which real installs hide.
+// The smoke runs on the mock recipes, which real installs hide, with real MP4 mock clips (a chained
+// take hands frames over and stitches them, which storyboards cannot).
 process.env.MOCK_RECIPES = "1";
+process.env.MOCK_VIDEO = "mp4";
 const PLACEHOLDER_KEY = "acceptance-smoke-placeholder";
 
 interface Client {
@@ -54,6 +57,8 @@ interface Client {
   tool<T>(name: string, input: Record<string, unknown>, projectId?: string): Promise<T>;
   /** Submits an approved proposal and waits for every candidate; returns the new asset ids. */
   submit(projectId: string, proposal: GenerationProposal): Promise<string[]>;
+  /** Submits a chained clip proposal and waits for the stitched take to land on its beat; returns its asset id. */
+  submitTake(projectId: string, contentId: string, proposal: GenerationProposal): Promise<string>;
   upload(name: string, bytes: Uint8Array): Promise<Asset>;
   /** Uploads a voice recording (WAV bytes) as an audio asset in a project. */
   uploadVoice(projectId: string, name: string, bytes: Uint8Array): Promise<Asset>;
@@ -331,6 +336,52 @@ async function confirmQuickAdAfterRestart(client: Client, quick: Awaited<ReturnT
   check(JSON.stringify(again) === JSON.stringify(quick.assembled), `${how}: the Quick Ad export comes back unchanged`);
 }
 
+/** A talking beat whose take runs 10 s, twice what the 5 s mock model makes in one run. */
+const TAKE_BEAT: BeatInput = {
+  type: "talking",
+  purpose: "proof",
+  spokenLine: "It fits my cup holder, it stays cold all day, and I never think about it.",
+  onScreenText: "Cold all day.",
+  visual: "Avery at a kitchen counter, bottle open, condensation.",
+  setting: "a bright kitchen counter by a window",
+  productVisible: true,
+  durationSeconds: 10,
+};
+
+/** Length as a capability: a 10 s talking take on a 5 s mock model is made as two chained segments, stitched, approved, and exported. */
+async function runChainedTake(client: Client) {
+  const project = await client.createProject("Long talking take");
+  const projectId = project.id;
+  const script = await client.tool<{ script: { id: string } }>("save_script", { projectId, title: "Long take", beats: [TAKE_BEAT] }, projectId);
+  const content = await client.tool<{ id: string }>("plan_shots", { projectId, scriptId: script.script.id }, projectId);
+  const stillProposal = await client.tool<GenerationProposal>("compose_still", { contentId: content.id, beatIndex: 1, recipeId: "mock-text-to-image", count: 1 }, projectId);
+  const [still] = await client.submit(projectId, stillProposal);
+  await client.tool("approve", { kind: "still", contentId: content.id, beatIndex: 1, assetId: still }, projectId);
+  const proposal = await client.tool<GenerationProposal>("generate_clip", { contentId: content.id, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 10 }, projectId);
+  check(proposal.durationSeconds === 10 && /Chained take: 2 segments/.test(proposal.estimate.note), `the 10 s take is proposed as two chained segments (${proposal.estimate.note})`);
+  check((proposal.prompt.match(/\[Segment \d of 2/g) ?? []).length === 2, "the card shows both segments' prompts");
+  const takeId = await client.submitTake(projectId, content.id, proposal);
+  const state = await client.tool<{ assets: Asset[] }>("get_project_state", { projectId }, projectId);
+  const take = state.assets.find((asset) => asset.id === takeId);
+  check(take && take.kind === "video" && take.video, "the take is one video clip on the beat");
+  check(Math.abs(take.video.durationSeconds - 10) < 0.2 && take.video.hasAudio, `the stitched take lasts about 10 s with sound (${take.video.durationSeconds} s)`);
+  check(take.provenance.source === "generated" && take.provenance.mock, "the take is labeled as a mock generation");
+  const bytes = await client.download(takeId);
+  check(hash(bytes) === take.sha256, "the stitched take downloads intact");
+  await client.tool("approve", { kind: "clip", contentId: content.id, beatIndex: 1, assetId: takeId }, projectId);
+  const exportId = randomUUID();
+  const assembled = await client.tool<Assembled>("assemble_ad", { contentId: content.id, exportId, captions: false }, projectId);
+  check(assembled.export.status === "completed" && assembled.asset, `the take exported (${assembled.export.status === "failed" ? assembled.export.error : assembled.export.status})`);
+  check(Math.abs(assembled.asset.video!.durationSeconds - take.video.durationSeconds) < 0.15, "the export runs as long as the take");
+  step(client, `chained take: 10 s on a 5 s mock model as 2 segments (${take.video.durationSeconds.toFixed(2)} s), approved and exported`);
+  return { projectId, takeId, sha256: take.sha256 };
+}
+
+async function confirmTakeAfterRestart(client: Client, take: Awaited<ReturnType<typeof runChainedTake>>, how: string): Promise<void> {
+  const bytes = await client.download(take.takeId);
+  check(hash(bytes) === take.sha256, `${how}: the chained take still downloads intact`);
+}
+
 interface PostExport {
   copyText: string;
   stills: { aspectRatio: string; assetId: string; sha256: string }[];
@@ -410,16 +461,19 @@ async function runLayer(client: Client): Promise<void> {
     const flow = await runFlow(client);
     const quick = await runQuickAd(client);
     const post = await runSocialPost(client);
+    const take = await runChainedTake(client);
     await checkBudget(client);
     await client.restart(false);
     await confirmAfterRestart(client, flow, "after restart");
     await confirmQuickAdAfterRestart(client, quick, "after restart");
     await confirmPostAfterRestart(client, post, "after restart");
+    await confirmTakeAfterRestart(client, take, "after restart");
     await confirmBudget(client, "after restart");
     await client.restart(true);
     await confirmAfterRestart(client, flow, "after relocating the data directory");
     await confirmQuickAdAfterRestart(client, quick, "after relocating the data directory");
     await confirmPostAfterRestart(client, post, "after relocating the data directory");
+    await confirmTakeAfterRestart(client, take, "after relocating the data directory");
     await confirmBudget(client, "after relocating the data directory");
   } finally {
     await client.close();
@@ -449,6 +503,11 @@ async function toolsClient(): Promise<Client> {
       const { results } = await call<{ results: { outcome: string; assetIds: string[]; message: string | null }[] }>("submit_proposal", { proposal, wait: true });
       for (const result of results) check(result.outcome === "completed", `a mock candidate completed (${result.outcome}: ${result.message})`);
       return results.flatMap((result) => result.assetIds);
+    },
+    submitTake: async (_projectId, _contentId, proposal) => {
+      const { results } = await call<{ results: { outcome: string; assetIds: string[]; message: string | null }[] }>("submit_proposal", { proposal, wait: true });
+      check(results.length === 1 && results[0].outcome === "completed" && results[0].assetIds.length === 1, `the chained take completed (${results[0]?.outcome}: ${results[0]?.message})`);
+      return results[0].assetIds[0];
     },
     upload: (name, bytes) => importImage(store, { projectId: null, name, bytes }, { now: Date.now(), newId: randomUUID }),
     uploadVoice: (projectId, name, bytes) => importAudio(store, { projectId, name, bytes }, { now: Date.now(), newId: randomUUID }),
@@ -524,6 +583,7 @@ async function httpClient(): Promise<Client> {
         ANTHROPIC_API_KEY: PLACEHOLDER_KEY,
         GENERATION_ALLOWANCE_USD: "0",
         MOCK_RECIPES: "1",
+        MOCK_VIDEO: "mp4",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -589,6 +649,19 @@ async function httpClient(): Promise<Client> {
         await new Promise((wait) => setTimeout(wait, 200));
       }
       throw new Error("Mock jobs did not finish in time.");
+    },
+    submitTake: async (projectId, contentId, proposal) => {
+      const { results } = await post<{ results: { outcome: string; message: string | null }[] }>(`/api/projects/${projectId}/proposals/submit`, { proposal });
+      check(results.length === 1 && (results[0].outcome === "started" || results[0].outcome === "existing"), `the chained take started (${results[0]?.outcome}: ${results[0]?.message})`);
+      // Segments run one after another; the take is done when the stitched clip lands on the beat.
+      const deadline = Date.now() + 120_000;
+      while (Date.now() < deadline) {
+        const state = await post<{ contents: { id: string; shots: { clip: { state: string; candidateIds?: string[] } }[] }[] }>(`/api/projects/${projectId}/tools/get_project_state`, { projectId });
+        const clip = state.contents.find((content) => content.id === contentId)?.shots[0]?.clip;
+        if (clip?.candidateIds?.length) return clip.candidateIds[0];
+        await new Promise((wait) => setTimeout(wait, 250));
+      }
+      throw new Error("The chained take did not finish in time.");
     },
     upload: async (name, bytes) => {
       const form = new FormData();

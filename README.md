@@ -96,7 +96,7 @@ The example below uses an invented creator, Avery Lane, and an invented product,
 8. Product. Upload product photos, paste your link, and list the claims you may make. For the Ridgeline bottle: keeps drinks cold 24 hours, fits a car cup holder, dishwasher safe. It is saved to the Library as a Product.
 9. Script. The assistant writes a 15 to 30 second script with a hook, problem, reveal, proof, and call to action. Beats alternate talking and b-roll; each has a line, on-screen text, a visual, and a length sized to the line (about 2.5 words per second). Talking beats say their line on camera; b-roll beats carry theirs as a voice-over, so the creator keeps talking over the footage. Edit in place; the script is versioned.
 10. Shots. For each beat the assistant composes a start frame from the sheet, the product, and the setting (a bright kitchen counter by a window, a car interior, a gym bench). Approve one per beat, or give a text instruction to refine one that is close.
-11. Clips. Each approved frame becomes an LTX clip at the beat's length with synchronized audio; talking beats carry the spoken line, b-roll has ambient sound only. Approve one per beat.
+11. Clips. Each approved frame becomes an LTX clip at the beat's length with synchronized audio; talking beats carry the spoken line, b-roll has ambient sound only. Approve one per beat. A take longer than the model makes in one run is a chained take (see Long takes, below).
 12. Voice-overs. Each b-roll line is read in the creator's own voice: the app lifts a voice sample from the first approved talking clip (or you upload a recording on the character's Voice slot) and clones it with Chatterbox Turbo or Qwen3-TTS on Comfy Cloud, a few credits a line. Approve a take per beat. For one voice across the whole ad, a talking beat can take the same path: a voice take of its line, then a clip lip-synced to it with Wan 2.2 S2V (up to 4.8 s).
 13. Assemble. On the Export tab, put the clips in order and press Export 1080 x 1920. You get an MP4 with the on-screen text burned in as captions and the voice-overs mixed over their beats. Download it. It is also saved as an asset with its full source record.
 14. Next piece. Start another ad in the same project, or a new project with the same character and a fresh sheet if the wardrobe changes.
@@ -106,6 +106,15 @@ Any step can also be done by hand without the chat: pick a recipe, write a promp
 The brief, the character bible, the product card, and the script are documents: edit them in the Documents and Script tabs, and the assistant works from what you saved. Every save keeps the previous version. Open a document's Versions list to see who changed it and when, and press Restore to bring an earlier version back as the newest one. A restored bible keeps the locked face and body, and the next stills use it.
 
 Every generation step shows a proposal first: the recipe, the prompt, the references, how many candidates, and the estimated cost. Nothing is submitted until you press Approve and generate (or turn on auto-approve, below).
+
+### Long takes
+
+Length is a capability of the model. LTX 2.5, MiniMax H3, and Wan 2.2 make about five seconds in one run, Kling 3.0 Omni up to 15, Wan 2.2 S2V up to 4.8. Ask for a longer talking take (a beat's length, a voice take longer than the beat, or "make this a 20 second take" in the chat) and the proposal card says how it will be made:
+
+- In one run when the model reaches that length (Kling, the H3 multi-frame graph, a first-and-last-frame clip within its limit).
+- As a chained take otherwise: segments of about five seconds, each started from the last moment of the one before, the line shared out across them, stitched with a short crossfade at every seam. When the beat has an approved voice take, that one recording is the whole take's sound, so the voice never cuts; a lip-synced take (Wan 2.2 S2V) follows its own slice of that recording in every segment. Each seam is checked for black frames, a frozen or jumping picture, and a gap or click in the audio, and the card tells you what it found.
+
+The card prices the whole take, and the whole take must fit your remaining budget before segment 1 starts; the rest stays reserved while it runs, so nothing else can leave it half paid. If a segment still cannot start (for example the operator ceiling was lowered), the take pauses with a note and keeps what it made; press Approve and generate on the same card again to finish it. Each segment is its own durable job, so a restart picks the take up where it stopped. The finished take lands on the beat as one clip; the segments go to the Archive. Chained takes on H3, LTX, and Kling are tested offline; their first real runs are still to be logged in docs/VERIFICATION.md.
 
 ### Choosing the model for a step
 
@@ -195,7 +204,7 @@ Scripts (all in `package.json`):
 - `npx ai-creator-lab` (the `bin` in the root `package.json`, `apps/creator/scripts/launch.mjs`) builds when needed and serves the production build on 127.0.0.1; see Install.
 - `npm run dev` starts the dev server on 127.0.0.1 (or on `HOST`, with the app password; `npm start` the same). Both go through `apps/creator/scripts/serve.mjs`, which runs Next.js on the app folder from the repository root and passes `HOST` to it as `--hostname`.
 - `npm run build`, `npm start` build and serve.
-- `npm run lint`, `npm run typecheck`, `npm test` are the checks. `npm run test:acceptance` runs the whole flow against the mock executor with no credits.
+- `npm run lint`, `npm run typecheck`, `npm test` are the checks. `npm run test:acceptance` runs the whole flow against the mock executor with no credits, a 10 s chained take included. `MOCK_VIDEO=mp4` (with `MOCK_RECIPES=1`) makes the mock's clips real MP4s made with ffmpeg instead of storyboards, which chained takes need.
 - `npm run --silent mcp` starts the MCP server on stdio (see below).
 - `npm run gallery:build` renders `examples/` into a static site in `site/` (GitHub Pages, through the manual `Gallery (GitHub Pages)` workflow).
 - `npm run spike`, `npm run live-check`, `npm run e2e-real`, `npm run e2e-photos`, `npm run live-premium` call real providers and spend credits. They need the key, a nonzero `GENERATION_ALLOWANCE_USD`, and room in the monthly budget.
@@ -208,7 +217,7 @@ The repository is an npm workspace. Run every script from the repository root (i
 - `apps/creator/` the Next.js app: pages (Projects, Gallery, Assets, Library, Archive, Settings) in `src/app/`, the HTTP routes under `src/app/api/`, the UI in `src/components/`, and in `src/server/` storage (`store`), the typed tool set (`tools`), the assistant (`agent`), ffmpeg assembly (`assembly`), media, auth, and the MCP server. `src/plugins/` lists the installed plugins. `scripts/` holds the acceptance smoke, the MCP entry, and the real-provider checks.
 - `packages/core/` domain contracts and Zod schemas, the pure catalog types, the spend policy, and the plugin registry.
 - `packages/recipes/` the starter recipe catalog, `workflows/` (starter workflows and sidecars), Router adapters, and the per-model prompt renderers.
-- `packages/executors/` the Router, workflow, and mock executors, the allowance and spend settlement, the Router and Comfy clients, and the backend probe.
+- `packages/executors/` the Router, workflow, and mock executors, the allowance and spend settlement, the Router and Comfy clients, the backend probe, and the chained-take stitch and seam check (`stitch.ts`).
 - `packages/ui/` the shared shadcn/ui primitives.
 - `packages/content-ugc-ad/` the UGC Ad content type (its steps and workspace panels) as a plugin.
 - `packages/content-social-post/` the Social Post content type as a plugin: its steps, its tools (`social_post_save_copy`, `social_post_propose_still`, `social_post_export`), its assistant, and its three workspace panels.
