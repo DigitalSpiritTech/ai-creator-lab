@@ -44,7 +44,7 @@ interface ExportResult {
 const message = (cause: unknown) => (cause instanceof Error ? cause.message : "Something went wrong.");
 const aimsAt = (target: GenerationTarget, contentId: string, ratio?: string) => target.kind === "piece" && target.contentId === contentId && (ratio === undefined || target.slot === ratio);
 
-/** Loads the project state through the host, and reloads it every few seconds while a still for this post is being made. */
+/** Loads the project state through the host and keeps it current. */
 function usePostState(host: PanelHost) {
   const [state, setState] = useState<PostState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,9 +62,10 @@ function usePostState(host: PanelHost) {
   }, [reload]);
   const post = state?.pieces.find((piece) => piece.type === SOCIAL_POST_PIECE_TYPE);
   const generating = !!post && !!state?.activeJobs.some((job) => aimsAt(job.request.target, post.id));
+  // A proposal is approved in the chat panel, outside this panel, so the state is reloaded on a
+  // timer too: often while a still for this post is being made, now and then otherwise.
   useEffect(() => {
-    if (!generating) return;
-    const timer = setInterval(() => void reload(), 4000);
+    const timer = setInterval(() => void reload(), generating ? 3000 : 10_000);
     return () => clearInterval(timer);
   }, [generating, reload]);
   return { state, post, error, reload };
