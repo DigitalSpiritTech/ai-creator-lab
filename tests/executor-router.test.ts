@@ -10,14 +10,14 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { ComfyError, type RunResult } from "@comfyorg/sdk";
 import sharp from "sharp";
-import { checkAgainstSchema, requestBodySchema, type Recipe, type RouterRecipe } from "@/lib/catalog";
-import { ROUTER_RECIPES } from "@/server/catalog/defaults";
+import { checkAgainstSchema, requestBodySchema, type Recipe, type RouterRecipe } from "@creator-lab/core/catalog";
+import { ROUTER_RECIPES } from "@creator-lab/recipes/defaults";
 import { MemoryJobStore, admitJob } from "./support/memory-job-store";
-import { buildRouterBody, prepareImages } from "@/server/executors/router-body";
-import { downloadMedia, mediaRequestOptions, mediaUrl, publicMediaAddress, type MediaPorts } from "@/server/executors/router-download";
-import { extractRouterMedia } from "@/server/executors/router-output";
-import { classifyRouterError, isRouterBusy, parseCredits, RouterExecutor, type RouterModelsPort } from "@/server/executors/router";
-import type { GenerationInput, Job } from "@/server/executors/types";
+import { buildRouterBody, prepareImages } from "@creator-lab/executors/router-body";
+import { downloadMedia, mediaRequestOptions, mediaUrl, publicMediaAddress, type MediaPorts } from "@creator-lab/executors/router-download";
+import { extractRouterMedia } from "@creator-lab/executors/router-output";
+import { classifyRouterError, isRouterBusy, parseCredits, RouterExecutor, type RouterModelsPort } from "@creator-lab/executors/router";
+import type { GenerationInput, Job } from "@creator-lab/executors/types";
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`./fixtures/router/${name}`, import.meta.url), "utf8"));
 const results = fixture("results.json");
@@ -347,8 +347,8 @@ test("the Wan first-and-last recipe sends both frames with their roles, in order
   }));
 
 test("an unquoted Router ceiling scales with the clip length asked for", async () => {
-  const { ceilingFor } = await import("@/server/executors/router");
-  const { ROUTER_RECIPES } = await import("@/server/catalog/defaults");
+  const { ceilingFor } = await import("@creator-lab/executors/router");
+  const { ROUTER_RECIPES } = await import("@creator-lab/recipes/defaults");
   const kling = ROUTER_RECIPES.find((recipe) => recipe.id === "router-kling-3-omni-i2v")!;
   assert.equal(ceilingFor(kling, { prompt: "p", images: [] }), 0.8);
   assert.equal(ceilingFor(kling, { prompt: "p", images: [], durationSeconds: 5 }), 0.8);

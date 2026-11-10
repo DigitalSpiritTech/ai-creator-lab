@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, test } from "node:test";
 import type { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages";
-import { toApiMessages } from "@/lib/domain/conversation";
-import { GenerationProposalSchema } from "@/lib/domain/job";
+import { toApiMessages } from "@creator-lab/core/domain/conversation";
+import { GenerationProposalSchema } from "@creator-lab/core/domain/job";
 import { type LlmModel, type ModelEvent, MAX_TOOL_CALLS, anthropicModel, buildRequest, say, scriptedModel, toolUse } from "@/server/agent";
 import { STOPPED_MESSAGE } from "@/server/agent/loop";
 import { translateStream } from "@/server/agent/model";

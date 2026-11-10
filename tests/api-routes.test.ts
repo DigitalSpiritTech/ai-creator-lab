@@ -12,7 +12,7 @@ import { join, resolve } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
 import { createSseParser } from "@/lib/client/sse";
-import type { SpendPolicy } from "@/lib/domain/spend";
+import type { SpendPolicy } from "@creator-lab/core/domain/spend";
 
 // Route modules import `server-only`; outside the React server build it would throw on import.
 const empty = pathToFileURL(resolve("node_modules/server-only/empty.js")).href;

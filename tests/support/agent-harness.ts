@@ -4,11 +4,11 @@
  * @packageDocumentation
  */
 import { randomUUID } from "node:crypto";
-import type { GenerationProposal } from "@/lib/domain/job";
-import type { Project } from "@/lib/domain/project";
+import type { GenerationProposal } from "@creator-lab/core/domain/job";
+import type { Project } from "@creator-lab/core/domain/project";
 import { type AgentEvent, type LlmModel, STATE_OPEN, type StreamParams, runAgentTurn } from "@/server/agent";
-import { MOCK_RECIPES } from "@/server/catalog/defaults";
-import { createExecutors } from "@/server/executors";
+import { MOCK_RECIPES } from "@creator-lab/recipes/defaults";
+import { createExecutors } from "@creator-lab/executors";
 import type { Store } from "@/server/store";
 import { type ToolContext, callTool } from "@/server/tools";
 import { clock, seedProject, tempStore } from "./domain-fixtures";

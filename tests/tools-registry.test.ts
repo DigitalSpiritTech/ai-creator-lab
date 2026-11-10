@@ -43,7 +43,7 @@ const ROSTER = [
   "regenerate_with",
 ];
 
-const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));
 
 const cleanups: (() => void)[] = [];
 afterEach(() => {

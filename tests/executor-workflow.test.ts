@@ -13,12 +13,12 @@ import { promisify } from "node:util";
 import { test } from "node:test";
 import { IdempotencyKeyReuse } from "@comfyorg/sdk";
 import sharp from "sharp";
-import type { Recipe } from "@/lib/catalog";
-import { defaultRecipes } from "@/server/catalog/defaults";
+import type { Recipe } from "@creator-lab/core/catalog";
+import { defaultRecipes } from "@creator-lab/recipes/defaults";
 import { MemoryJobStore, admitJob } from "./support/memory-job-store";
-import { ffmpegPath } from "@/server/executors/media";
-import { pollAndRetrieve } from "@/server/executors/run";
-import type { GenerationInput, Job } from "@/server/executors/types";
+import { ffmpegPath } from "@creator-lab/executors/media";
+import { pollAndRetrieve } from "@/server/generation/run";
+import type { GenerationInput, Job } from "@creator-lab/executors/types";
 import {
   planWorkflow,
   seedFromId,
@@ -26,9 +26,9 @@ import {
   type CloudJobHandle,
   type WorkflowClient,
   type WorkflowHandle,
-} from "@/server/executors/workflow";
+} from "@creator-lab/executors/workflow";
 
-const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));
 const jobs = JSON.parse(readFileSync(new URL("./fixtures/cloud/jobs.json", import.meta.url), "utf8"));
 const run = promisify(execFile);
 

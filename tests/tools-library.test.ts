@@ -6,13 +6,13 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, test } from "node:test";
 import sharp from "sharp";
-import type { CharacterItem, ProjectLink, SetItem } from "@/lib/domain/library";
-import type { GenerationProposal } from "@/lib/domain/job";
+import type { CharacterItem, ProjectLink, SetItem } from "@creator-lab/core/domain/library";
+import type { GenerationProposal } from "@creator-lab/core/domain/job";
 import { importImage } from "@/server/media/images";
 import { type ToolContext, callTool, createGenerationContext } from "@/server/tools";
 import { averyBible, clock, generateAssets, ridgelineBeats, ridgelineProduct, seedProject, tempStore } from "./support/domain-fixtures";
 
-const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   while (cleanups.length) cleanups.pop()!();

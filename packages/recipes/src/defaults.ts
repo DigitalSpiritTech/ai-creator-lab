@@ -1,0 +1,532 @@
+/**
+ * Starter recipes and per-capability defaults, as decided by the October 26 spike (docs/VERIFICATION.md):
+ * Z-Image Turbo for text_to_image, Qwen Image Edit 2511 for image_edit with Nano Banana 2.1 hosted,
+ * LTX 2.5 on Cloud for image_to_video, LTX 2.5 first-and-last-frame on Cloud for first_last_to_video. Anything not run on a real account carries `verified: null`.
+ * @packageDocumentation
+ */
+import { defaultWorkflowsDir } from "./workflows-dir";
+import {
+  type BackendRouting,
+  MockRecipeSchema,
+  type Placement,
+  RouterRecipeSchema,
+  type Capability,
+  type MockRecipe,
+  type Recipe,
+  type RecipeTag,
+  type RouterRecipe,
+  placeRecipe,
+  placeRecipes,
+} from "@creator-lab/core/catalog";
+import { loadWorkflowRecipes, type WorkflowMeta } from "./workflows";
+
+export const WORKFLOW_META: Record<string, WorkflowMeta> = {
+  "z-image-turbo-t2i": {
+    title: "Z-Image Turbo on Comfy Cloud",
+    verified: "2026-10-26",
+    costHint: "About 2 to 3 credits per 1024x1024 still.",
+    ceilingUsd: 0.03,
+    defaults: { width: 1024, height: 1024 },
+  },
+  "qwen-image-edit-2511-1ref": {
+    title: "Qwen Image Edit 2511, one reference, on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 6 credits at 768x1344.",
+    ceilingUsd: 0.05,
+    defaults: { width: 768, height: 1344 },
+  },
+  "qwen-image-edit-2511-2ref": {
+    title: "Qwen Image Edit 2511, two references, on Comfy Cloud",
+    verified: "2026-10-26",
+    costHint: "About 7 credits at 768x1344.",
+    ceilingUsd: 0.05,
+    defaults: { width: 768, height: 1344 },
+  },
+  "qwen-image-edit-2511-3ref": {
+    title: "Qwen Image Edit 2511, three references, on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 6 credits at 768x1344.",
+    ceilingUsd: 0.05,
+    defaults: { width: 768, height: 1344 },
+  },
+  "flux-2-dev-t2i": {
+    title: "FLUX.2 dev text to image on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 12 credits at 864x1536 (20 steps).",
+    ceilingUsd: 0.09,
+    defaults: { width: 864, height: 1536 },
+  },
+  "flux-2-dev-edit-1ref": {
+    title: "FLUX.2 dev edit, one reference, on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 16 credits at 864x1536.",
+    ceilingUsd: 0.12,
+    defaults: { width: 864, height: 1536 },
+  },
+  "flux-2-dev-edit-2ref": {
+    title: "FLUX.2 dev edit, two references, on Comfy Cloud",
+    verified: null,
+    costHint: "Expected about 17 credits at 864x1536 (one and three references measured).",
+    ceilingUsd: 0.12,
+    defaults: { width: 864, height: 1536 },
+  },
+  "flux-2-dev-edit-3ref": {
+    title: "FLUX.2 dev edit, three references, on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 17 credits at 864x1536.",
+    ceilingUsd: 0.12,
+    defaults: { width: 864, height: 1536 },
+  },
+  "krea-2-turbo-t2i": {
+    title: "Krea 2 Turbo text to image on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 3 credits at 768x1344 (8 steps).",
+    ceilingUsd: 0.03,
+    defaults: { width: 768, height: 1344 },
+  },
+  "krea-2-turbo-style-reference": {
+    title: "Krea 2 Turbo style reference on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 4 credits at 768x1344 (8 steps).",
+    ceilingUsd: 0.03,
+    defaults: { width: 768, height: 1344 },
+  },
+  "qwen-image-2512-t2i": {
+    title: "Qwen-Image 2512 text to image on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 3 credits at 992x1760 (Lightning 4 steps).",
+    ceilingUsd: 0.03,
+    defaults: { width: 992, height: 1760 },
+  },
+  "minimax-h3-t2i": {
+    title: "MiniMax H3 text to image on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 6 credits at 768x1344 (30 steps).",
+    ceilingUsd: 0.05,
+    defaults: { width: 768, height: 1344 },
+  },
+  "wan-2.2-t2v": {
+    title: "Wan 2.2 14B text to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 20 credits for 81 frames at 720x1280 (about 2.5 min).",
+    ceilingUsd: 0.16,
+    defaults: { width: 720, height: 1280, length: 81 },
+  },
+  "wan-2.2-i2v": {
+    title: "Wan 2.2 14B image to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 22 credits for 81 frames at 720x1280 (about 100 s).",
+    ceilingUsd: 0.16,
+    fitImages: true,
+    defaults: { width: 720, height: 1280, length: 81 },
+  },
+  "wan-2.2-flf2v": {
+    title: "Wan 2.2 14B first and last frame to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 23 credits for 81 frames at 720x1280 (about 2 min).",
+    ceilingUsd: 0.16,
+    fitImages: true,
+    defaults: { width: 720, height: 1280, length: 81 },
+  },
+  "minimax-h3-t2v": {
+    title: "MiniMax H3 text to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 20 credits for 124 frames at 736x1312 with sound.",
+    ceilingUsd: 0.16,
+    defaults: { width: 736, height: 1312, length: 124 },
+  },
+  "minimax-h3-i2v": {
+    title: "MiniMax H3 image to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 21 credits for 124 frames at 736x1312 with sound (about 90 s).",
+    ceilingUsd: 0.16,
+    fitImages: true,
+    defaults: { width: 736, height: 1312, length: 124 },
+  },
+  "minimax-h3-flf2v": {
+    title: "MiniMax H3 first and last frame to video on Comfy Cloud",
+    verified: "2026-10-27",
+    costHint: "About 23 credits for 124 frames at 736x1312 with sound (about 100 s).",
+    ceilingUsd: 0.16,
+    fitImages: true,
+    defaults: { width: 736, height: 1312, length: 124 },
+  },
+  "minimax-h3-multiframe": {
+    title: "MiniMax H3 multi-frame, three keyframes, on Comfy Cloud",
+    verified: null,
+    costHint: "Expected about 50 to 60 credits for 124 frames at 736x1312 with sound (20 steps, no Lightning LoRA, three references); not yet measured.",
+    ceilingUsd: 0.4,
+    fitImages: true,
+    defaults: { width: 736, height: 1312, length: 124 },
+    notes:
+      "Reference to video with Add Guide keyframes. image1 is the identity and the opening frame (<Picture 1>); image2 and image3 are pinned at the frames in image2Frame and image3Frame (round(seconds x 24)) and are also <Picture 2> and <Picture 3>. 24 fps, 17n+5 frames.",
+  },
+  "wan-2.2-s2v": {
+    title: "Wan 2.2 S2V speech to video on Comfy Cloud",
+    verified: "2026-10-28",
+    costHint: "About 12 credits for 49 to 65 frames at 720x1280 (one chunk, 4.8 s at most).",
+    ceilingUsd: 0.1,
+    fitImages: true,
+    defaults: { width: 480, height: 832, length: 77 },
+    notes: "The still is the reference frame and the approved voice take drives the mouth; the length follows the take, 4.8 s at most.",
+  },
+  "chatterbox-turbo-tts": {
+    title: "Chatterbox Turbo voice clone on Comfy Cloud",
+    verified: "2026-10-28",
+    costHint: "About 4 credits per line (about 40 s).",
+    ceilingUsd: 0.03,
+    notes: "Zero-shot clone from the character's voice sample. Inline tags such as [laugh] are read as expression.",
+  },
+  "qwen3-tts-voice-clone": {
+    title: "Qwen3-TTS voice clone on Comfy Cloud",
+    verified: "2026-10-28",
+    costHint: "About 2 credits per line (about 40 s).",
+    ceilingUsd: 0.02,
+    notes: "1.7B model; the sample's transcript (a talking clip's line) is passed as refText when known.",
+  },
+  "ltx-2.5-i2v": {
+    title: "LTX 2.5 image to video on Comfy Cloud",
+    verified: "2026-10-26",
+    costHint: "About 10 credits for 121 frames at 576x1024 with audio.",
+    ceilingUsd: 0.08,
+    fitImages: true,
+    defaults: { width: 576, height: 1024, length: 121 },
+    notes: "Input images are center-cropped and scaled to the output size before upload; the graph needs an exact match.",
+  },
+  "ltx-2.5-flf2v": {
+    title: "LTX 2.5 first and last frame to video on Comfy Cloud",
+    verified: "2026-10-26",
+    costHint: "About 10 credits for 121 frames at 576x1024 with audio.",
+    ceilingUsd: 0.08,
+    fitImages: true,
+    defaults: { width: 576, height: 1024, length: 121 },
+    notes: "Both frames are center-cropped and scaled to the same output canvas before upload. Pair it with an ending still composed for the same shot; unrelated endpoints dissolve in the last second.",
+  },
+};
+
+const GEMINI_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "9:16", "16:9", "21:9"] as const;
+
+/**
+ * The Gemini image request shape (Nano Banana family on Vertex AI): prompt text plus inline reference
+ * parts; with no `references` the recipe generates from the prompt alone.
+ */
+function geminiImageFieldMap(references?: { min: number; max: number }) {
+  return {
+    template: {
+      contents: [{ role: "user", parts: [] }],
+      generationConfig: { responseModalities: ["IMAGE"], imageConfig: { imageOutputOptions: { mimeType: "image/png" } } },
+      uploadImagesToStorage: true,
+    },
+    prompt: { path: "contents.0.parts.0.text" },
+    ...(references
+      ? {
+          images: {
+            path: "contents.0.parts",
+            mode: "append",
+            encoding: "base64",
+            item: { inlineData: { mimeType: "{mime}", data: "{data}" } },
+            min: references.min,
+            max: references.max,
+          },
+        }
+      : {}),
+    aspectRatio: { path: "generationConfig.imageConfig.aspectRatio" },
+    sizeTier: { path: "generationConfig.imageConfig.imageSize" },
+    seed: { path: "generationConfig.seed" },
+    output: "gemini",
+  };
+}
+
+/** Kling 3.0 Omni: reference images as first (and optionally last) frame, 720p std or 1080p pro, native sound. */
+function klingOmniFieldMap(references: { min: number; max: number }) {
+  return {
+    template: { mode: "pro", sound: "on" },
+    prompt: { path: "prompt" },
+    images: {
+      path: "image_list",
+      mode: "append",
+      encoding: "base64",
+      item: { image_url: "{data}", type: "{role}" },
+      roles: ["first_frame", "end_frame"],
+      min: references.min,
+      max: references.max,
+    },
+    aspectRatio: { path: "aspect_ratio" },
+    duration: { path: "duration", values: Object.fromEntries(Array.from({ length: 13 }, (_, i) => [String(i + 3), String(i + 3)])) },
+    output: "kling",
+  };
+}
+
+export const ROUTER_RECIPES: RouterRecipe[] = [
+  RouterRecipeSchema.parse({
+    id: "router-nano-banana-2.1-edit",
+    kind: "router",
+    title: "Nano Banana 2.1 on Comfy Router",
+    capability: "image_edit",
+    openWeights: false,
+    verified: "2026-10-26",
+    costHint: "About 13 credits for a two-reference still at 1K.",
+    ceilingUsd: 0.15,
+    limits: { aspectRatios: [...GEMINI_RATIOS], sizeTiers: ["1K", "2K", "4K"], maxReferences: 14 },
+    defaults: { aspectRatio: "9:16", sizeTier: "1K" },
+    provider: "vertexai",
+    model: "vertexai/gemini-nano-banana-2.1",
+    fieldMap: geminiImageFieldMap({ min: 1, max: 14 }),
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-nano-banana-pro-edit",
+    kind: "router",
+    title: "Nano Banana Pro on Comfy Router",
+    capability: "image_edit",
+    openWeights: false,
+    verified: "2026-10-27",
+    costHint: "About 36 credits (0.17 USD) for a three-reference still at 1K.",
+    ceilingUsd: 0.25,
+    limits: { aspectRatios: [...GEMINI_RATIOS], sizeTiers: ["1K", "2K", "4K"], maxReferences: 14 },
+    defaults: { aspectRatio: "9:16", sizeTier: "1K" },
+    notes: "Google's Gemini 3 Pro Image (Nano Banana Pro). Takes up to 14 references, so a sheet, a product and a set fit in one still.",
+    provider: "vertexai",
+    model: "vertexai/gemini-3-pro-image",
+    fieldMap: geminiImageFieldMap({ min: 1, max: 14 }),
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-nano-banana-pro-t2i",
+    kind: "router",
+    title: "Nano Banana Pro from text on Comfy Router",
+    capability: "text_to_image",
+    openWeights: false,
+    verified: null,
+    costHint: "Expected near the edit price, about 36 credits (0.17 USD) at 1K; not yet measured.",
+    ceilingUsd: 0.25,
+    limits: { aspectRatios: [...GEMINI_RATIOS], sizeTiers: ["1K", "2K", "4K"], maxReferences: 0 },
+    defaults: { aspectRatio: "4:5", sizeTier: "1K" },
+    notes: "Google's Gemini 3 Pro Image (Nano Banana Pro) with no references: faces, products and places from a prompt alone.",
+    provider: "vertexai",
+    model: "vertexai/gemini-3-pro-image",
+    fieldMap: geminiImageFieldMap(),
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-kling-3-omni-i2v",
+    kind: "router",
+    title: "Kling 3.0 Omni image to video on Comfy Router",
+    capability: "image_to_video",
+    openWeights: false,
+    verified: "2026-10-27",
+    costHint: "About 148 credits (0.70 USD) for 5 s in pro mode with sound; the reservation scales with the beat's length.",
+    ceilingUsd: 0.8,
+    limits: { aspectRatios: ["9:16", "16:9", "1:1"], durations: Array.from({ length: 13 }, (_, i) => i + 3), maxReferences: 1 },
+    defaults: { aspectRatio: "9:16", durationSeconds: 5 },
+    notes: "1080p pro mode with native sound. The approved still is the first frame. Output is 1088x1904 for 9:16; the export scales it to 1080x1920.",
+    provider: "kling",
+    model: "kling/kling-v3-omni",
+    fieldMap: klingOmniFieldMap({ min: 1, max: 1 }),
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-kling-3-omni-flf2v",
+    kind: "router",
+    title: "Kling 3.0 Omni first and last frame on Comfy Router",
+    capability: "first_last_to_video",
+    openWeights: false,
+    verified: null,
+    costHint: "Expected near the image-to-video price, about 148 credits (0.70 USD) for 5 s in pro mode; not yet measured.",
+    ceilingUsd: 0.8,
+    limits: { aspectRatios: ["9:16", "16:9", "1:1"], durations: Array.from({ length: 13 }, (_, i) => i + 3), maxReferences: 2 },
+    defaults: { aspectRatio: "9:16", durationSeconds: 5 },
+    notes: "1080p pro mode with native sound. The first still is the first frame, the second the last frame.",
+    provider: "kling",
+    model: "kling/kling-v3-omni",
+    fieldMap: klingOmniFieldMap({ min: 2, max: 2 }),
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-ltx-2.5-fast",
+    kind: "router",
+    title: "LTX 2.5 Fast on Comfy Router",
+    capability: "text_to_video",
+    openWeights: false,
+    verified: null,
+    costHint: "Priced by Router per second; not yet measured here.",
+    ceilingUsd: 1,
+    limits: { aspectRatios: ["9:16", "16:9"], durations: [2, 3, 4, 5, 6, 8, 10] },
+    defaults: { aspectRatio: "9:16", durationSeconds: 5 },
+    notes: "Router's schema for this model takes a prompt only, so it cannot animate a start frame.",
+    provider: "ltx",
+    model: "ltx/ltx-2-5-fast",
+    fieldMap: {
+      template: { generate_audio: true, fps: 24 },
+      prompt: { path: "prompt" },
+      aspectRatio: { path: "resolution", values: { "9:16": "1080x1920", "16:9": "1920x1080" } },
+      duration: { path: "duration" },
+      output: "ltx",
+    },
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-wan-3-i2v",
+    kind: "router",
+    title: "Wan 3 image to video on Comfy Router",
+    capability: "image_to_video",
+    openWeights: false,
+    verified: null,
+    costHint: "Priced by Router; not yet measured here.",
+    ceilingUsd: 1,
+    limits: { aspectRatios: ["9:16", "16:9", "1:1"], durations: [5], maxReferences: 1 },
+    defaults: { aspectRatio: "9:16", durationSeconds: 5 },
+    provider: "wan",
+    model: "wan/wan3.0-video",
+    fieldMap: {
+      template: { input: {}, parameters: { resolution: "720P", prompt_extend: false, audio: true, watermark: false } },
+      prompt: { path: "input.prompt" },
+      images: {
+        path: "input.media",
+        mode: "append",
+        encoding: "data_url",
+        item: { type: "{role}", url: "{data}" },
+        roles: ["first_frame"],
+        min: 1,
+        max: 1,
+      },
+      aspectRatio: { path: "parameters.ratio" },
+      duration: { path: "parameters.duration" },
+      seed: { path: "parameters.seed" },
+      output: "wan",
+    },
+  }),
+  RouterRecipeSchema.parse({
+    id: "router-wan-3-flf2v",
+    kind: "router",
+    title: "Wan 3 first and last frame on Comfy Router",
+    capability: "first_last_to_video",
+    openWeights: false,
+    verified: null,
+    costHint: "Priced by Router; not yet measured here.",
+    ceilingUsd: 1,
+    limits: { aspectRatios: ["9:16", "16:9", "1:1"], durations: [5], maxReferences: 2 },
+    defaults: { aspectRatio: "9:16", durationSeconds: 5 },
+    provider: "wan",
+    model: "wan/wan3.0-video",
+    fieldMap: {
+      template: { input: {}, parameters: { resolution: "720P", prompt_extend: false, audio: true, watermark: false } },
+      prompt: { path: "input.prompt" },
+      images: {
+        path: "input.media",
+        mode: "append",
+        encoding: "data_url",
+        item: { type: "{role}", url: "{data}" },
+        roles: ["first_frame", "last_frame"],
+        min: 2,
+        max: 2,
+      },
+      aspectRatio: { path: "parameters.ratio" },
+      duration: { path: "parameters.duration" },
+      seed: { path: "parameters.seed" },
+      output: "wan",
+    },
+  }),
+];
+
+const MOCK_CAPABILITIES: Capability[] = ["text_to_image", "image_edit", "image_to_video", "first_last_to_video", "text_to_video", "speech_to_video", "text_to_speech"];
+
+export const MOCK_RECIPES: MockRecipe[] = MOCK_CAPABILITIES.map((capability) =>
+  MockRecipeSchema.parse({
+    id: `mock-${capability.replaceAll("_", "-")}`,
+    kind: "mock",
+    title: `Mock ${capability.replaceAll("_", " ")} (no AI, free)`,
+    capability,
+    openWeights: false,
+    verified: null,
+    costHint: "Free. A labeled placeholder, not a generation.",
+    ceilingUsd: 0,
+    limits: { maxReferences: 16 },
+    defaults: { aspectRatio: "9:16" },
+  }),
+);
+
+/**
+ * The default recipe per MVP capability, its siblings (the same family at other reference counts,
+ * tried next), the hosted alternative, and the mock, by recipe id.
+ */
+export const DEFAULT_RECIPE_IDS: Partial<Record<Capability, { primary: string; siblings?: string[]; hosted?: string; mock: string }>> = {
+  text_to_image: { primary: "z-image-turbo-t2i", mock: "mock-text-to-image" },
+  image_edit: { primary: "qwen-image-edit-2511-2ref", siblings: ["qwen-image-edit-2511-1ref", "qwen-image-edit-2511-3ref"], hosted: "router-nano-banana-2.1-edit", mock: "mock-image-edit" },
+  image_to_video: { primary: "ltx-2.5-i2v", hosted: "router-kling-3-omni-i2v", mock: "mock-image-to-video" },
+  first_last_to_video: { primary: "ltx-2.5-flf2v", hosted: "router-kling-3-omni-flf2v", mock: "mock-first-last-to-video" },
+  text_to_video: { primary: "wan-2.2-t2v", hosted: "router-ltx-2.5-fast", mock: "mock-text-to-video" },
+  speech_to_video: { primary: "wan-2.2-s2v", mock: "mock-speech-to-video" },
+  text_to_speech: { primary: "chatterbox-turbo-tts", siblings: ["qwen3-tts-voice-clone"], mock: "mock-text-to-speech" },
+};
+
+/**
+ * The default recipe per purpose, used before the capability's starter primary (after a recipe the
+ * user requested or set as the workspace default). A purpose default only counts while its recipe
+ * is in the catalog, verified, and tagged with the purpose; otherwise the capability default runs.
+ *
+ * `character_start` is the face lock's text-to-image recipe. It stays unset until the v0.2 Krea 2
+ * spike (TASKS B24) passes its three measured runs. The flip is two edits in this file: add
+ * `character_start: "krea-2-turbo-t2i",` here and `tags: ["character_start"],` to Krea's
+ * WORKFLOW_META entry, with its ceilingUsd set to about 1.5 times the measured cost.
+ */
+export const DEFAULT_PURPOSE_RECIPE_IDS: Partial<Record<RecipeTag, string>> = {};
+
+/** The purpose default among loaded recipes, when it is configured, verified, and tagged. */
+export function purposeRecipe(recipes: readonly Recipe[], purpose: RecipeTag, ids: Partial<Record<RecipeTag, string>> = DEFAULT_PURPOSE_RECIPE_IDS): Recipe | undefined {
+  const id = ids[purpose];
+  const recipe = id ? recipes.find((entry) => entry.id === id) : undefined;
+  return recipe?.verified && recipe.tags?.includes(purpose) ? recipe : undefined;
+}
+
+/**
+ * The same check from the curated tables alone, for callers without the loaded catalog (the
+ * assistant's stage guidance picks the face prompt variant with it).
+ */
+export function purposeRecipeId(
+  purpose: RecipeTag,
+  ids: Partial<Record<RecipeTag, string>> = DEFAULT_PURPOSE_RECIPE_IDS,
+  meta: Record<string, WorkflowMeta> = WORKFLOW_META,
+  router: readonly RouterRecipe[] = ROUTER_RECIPES,
+): string | undefined {
+  const id = ids[purpose];
+  if (!id) return undefined;
+  const hosted = router.find((recipe) => recipe.id === id);
+  const verified = meta[id]?.verified ?? hosted?.verified;
+  const tags = meta[id]?.tags ?? hosted?.tags;
+  return verified && tags?.includes(purpose) ? id : undefined;
+}
+
+/**
+ * Whether the mock recipes are listed. They exist for tests and the acceptance smoke, not for
+ * creators, so a real install hides them unless `MOCK_RECIPES=1` is set.
+ */
+export function mockRecipesEnabled(): boolean {
+  return process.env.MOCK_RECIPES === "1";
+}
+
+/**
+ * Every starter recipe: the workflow sidecars on disk and the curated Router recipes, plus the
+ * mocks when `options.mocks` (default: {@link mockRecipesEnabled}) allows them.
+ */
+export async function defaultRecipes(workflowsDir: string = defaultWorkflowsDir(), options: { mocks?: boolean } = {}): Promise<Recipe[]> {
+  const { recipes } = await loadWorkflowRecipes(workflowsDir, WORKFLOW_META);
+  const mocks = options.mocks ?? mockRecipesEnabled();
+  return [...recipes, ...ROUTER_RECIPES, ...(mocks ? MOCK_RECIPES : [])];
+}
+
+/**
+ * Recipes for a capability: verified first, then unverified, mocks last. This is the one place that
+ * answers "which recipes are available for this capability". With `routing` (the backend list and
+ * key status, `GenerationContext.routing`) it keeps only recipes some backend can run now: the
+ * default backend, or Comfy Cloud as the fallback, per `placeRecipe`. Use `recipeAvailability` to
+ * keep every recipe with its placement and the reason one cannot run.
+ */
+export function recipesFor(recipes: Recipe[], capability: Capability, routing?: BackendRouting): Recipe[] {
+  const ranked = rankRecipes(recipes.filter((recipe) => recipe.capability === capability));
+  return routing ? ranked.filter((recipe) => placeRecipe(recipe, routing).ok) : ranked;
+}
+
+function rankRecipes(recipes: Recipe[]): Recipe[] {
+  const rank = (recipe: Recipe) => (recipe.kind === "mock" ? 2 : recipe.verified ? 0 : 1);
+  return [...recipes].sort((a, b) => rank(a) - rank(b));
+}
+
+/** Every recipe for a capability, in `recipesFor` order, with where it would run or why it cannot. */
+export function recipeAvailability(recipes: Recipe[], capability: Capability, routing: BackendRouting): { recipe: Recipe; placement: Placement }[] {
+  return placeRecipes(rankRecipes(recipes.filter((recipe) => recipe.capability === capability)), routing);
+}

@@ -1,0 +1,92 @@
+/**
+ * Project tools: read the whole project state, save the brief.
+ * @packageDocumentation
+ */
+import { z } from "zod";
+import { AssetSchema } from "@creator-lab/core/domain/asset";
+import { IdSchema, RevisionSchema } from "@creator-lab/core/domain/common";
+import { ContentPieceSchema } from "@creator-lab/core/domain/content";
+import { JobSchema } from "@creator-lab/core/domain/job";
+import {
+  type CharacterItem,
+  CharacterItemSchema,
+  type CharacterLink,
+  CharacterLinkSchema,
+  type ProductItem,
+  ProductItemSchema,
+  type SetItem,
+  SetItemSchema,
+} from "@creator-lab/core/domain/library";
+import { ProjectPreferencesSchema } from "@creator-lab/core/domain/preferences";
+import { BriefSchema, ProjectSchema, saveBrief } from "@creator-lab/core/domain/project";
+import { ScriptSchema } from "@creator-lab/core/domain/script";
+import { briefContent } from "@creator-lab/core/domain/document";
+import { recordDocument } from "@/server/tools/documents";
+import { defineTool } from "@/server/tools/registry";
+import { checkRevision } from "@/server/tools/shared";
+
+export const ProjectStateSchema = z.object({
+  project: ProjectSchema,
+  characters: z.array(z.object({ item: CharacterItemSchema, link: CharacterLinkSchema })),
+  products: z.array(ProductItemSchema),
+  sets: z.array(SetItemSchema),
+  scripts: z.array(ScriptSchema),
+  contents: z.array(ContentPieceSchema),
+  assets: z.array(AssetSchema),
+  activeJobs: z.array(JobSchema),
+  /** This project's recipe preference per capability (set_recipe_preference). */
+  preferences: ProjectPreferencesSchema,
+});
+
+export const getProjectState = defineTool({
+  name: "get_project_state",
+  description:
+    "Read everything about one project: the brief, linked Library characters (with this project's wardrobe and reference sheet), products, sets, scripts, content pieces with shots, active assets (newest 200), unfinished jobs, and this project's recipe preferences. Call this before deciding the next step.",
+  input: z.object({ projectId: IdSchema }).strict(),
+  output: ProjectStateSchema,
+  run: ({ store }, { projectId }) => {
+    const project = store.projects.getRequired(projectId);
+    const characters: { item: CharacterItem; link: CharacterLink }[] = [];
+    const products: ProductItem[] = [];
+    const sets: SetItem[] = [];
+    for (const link of store.library.listLinks(projectId)) {
+      const item = store.library.getRequired(link.itemId);
+      if (item.kind === "character" && link.kind === "character") characters.push({ item, link });
+      if (item.kind === "product") products.push(item);
+      if (item.kind === "set") sets.push(item);
+    }
+    return {
+      project,
+      characters,
+      products,
+      sets,
+      scripts: store.scripts.listByProject(projectId),
+      contents: store.content.listByProject(projectId),
+      assets: store.assets.list({ projectId, state: "active", limit: 200 }),
+      activeJobs: store.jobs.listByProject(projectId).filter((job) => job.status !== "completed" && job.status !== "failed"),
+      preferences: store.preferences.get(projectId),
+    };
+  },
+});
+
+export const saveBriefTool = defineTool({
+  name: "save_brief",
+  description:
+    "Save the project brief: what is being sold (productSummary), who buys it (audience), where the ad runs (platforms, e.g. TikTok, Instagram Reels), and the tone. Replaces the previous brief; the previous one stays in the brief's version history.",
+  input: z
+    .object({
+      projectId: IdSchema,
+      brief: BriefSchema,
+      revision: RevisionSchema.optional().describe("The project revision you read; omit to overwrite."),
+    })
+    .strict(),
+  output: ProjectSchema,
+  run: (context, { projectId, brief, revision }) =>
+    context.store.transaction(() => {
+      const project = context.store.projects.getRequired(projectId);
+      checkRevision(project.revision, revision, "project");
+      const saved = context.store.projects.update(saveBrief(project, brief, context.now()));
+      recordDocument(context, "brief", saved.id, briefContent(saved.brief!));
+      return saved;
+    }),
+});

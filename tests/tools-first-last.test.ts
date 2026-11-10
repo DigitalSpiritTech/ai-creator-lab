@@ -6,12 +6,12 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, test } from "node:test";
-import type { CharacterItem } from "@/lib/domain/library";
-import type { GenerationProposal } from "@/lib/domain/job";
+import type { CharacterItem } from "@creator-lab/core/domain/library";
+import type { GenerationProposal } from "@creator-lab/core/domain/job";
 import { type ToolContext, callTool, createGenerationContext } from "@/server/tools";
 import { averyBible, clock, generateAssets, ridgelineBeats, seedProject, tempStore } from "./support/domain-fixtures";
 
-const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   while (cleanups.length) cleanups.pop()!();

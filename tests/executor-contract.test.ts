@@ -8,13 +8,13 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { Recipe } from "@/lib/catalog";
-import { MOCK_RECIPES } from "@/server/catalog/defaults";
-import { checkAllowance, creditsToUsd, readAllowanceUsd, readCreditBalance, quoteRouter } from "@/server/executors/allowance";
-import { jobError, transition } from "@/server/executors/jobs";
-import { MockExecutor, mockDimensions } from "@/server/executors/mock";
-import { pollAndRetrieve } from "@/server/executors/run";
-import { JobSchema, type Job } from "@/server/executors/types";
+import type { Recipe } from "@creator-lab/core/catalog";
+import { MOCK_RECIPES } from "@creator-lab/recipes/defaults";
+import { checkAllowance, creditsToUsd, readAllowanceUsd, readCreditBalance, quoteRouter } from "@creator-lab/executors/allowance";
+import { jobError, transition } from "@creator-lab/executors/jobs";
+import { MockExecutor, mockDimensions } from "@creator-lab/executors/mock";
+import { pollAndRetrieve } from "@/server/generation/run";
+import { JobSchema, type Job } from "@creator-lab/executors/types";
 import { MemoryJobStore, admitJob } from "./support/memory-job-store";
 
 function mockRecipe(capability: Recipe["capability"]): Recipe {

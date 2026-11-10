@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 import { randomUUID } from "node:crypto";
-import type { Recipe } from "@/lib/catalog";
+import type { Recipe } from "@creator-lab/core/catalog";
 import {
   type GenerationInput,
   type GenerationTarget,
@@ -13,7 +13,7 @@ import {
   type JobStorePort,
   createJob,
   isTerminal,
-} from "@/lib/domain/job";
+} from "@creator-lab/core/domain/job";
 
 export const TEST_PROJECT_ID = "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b";
 

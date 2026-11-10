@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, test } from "node:test";
-import { toFailure } from "@/lib/domain/failure";
-import { advanceJob, createJob } from "@/lib/domain/job";
-import { MOCK_RECIPES } from "@/server/catalog/defaults";
-import { createScript, reviseScript } from "@/lib/domain/script";
+import { toFailure } from "@creator-lab/core/domain/failure";
+import { advanceJob, createJob } from "@creator-lab/core/domain/job";
+import { MOCK_RECIPES } from "@creator-lab/recipes/defaults";
+import { createScript, reviseScript } from "@creator-lab/core/domain/script";
 import { openStore } from "@/server/store";
 import { clock, ridgelineBeats, seedProject, tempStore } from "./support/domain-fixtures";
 

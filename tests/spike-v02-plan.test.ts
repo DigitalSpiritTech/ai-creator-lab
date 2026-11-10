@@ -6,12 +6,12 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { describe, test } from "node:test";
-import { kreaFacePrompt } from "@/server/tools/prompts";
-import { CHAIN_LINES, DIALOGUE_LINE, I2VA_ALIGNMENT, PERSON_WITH_TRAITS, cutTime, h3ChainPrompts, h3DialoguePrompt, h3MultiframePrompt } from "../scripts/spike/h3-prompts";
-import { DEFAULT_CAP_CREDITS, DERIVED_IMAGE, STEP_IDS, buildSpikePlan, followsRule, formatPlan, frameIndex, legacyLtxDialoguePrompt, parseSteps, spikeInputsFromEnv } from "../scripts/spike/v02-plan";
+import { kreaFacePrompt } from "@creator-lab/recipes/prompts";
+import { CHAIN_LINES, DIALOGUE_LINE, I2VA_ALIGNMENT, PERSON_WITH_TRAITS, cutTime, h3ChainPrompts, h3DialoguePrompt, h3MultiframePrompt } from "../apps/creator/scripts/spike/h3-prompts";
+import { DEFAULT_CAP_CREDITS, DERIVED_IMAGE, STEP_IDS, buildSpikePlan, followsRule, formatPlan, frameIndex, legacyLtxDialoguePrompt, parseSteps, spikeInputsFromEnv } from "../apps/creator/scripts/spike/v02-plan";
 import { averyBible } from "./support/domain-fixtures";
 
-const workflowsDir = fileURLToPath(new URL("../workflows/", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows/", import.meta.url));
 
 describe("v0.2 spike plan", () => {
   test("the dry-run plan resolves every step, validates every graph, and fits the cap", async () => {

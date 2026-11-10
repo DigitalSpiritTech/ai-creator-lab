@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { afterEach, test } from "node:test";
 import sharp from "sharp";
-import { MockRecipeSchema, type Recipe } from "@/lib/catalog";
+import { MockRecipeSchema, type Recipe } from "@creator-lab/core/catalog";
 import { say, scriptedModel, toolUse } from "@/server/agent";
 import { importImage } from "@/server/media/images";
 import { callTool } from "@/server/tools";

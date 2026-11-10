@@ -12,7 +12,7 @@ import { APPROVE_AND_GENERATE, createMcpServer, mcpPermissions } from "@/server/
 import { INTERNAL_TOOLS, TOOLS, type ToolContext, createGenerationContext } from "@/server/tools";
 import { clock, generateAssets, seedProject, tempStore } from "./support/domain-fixtures";
 
-const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
   while (cleanups.length) await cleanups.pop()!();

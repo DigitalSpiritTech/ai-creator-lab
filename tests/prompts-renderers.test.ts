@@ -7,16 +7,16 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { describe, test } from "node:test";
-import { inferPromptStyle } from "@/lib/catalog";
-import { defaultRecipes } from "@/server/catalog/defaults";
-import { adapterRecipes } from "@/server/catalog/router-adapters";
-import { H3_PROMPT_LIMIT } from "@/server/tools/prompts-minimax-h3";
-import { PROMPT_LIMIT, clipPrompt, facePrompt, kreaFacePrompt, stillPrompt } from "@/server/tools/prompts";
-import { clampWords, h3ClipSpec, renderPrompt, rendersNatively } from "@/server/tools/render";
+import { inferPromptStyle } from "@creator-lab/core/catalog";
+import { defaultRecipes } from "@creator-lab/recipes/defaults";
+import { adapterRecipes } from "@creator-lab/recipes/router-adapters";
+import { H3_PROMPT_LIMIT } from "@creator-lab/recipes/prompts-minimax-h3";
+import { PROMPT_LIMIT, clipPrompt, facePrompt, kreaFacePrompt, stillPrompt } from "@creator-lab/recipes/prompts";
+import { clampWords, h3ClipSpec, renderPrompt, rendersNatively } from "@creator-lab/recipes/render";
 import { RIDGELINE_APPEARANCE } from "./support/domain-fixtures";
 import { CLIP_CASES, IMAGE_CASES, IMAGE_STYLES, renderCases, renderSpecs, styleRecipe } from "./support/render-cases";
 
-const workflowsDir = fileURLToPath(new URL("../workflows/", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows/", import.meta.url));
 const LOOK = { name: "Ridgeline 32 oz insulated bottle", appearance: RIDGELINE_APPEARANCE };
 
 const EXPECTED: Record<string, string> = {

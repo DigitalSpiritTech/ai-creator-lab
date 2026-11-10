@@ -5,11 +5,11 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { defaultRecipes } from "@/server/catalog/defaults";
-import type { ExecutorSet } from "@/server/executors";
+import { defaultRecipes } from "@creator-lab/recipes/defaults";
+import type { ExecutorSet } from "@creator-lab/executors";
 import { pickRecipe } from "@/server/tools/proposals";
 
-const workflowsDir = fileURLToPath(new URL("../workflows/", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows/", import.meta.url));
 const everything = { forRecipe: () => ({}) } as unknown as ExecutorSet;
 
 test("image edits stay on open weights for one, two and three references before any hosted model", async () => {
