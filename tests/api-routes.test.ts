@@ -13,6 +13,8 @@ import { after, before, describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
 import { createSseParser } from "@/lib/client/sse";
 import type { SpendPolicy } from "@creator-lab/core/domain/spend";
+import { MOCK_RECIPES } from "@creator-lab/recipes/defaults";
+import { candidateRequestId } from "@/server/tools/proposals";
 
 // Route modules import `server-only`; outside the React server build it would throw on import.
 const empty = pathToFileURL(resolve("node_modules/server-only/empty.js")).href;
@@ -307,6 +309,48 @@ describe("generation gate, jobs, and assets", () => {
     assert.equal(preferred.status, 200);
     const after = (await (await routes.recipeOptions.GET(new Request(url(`/api/projects/${id}/recipe-options?capability=text_to_image`)), params({ id }))).json()) as { preference: string | null };
     assert.equal(after.preference, "mock-text-to-image");
+  });
+
+  test("cancel on the gate refuses a proposal moved to another project: a chain in project A is not reachable from B", async () => {
+    const victim = await createProject("Chain owner");
+    const attacker = await createProject("Other project");
+    const proposed = await routes.tools.POST(
+      json(`/api/projects/${attacker}/tools/propose_candidates`, { projectId: attacker, capability: "text_to_image", recipeId: "mock-text-to-image", prompt: "A bottle on a counter.", count: 1 }),
+      params({ id: attacker, name: "propose_candidates" }),
+    );
+    const proposal = (await proposed.json()) as { id: string; projectId: string };
+    // A's chain was started by a candidate of this proposal id (the body is what an attacker copies).
+    const store = routes.runtime.getStore();
+    const now = Date.now();
+    const segment = (index: number) => ({ index, requestId: randomUUID(), retryRequestId: randomUUID(), startSeconds: (index - 1) * 4.917, durationSeconds: 5, line: "", prompt: "A bottle on a counter.", reserveUsd: 0 });
+    const chain = store.chains.add({
+      id: randomUUID(),
+      requestId: candidateRequestId(proposal.id, 0),
+      projectId: victim,
+      ownerId: "local",
+      recipe: MOCK_RECIPES.find((recipe) => recipe.capability === "image_to_video")!,
+      drive: "first_frame",
+      totalSeconds: 9.92,
+      overlapSeconds: 0.083,
+      inputs: [{ role: "image1", assetId: randomUUID(), sha256: "a".repeat(64) }],
+      images: ["media/missing.png"],
+      spine: null,
+      target: { kind: "loose" },
+      spec: { kind: "free", prompt: "A bottle on a counter." },
+      segments: [segment(1), segment(2)],
+      status: "paused",
+      notice: "Paused before segment 1 of 2.",
+      error: null,
+      outputAssetId: null,
+      revision: 0,
+      createdAt: now,
+      updatedAt: now,
+    }).chain;
+    const refused = await routes.submit.POST(json(`/api/projects/${attacker}/proposals/submit`, { proposal, cancel: true }), params({ id: attacker }));
+    assert.equal(refused.status, 409, await refused.clone().text());
+    const after = store.chains.getRequired(chain.id);
+    assert.equal(after.status, "paused", "A's chain was not canceled");
+    assert.equal(after.error, null);
   });
 
   test("a mock proposal goes through the gate, jobs finish, and the asset streams with ranges", async () => {

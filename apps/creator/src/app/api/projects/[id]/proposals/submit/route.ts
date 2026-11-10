@@ -15,6 +15,8 @@ const SubmitBodySchema = z
   .object({
     proposal: GenerationProposalSchema,
     confirmUnquoted: z.boolean().default(false),
+    /** Stop the chained recordings this proposal started (the card's Cancel). */
+    cancel: z.boolean().default(false),
   })
   .strict();
 
@@ -30,6 +32,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         await callTool(toolContextFor(store), "submit_proposal", {
           proposal: body.proposal,
           confirmUnquoted: body.confirmUnquoted,
+          cancel: body.cancel,
           wait: false,
         }),
       ),

@@ -5,7 +5,7 @@
  */
 import { libraryItemName } from "@creator-lab/core/domain/library";
 import type { AssetUsage } from "@creator-lab/core/domain/usage";
-import { assetUsage } from "@/server/media/lifecycle";
+import { assetUsage, chainUses, describeChainUse } from "@/server/media/lifecycle";
 import type { Store } from "@/server/store";
 import { parseId, route, withStore } from "@/app/api/_lib/server";
 
@@ -47,7 +47,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return withStore((store) => {
       const asset = store.assets.getRequired(assetId);
       const usage = assetUsage(store, assetId);
-      return Response.json({ asset, usage, affected: usage.map((entry) => describe(store, entry)) });
+      // Chained recordings are not part of the domain's usage kinds yet; they are listed in words.
+      const chains = chainUses(store, assetId).map(describeChainUse);
+      return Response.json({ asset, usage, affected: [...usage.map((entry) => describe(store, entry)), ...chains] });
     });
   });
 }

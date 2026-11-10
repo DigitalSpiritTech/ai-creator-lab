@@ -126,3 +126,15 @@ The acceptance smoke makes a social post with the mock executor; this check is t
 4. When the candidates arrive, approve one. The others go to the Archive, and archiving the approved one is refused.
 5. Export tab: the 4:5 still downloads, Copy text copies the caption, call to action, and hashtags, and the other three ratios are named as missing.
 6. In the chat, ask the assistant for a square version. It should propose 1:1 with `social_post_propose_still`, never offer a script or a clip. Record any real run in docs/VERIFICATION.md.
+
+## A long recording (no credits with the mock recipes, a few dollars on real models)
+
+The acceptance smoke makes a 10 s chained recording on the mock; this check is what only a browser and your ears show. Start the app with `MOCK_RECIPES=1 MOCK_VIDEO=mp4` to try it without credits (the mock then makes real short clips).
+
+1. In a project with an approved still on a talking beat, ask the assistant for a 20 second clip of that beat (or press Make clip after setting the beat's length and approving a voice recording longer than it).
+2. The proposal card says "Chained recording: 4 segments of ...", lists each segment's prompt under its own heading, and prices the whole recording; a voice recording shorter than the clip is mentioned with the seconds left without a voice. Approve it.
+3. While a segment runs, its job shows on the beat as a running tile; for a moment between segments (the handover frame) and while the segments are stitched, no tile shows (the card has no segment counter yet). Ask the assistant where it stands: the project state lists the chained recording as segment X of N. When it finishes, one clip lands on the beat and the segments are in the Archive.
+4. Play the clip: the picture should not jump, freeze, or go black at the seams (about every five seconds), and the voice should run straight through. If the seam check found something, it leads the clip's prompt on the Assets page and the assistant sees it in the project state.
+5. Stop the server while a segment runs, start it again: the recording carries on from that segment and nothing is generated twice.
+6. Try to delete the approved still everywhere while it runs: it is refused, and the asset's usage names the chained recording.
+7. On real models (H3, LTX, Kling), record each run in docs/VERIFICATION.md with the credits before and after, the segment count, and what the seams looked and sounded like.

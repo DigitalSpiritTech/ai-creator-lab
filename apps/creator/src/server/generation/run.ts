@@ -120,7 +120,11 @@ async function dispatch(deps: RunDeps, executor: Executor, job: Job): Promise<{ 
 export async function startGeneration(
   deps: RunDeps,
   request: RunRequest,
-  options: { confirmUnquoted?: boolean } = {},
+  options: {
+    confirmUnquoted?: boolean;
+    /** This run's request id when money is already held for it (a chain's next segment); the check leaves that hold out so it is not counted twice. */
+    heldFor?: string;
+  } = {},
 ): Promise<StartOutcome> {
   const jobRequest = {
     recipe: request.recipe,
@@ -141,7 +145,7 @@ export async function startGeneration(
     return { kind: "blocked", error: jobError("invalid", `${request.recipe.title} needs a Comfy API key in .env.local before it can run.`) };
   }
   const estimate = await executor.estimate({ requestId: request.requestId, projectId: request.projectId, recipe: request.recipe, input: request.input });
-  const decision = checkSpend(currentSpendPolicy(deps), estimate, request.recipe);
+  const decision = checkSpend(currentSpendPolicy(deps, { heldFor: options.heldFor }), estimate, request.recipe);
   if (decision.kind === "blocked") return decision.budget ? { kind: "blocked", error: decision.error, budget: decision.budget } : { kind: "blocked", error: decision.error };
   if (decision.kind === "confirm" && !options.confirmUnquoted) {
     return { kind: "needs_confirmation", reserveUsd: decision.reserveUsd, reason: decision.reason };
@@ -248,7 +252,8 @@ async function commitRetrieved(deps: RunDeps, staged: Job): Promise<StepOutcome>
     outputs.push({ retrieved: file, posterPath });
   }
   try {
-    const result = await commitJobOutputs(deps.store, job, outputs, { now: clock(deps), newId: deps.newId ?? randomUUID });
+    const attach = !deps.store.chains.forJob(job);
+    const result = await commitJobOutputs(deps.store, job, outputs, { now: clock(deps), newId: deps.newId ?? randomUUID, attach });
     const saved = result.job;
     if (saved.status === "failed") return { kind: "failed", job: saved, error: saved.error };
     // A finished run on a backend is what "verified" means there; the probe only says "compatible".

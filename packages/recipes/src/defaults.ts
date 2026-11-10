@@ -150,6 +150,7 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
     ceilingUsd: 0.16,
     fitImages: true,
     defaults: { width: 736, height: 1312, length: 124 },
+    length: { native: "h3_last_frame" },
   },
   "minimax-h3-multiframe": {
     title: "MiniMax H3 multi-frame, three keyframes, on Comfy Cloud",
@@ -158,6 +159,8 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
     ceilingUsd: 0.4,
     fitImages: true,
     defaults: { width: 736, height: 1312, length: 124 },
+    // One generation with timestamped cuts; 8 s is the length the v0.2 spike (B25) runs, unmeasured.
+    length: { native: "h3_multiframe", nativeMaxSeconds: 8, longer: "none" },
     notes:
       "Reference to video with Add Guide keyframes. image1 is the identity and the opening frame (<Picture 1>); image2 and image3 are pinned at the frames in image2Frame and image3Frame (round(seconds x 24)) and are also <Picture 2> and <Picture 3>. 24 fps, 17n+5 frames.",
   },
@@ -168,7 +171,7 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
     ceilingUsd: 0.1,
     fitImages: true,
     defaults: { width: 480, height: 832, length: 77 },
-    notes: "The still is the reference frame and the approved voice take drives the mouth; the length follows the take, 4.8 s at most.",
+    notes: "The still is the reference frame and the approved voice recording drives the mouth; the length follows the recording, 4.8 s per run (longer ones are chained).",
   },
   "chatterbox-turbo-tts": {
     title: "Chatterbox Turbo voice clone on Comfy Cloud",
@@ -317,6 +320,7 @@ export const ROUTER_RECIPES: RouterRecipe[] = [
     limits: { aspectRatios: ["9:16", "16:9", "1:1"], durations: Array.from({ length: 13 }, (_, i) => i + 3), maxReferences: 1 },
     defaults: { aspectRatio: "9:16", durationSeconds: 5 },
     notes: "1080p pro mode with native sound. The approved still is the first frame. Output is 1088x1904 for 9:16; the export scales it to 1080x1920.",
+    length: { native: "kling_first_last" },
     provider: "kling",
     model: "kling/kling-v3-omni",
     fieldMap: klingOmniFieldMap({ min: 1, max: 1 }),
@@ -333,6 +337,7 @@ export const ROUTER_RECIPES: RouterRecipe[] = [
     limits: { aspectRatios: ["9:16", "16:9", "1:1"], durations: Array.from({ length: 13 }, (_, i) => i + 3), maxReferences: 2 },
     defaults: { aspectRatio: "9:16", durationSeconds: 5 },
     notes: "1080p pro mode with native sound. The first still is the first frame, the second the last frame.",
+    length: { native: "kling_first_last" },
     provider: "kling",
     model: "kling/kling-v3-omni",
     fieldMap: klingOmniFieldMap({ min: 2, max: 2 }),

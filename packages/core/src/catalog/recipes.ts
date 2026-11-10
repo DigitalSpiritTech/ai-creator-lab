@@ -7,6 +7,7 @@ import { z } from "zod";
 import { AspectRatioSchema, CapabilitySchema } from "./capabilities";
 import { PromptStyleSchema } from "./prompt-style";
 import { SlotSidecarSchema } from "./slots";
+import { RecipeLengthSchema } from "./length";
 import { RecipeTagsSchema } from "./tags";
 
 export const RecipeIdSchema = z.string().regex(/^[a-z0-9][a-z0-9.-]{1,79}$/);
@@ -56,6 +57,8 @@ const commonFields = {
   tags: RecipeTagsSchema.optional(),
   /** The prompt grammar the model reads; inferred from the id or model when absent (see `inferPromptStyle`). */
   promptStyle: PromptStyleSchema.optional(),
+  /** How long one run can be and how a longer take is made (see `resolveLengthStrategy`). */
+  length: RecipeLengthSchema.optional(),
 };
 
 const FieldTargetSchema = z

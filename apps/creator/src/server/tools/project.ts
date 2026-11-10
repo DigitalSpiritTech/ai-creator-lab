@@ -9,6 +9,8 @@ import { AssetSchema } from "@creator-lab/core/domain/asset";
 import { IdSchema, RevisionSchema } from "@creator-lab/core/domain/common";
 import { ContentPieceSchema } from "@creator-lab/core/domain/content";
 import { JobSchema } from "@creator-lab/core/domain/job";
+import { ChainViewSchema } from "@creator-lab/executors/chain";
+import { chainView } from "@/server/generation/chain";
 import { fail } from "@creator-lab/core/domain/failure";
 import { InboundContextSchema, resolveLibraryRefs } from "@creator-lab/core/domain/inbound";
 import {
@@ -55,6 +57,11 @@ export const ProjectStateSchema = z.object({
   pieces: z.array(PluginPieceSchema),
   assets: z.array(AssetSchema),
   activeJobs: z.array(JobSchema),
+  /**
+   * Chained recordings, newest first (at most 20): where each stands (segment X of N), why one paused
+   * or failed, and the seam check's finding on a finished one (outputAssetId is the clip).
+   */
+  chains: z.array(ChainViewSchema).default([]),
   /** This project's recipe preference per capability (set_recipe_preference). */
   preferences: ProjectPreferencesSchema,
 });
@@ -62,7 +69,7 @@ export const ProjectStateSchema = z.object({
 export const getProjectState = defineTool({
   name: "get_project_state",
   description:
-    "Read everything about one project: the brief, linked Library characters (with this project's wardrobe and reference sheet), products, sets, scripts, content pieces with shots (contents, the Ad) or named slots (pieces, of a plugin content type), active assets (newest 200), unfinished jobs, and this project's recipe preferences. Call this before deciding the next step.",
+    "Read everything about one project: the brief, linked Library characters (with this project's wardrobe and reference sheet), products, sets, scripts, content pieces with shots (contents, the Ad) or named slots (pieces, of a plugin content type), active assets (newest 200), unfinished jobs, chained recordings (segment X of N, notices, seam findings), and this project's recipe preferences. Call this before deciding the next step.",
   input: z.object({ projectId: IdSchema }).strict(),
   output: ProjectStateSchema,
   run: ({ store }, { projectId }) => {
@@ -86,6 +93,7 @@ export const getProjectState = defineTool({
       pieces: store.pieces.listByProject(projectId),
       assets: store.assets.list({ projectId, state: "active", limit: 200 }),
       activeJobs: store.jobs.listByProject(projectId).filter((job) => job.status !== "completed" && job.status !== "failed"),
+      chains: store.chains.listByProject(projectId).reverse().slice(0, 20).map(chainView),
       preferences: store.preferences.get(projectId),
     };
   },

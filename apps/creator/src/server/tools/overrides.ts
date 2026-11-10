@@ -105,18 +105,25 @@ export const regenerateWith = defineTool({
     const job = store.jobs.get(asset.provenance.jobId) ?? fail("not_found", "The job that made this candidate is missing.");
     if (input.projectId && input.projectId !== job.projectId) fail("invalid", "This candidate belongs to another project.");
     const { request } = job;
+    // A chained recording (or one of its segments) is redone as the whole recording: its spec, its
+    // starting still and voice recording, and its length, not one segment's.
+    const chain = store.chains.forJob(job)?.chain;
     // Candidates made before shot specs carry only their prompt; it goes over as written.
-    const shot: ShotSpec = request.spec ?? shotOf({ prompt: request.input.prompt });
+    const shot: ShotSpec = chain?.spec ?? request.spec ?? shotOf({ prompt: request.input.prompt });
+    const pins = chain ? chain.inputs : request.inputs;
     return buildProposal(context, {
       projectId: job.projectId,
       capability: job.capability,
       recipeId: input.recipeId,
       shot,
-      references: request.inputs.map(({ role, assetId }) => ({ role, assetId })),
+      references: [
+        ...pins.filter((pin) => pin.role !== "identity").map(({ role, assetId }) => ({ role, assetId })),
+        ...(chain?.drive === "audio" && chain.spine ? [{ role: "voice", assetId: chain.spine.assetId }] : []),
+      ],
       count: input.count,
       target: request.target,
       aspectRatio: request.input.aspectRatio,
-      durationSeconds: request.input.durationSeconds,
+      durationSeconds: chain?.totalSeconds ?? request.input.durationSeconds,
       slots: request.input.slots,
     });
   },
@@ -192,7 +199,7 @@ export const recipeOptions = defineTool({
       const job = store.jobs.get(asset.provenance.jobId) ?? fail("not_found", "The job that made this candidate is missing.");
       if (job.projectId !== input.projectId) fail("invalid", "This candidate belongs to another project.");
       capability = job.capability;
-      references = job.request.inputs.filter((pin) => pin.role !== "voice").length;
+      references = job.request.inputs.filter((pin) => pin.role !== "voice" && pin.role !== "identity").length;
     }
     const wanted = capability ?? fail("invalid", "Pass a capability or an assetId.");
     const available = availableRecipes(await generation.recipes(), wanted, {

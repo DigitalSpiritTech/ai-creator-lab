@@ -1,10 +1,20 @@
 /**
  * Credit-free executor: deterministic, visibly labeled SVG stills for image capabilities and static
  * storyboard plates for video capabilities, with an optional simulated failure. No network.
+ *
+ * With `video: "mp4"` (the app sets it from `MOCK_VIDEO=mp4`) video capabilities make real short
+ * MP4 clips with ffmpeg instead: the first input image scrolling slowly sideways (so frame 0 is the
+ * input exactly and a clip started from another clip's frame carries on its motion), or `testsrc2`
+ * when there is none, with a steady 220 Hz tone, or the input voice recording for speech to video.
+ * Chained recordings need these, since a storyboard has no frames to hand over or stitch.
  * @packageDocumentation
  */
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, resolve, sep } from "node:path";
+import { promisify } from "node:util";
+import sharp from "sharp";
 import { capabilityMedia, ratioValue, type AspectRatio } from "@creator-lab/core/catalog";
 import { usdToCredits } from "@creator-lab/core/domain/spend";
 import {
@@ -17,7 +27,8 @@ import {
   toJobError,
   transition,
 } from "./jobs";
-import { outputLocation, sha256 } from "./media";
+import { ffmpegPath, outputLocation, probeVideo, sha256 } from "./media";
+import { childEnv } from "./process";
 import type {
   CancelOutcome,
   EstimateOutcome,
@@ -34,6 +45,11 @@ import type {
 
 export type MockStage = "submit" | "poll" | "retrieve";
 
+/** What a mock video job writes: a static SVG storyboard plate, or a real MP4 clip made with ffmpeg. */
+export type MockVideo = "storyboard" | "mp4";
+
+const execute = promisify(execFile);
+
 export interface MockExecutorOptions {
   jobs: JobStorePort;
   /** Decides whether a request should fail, and where, to exercise error paths without an account. */
@@ -43,6 +59,8 @@ export interface MockExecutorOptions {
    * at that amount, reserved like a paid run, and settles at it as reported credits. Never set by the app.
    */
   price?: (request: GenerationInput) => number | undefined;
+  /** `mp4` makes real clips for video capabilities (see the module notes); storyboards by default. */
+  video?: MockVideo;
   now?: () => number;
 }
 
@@ -144,17 +162,86 @@ export function renderMockWav(text: string): { bytes: Buffer; durationSeconds: n
   return { bytes: Buffer.concat([header, data]), durationSeconds };
 }
 
+/** The mock's frame rate for real clips. */
+export const MOCK_FPS = 24;
+
+/** How long a mock clip runs: the requested seconds, else the frame count at 24 fps, else five seconds. */
+export function mockSeconds(input: GenerationInput): number {
+  const seconds = input.durationSeconds ?? (input.length ? input.length / MOCK_FPS : 5);
+  return Math.round(Math.min(60, Math.max(0.5, seconds)) * 1000) / 1000;
+}
+
+/** An input file: absolute as given, or relative to the data directory and refused if it leaves it. */
+function inputPath(root: string, path: string | undefined): string | undefined {
+  if (!path) return undefined;
+  if (isAbsolute(path)) return existsSync(path) ? path : undefined;
+  const base = resolve(root);
+  const absolute = resolve(base, path);
+  if (!absolute.startsWith(base + sep)) return undefined;
+  return existsSync(absolute) ? absolute : undefined;
+}
+
+/**
+ * Renders a real mock clip into `absolute` through a temp file and returns its verified record.
+ * The picture scrolls by 0.15 percent of its width per frame, so motion carries on across a seam.
+ */
+export async function renderMockMp4(job: Pick<Job, "capability" | "request">, absolute: string, relative: string, root: string): Promise<RetrievedFile> {
+  const { input } = job.request;
+  const seconds = mockSeconds(input).toFixed(3);
+  const { width, height } = mockDimensions(input);
+  const even = (value: number) => Math.max(2, Math.round(value / 2) * 2);
+  const [w, h] = [even(width), even(height)];
+  await mkdir(dirname(absolute), { recursive: true });
+  const temporary = `${absolute}.tmp.mp4`;
+  const base = `${absolute}.base.png`;
+  try {
+    const first = inputPath(root, input.images[0]);
+    if (first) await sharp(first, { limitInputPixels: 40_000_000 }).resize(w, h, { fit: "cover" }).png().toFile(base);
+    const voice = job.capability === "speech_to_video" ? inputPath(root, input.audio) : undefined;
+    const video = first ? ["-loop", "1", "-framerate", String(MOCK_FPS), "-t", seconds, "-i", base] : ["-f", "lavfi", "-i", `testsrc2=size=${w}x${h}:rate=${MOCK_FPS}:duration=${seconds}`];
+    const audio = voice ? ["-i", voice] : ["-f", "lavfi", "-i", `sine=frequency=220:sample_rate=48000:duration=${seconds}`];
+    const args = [
+      "-nostdin", "-v", "error", "-y", ...video, ...audio,
+      "-map", "0:v:0", "-map", "1:a:0",
+      // Exact colour conversion, so a clip started from another clip's handover frame keeps its level.
+      "-sws_flags", "accurate_rnd+full_chroma_int",
+      "-vf", `${first ? "scroll=horizontal=0.0015," : ""}format=yuv420p`,
+      "-af", `apad=whole_dur=${seconds}`,
+      "-t", seconds, "-r", String(MOCK_FPS),
+      "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
+      "-movflags", "+faststart", temporary,
+    ];
+    await execute(ffmpegPath(), args, { env: childEnv(), timeout: 120_000, maxBuffer: 4_000_000 });
+    const info = await probeVideo(temporary);
+    await rename(temporary, absolute);
+    return {
+      relativePath: relative,
+      mime: "video/mp4",
+      width: info.width,
+      height: info.height,
+      sha256: sha256(await readFile(absolute)),
+      video: { frames: info.frames, fps: info.fps, durationSeconds: info.durationSeconds, hasAudio: info.hasAudio },
+    };
+  } finally {
+    await rm(temporary, { force: true });
+    await rm(base, { force: true });
+  }
+}
+
 export class MockExecutor implements Executor {
   readonly kind = "mock" as const;
   private readonly jobs: JobStorePort;
   private readonly failure: MockExecutorOptions["failure"];
   private readonly price: MockExecutorOptions["price"];
   private readonly now: () => number;
+  /** Whether video jobs make real MP4 clips (chained recordings need them). */
+  readonly video: MockVideo;
 
   constructor(options: MockExecutorOptions) {
     this.jobs = options.jobs;
     this.failure = options.failure;
     this.price = options.price;
+    this.video = options.video ?? "storyboard";
     this.now = options.now ?? Date.now;
   }
 
@@ -205,6 +292,18 @@ export class MockExecutor implements Executor {
       const error = jobError("provider", failure.reason);
       return { kind: "failed", job: failJob(this.jobs, job, error, this.now()), error };
     }
+    const priced = this.price?.(job.request.input);
+    const creditsUsed = priced !== undefined && priced > 0 ? usdToCredits(priced) : 0;
+    if (this.video === "mp4" && capabilityMedia(job.capability) === "video") {
+      const { absolute, relative } = outputLocation(destination, `${job.id}-0.mp4`);
+      try {
+        const output = await renderMockMp4(job, absolute, relative, destination.root);
+        return { kind: "completed", job: patchJob(this.jobs, job, { retrieved: [output], creditsUsed, notice: null }, this.now()), metrics: null };
+      } catch {
+        const error = jobError("provider", "The mock clip could not be made. Check that ffmpeg is installed.", true);
+        return { kind: "retry", job, retryAfterMs: 1000, error };
+      }
+    }
     const speech = capabilityMedia(job.capability) === "audio";
     const wav = speech ? renderMockWav(job.request.input.prompt) : undefined;
     const bytes = wav ? wav.bytes : Buffer.from(renderMockSvg(job), "utf8");
@@ -221,8 +320,6 @@ export class MockExecutor implements Executor {
     const output: RetrievedFile = wav
       ? { relativePath: relative, mime: "audio/wav", width: 0, height: 0, sha256: sha256(bytes), audio: { durationSeconds: wav.durationSeconds, codec: "pcm_s16le" } }
       : { relativePath: relative, mime: "image/svg+xml", width, height, sha256: sha256(bytes) };
-    const priced = this.price?.(job.request.input);
-    const creditsUsed = priced !== undefined && priced > 0 ? usdToCredits(priced) : 0;
     const saved = patchJob(this.jobs, job, { retrieved: [output], creditsUsed, notice: null }, this.now());
     return { kind: "completed", job: saved, metrics: null };
   }
