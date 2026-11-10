@@ -114,6 +114,16 @@ The brief, the character bible, the product card, and the script are documents: 
 
 Every generation step shows a proposal first: the recipe, the prompt, the references, how many candidates, and the estimated cost. Nothing is submitted until you press Approve and generate (or turn on auto-approve, below).
 
+### Choosing the model for a step
+
+Each step decides what the shot should show once (the beat, your character, the product, the place), and each model gets that written in its own prompt style: Nano Banana reads a descriptive paragraph, GPT Image reads labeled sections, MiniMax H3 reads its structured video format, and the open-weights models read the prompts the starter workflows were verified with. So switching models never means re-briefing.
+
+- On a proposal card, the Recipe menu lists every model that can do this step with what you have connected (Router models you switched on in Settings included). Pick another one and the prompt is rewritten for it and the cost estimated again. The prompt is editable too, up to 8,000 characters; your edit is what runs.
+- "Just this run" is the default. "Use for the rest of this project" makes that model the project's choice for this kind of step from then on. You can also say it in the chat: "use Nano Banana for product shots from now on".
+- On a candidate you do not like, "Regenerate with…" proposes the same shot with another model, with the same references and the same place in the ad.
+
+Which model a step uses, first match wins: the one you pick for this run, this project's choice, the default in Settings, then the app's starter default. A project's choice never changes other projects.
+
 ## Example outputs
 
 `docs/examples/` holds one complete run with the open-weights starter recipes: the face and body references, the reference sheet, the product photo, two start frames, and the finished 18 second ad with voice-overs and captions. The creator and the product are invented.
@@ -163,7 +173,7 @@ Twenty-three open-weights workflows ship in `workflows/` (Z-Image, Qwen-Image 25
 - The face does not look like a three-quarter view. The open Z-Image model ignores loose wording; the face-lock prompt states the head turn explicitly. Reject and regenerate, or edit the prompt on the proposal card.
 - The product name is printed on the bottle or a second bottle appears. Add "no text or logo on the product" and "one bottle only" to the prompt and regenerate. These came up in the first full run.
 - A Router result vanished. Router keeps outputs for 24 hours; the app copies them to your data folder as soon as they finish, so check the Assets page first.
-- A provider rejected a prompt (moderation). The reason is shown on that candidate. Change the prompt or switch recipes in Settings.
+- A provider rejected a prompt (moderation). The reason is shown on that candidate. Edit the prompt on the card, or use "Regenerate with…" to try another model.
 
 ## For developers
 

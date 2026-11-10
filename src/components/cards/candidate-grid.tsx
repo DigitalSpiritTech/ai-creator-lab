@@ -1,13 +1,15 @@
 /**
- * Candidate grid: thumbnails with Select, Approve, Archive, and Refine. Approve is supplied by the
- * caller (lock a face or body, approve a sheet, a still, or a clip); Refine asks `refine_still` for
- * a proposal that lands in the chat panel's gate.
+ * Candidate grid: thumbnails with Select, Approve, Archive, Refine, and Regenerate with. Approve is
+ * supplied by the caller (lock a face or body, approve a sheet, a still, or a clip); Refine asks
+ * `refine_still` and Regenerate with asks `regenerate_with` (the candidate's own shot spec for
+ * another recipe) for a proposal that lands in the chat panel's gate.
  * @packageDocumentation
  */
 "use client";
 
-import { AlertTriangle, Archive, Check, Loader2, Maximize2, Wand2 } from "lucide-react";
+import { AlertTriangle, Archive, Check, Loader2, Maximize2, RefreshCw, Wand2 } from "lucide-react";
 import { useState } from "react";
+import { RecipePicker, useRecipeOptions } from "@/components/cards/recipe-picker";
 import { AssetMedia } from "@/components/media/asset-media";
 import { type PendingTile, useProject } from "@/components/project/project-context";
 import { Badge } from "@/components/ui/badge";
@@ -114,6 +116,9 @@ function CandidateCard({
   const [busy, setBusy] = useState<string | null>(null);
   const [refining, setRefining] = useState(false);
   const [instruction, setInstruction] = useState("");
+  const [swapping, setSwapping] = useState(false);
+  const madeBy = asset.provenance.source === "generated" ? asset.provenance.recipeId : null;
+  const { view: options } = useRecipeOptions(asset.projectId ?? undefined, { assetId: asset.id }, swapping);
   const recipe = asset.provenance.source === "generated" ? asset.provenance.recipeId : asset.provenance.source;
   const still = asset.kind === "image" || asset.kind === "sheet";
   const audio = asset.kind === "audio";
@@ -179,7 +184,29 @@ function CandidateCard({
               <Wand2 /> Refine
             </Button>
           ) : null}
+          {madeBy && asset.projectId && !approved && !audio ? (
+            <Button size="xs" variant="ghost" onClick={() => setSwapping((open) => !open)} aria-expanded={swapping}>
+              <RefreshCw /> Regenerate with…
+            </Button>
+          ) : null}
         </div>
+        {swapping && madeBy ? (
+          <RecipePicker
+            view={options}
+            value={madeBy}
+            currentTitle={madeBy}
+            excludeCurrent
+            disabled={busy !== null}
+            label="Regenerate with another recipe"
+            onChange={(recipeId) =>
+              void act("regenerate", async () => {
+                const proposal = await callTool<GenerationProposal>("regenerate_with", { assetId: asset.id, projectId: asset.projectId ?? undefined, recipeId }, asset.projectId ?? undefined);
+                propose(proposal, "workspace");
+                setSwapping(false);
+              })
+            }
+          />
+        ) : null}
         {refining ? (
           <form
             className="flex gap-1"

@@ -4,11 +4,12 @@
  * @packageDocumentation
  */
 import { z } from "zod";
-import { AspectRatioSchema, BackendIdSchema, RecipeSchema } from "@/lib/catalog";
+import { AspectRatioSchema, BackendIdSchema, PromptStyleSchema, RecipeSchema } from "@/lib/catalog";
 import { CapabilitySchema } from "@/lib/domain/capability";
 import { IdSchema, RecipeIdSchema, RevisionSchema, Sha256Schema, TimestampSchema, text } from "@/lib/domain/common";
 import { SlotKindSchema } from "@/lib/domain/content";
 import { FailureCodeSchema, fail } from "@/lib/domain/failure";
+import { ShotSpecSchema } from "@/lib/domain/shot-spec";
 
 export const ExecutorKindSchema = z.enum(["router", "workflow", "mock"]);
 export type ExecutorKind = z.infer<typeof ExecutorKindSchema>;
@@ -69,6 +70,8 @@ export const JobRequestSchema = z
     /** Asset pins for `input.images`, in the same order. Empty for images that are not assets (tests, imports). */
     inputs: z.array(JobInputSchema).max(16).default([]),
     target: GenerationTargetSchema.default({ kind: "loose" }),
+    /** What the creative step asked for, model-independent; "Regenerate with..." renders it for another recipe. */
+    spec: ShotSpecSchema.optional(),
   })
   .strict();
 export type JobRequest = z.infer<typeof JobRequestSchema>;
@@ -309,6 +312,15 @@ export const GenerationProposalSchema = z
      */
     backendId: BackendIdSchema.optional(),
     prompt: z.string().min(1).max(10_000),
+    /**
+     * The model-independent shot spec the prompt was rendered from. Changing the recipe re-renders
+     * it on the server; absent on proposals saved before shot specs (their prompt is kept as is).
+     */
+    spec: ShotSpecSchema.optional(),
+    /** The prompt grammar the recipe's renderer used. */
+    promptStyle: PromptStyleSchema.optional(),
+    /** The person edited the rendered prompt on the card; the edit is what runs. */
+    promptEdited: z.boolean().optional(),
     references: z.array(z.object({ role: JobInputSchema.shape.role, assetId: IdSchema }).strict()).max(16),
     aspectRatio: AspectRatioSchema.optional(),
     durationSeconds: z.number().positive().max(60).optional(),

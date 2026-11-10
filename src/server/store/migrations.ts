@@ -154,6 +154,20 @@ export const MIGRATIONS: readonly string[] = [
     data TEXT NOT NULL CHECK (${jsonOwnId})
   );
   `,
+  // Version 6: per-project recipe preferences (v0.2 F3, model override), one row per project.
+  // Both tables use IF NOT EXISTS so a development database from either branch heals: one that ran
+  // 08's version 5 (backends, no preferences), and one that ran 05's pre-merge version 5
+  // (preferences, no backends), which would otherwise skip the backends table for good.
+  `
+  CREATE TABLE IF NOT EXISTS backends (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL CHECK (${jsonOwnId})
+  );
+  CREATE TABLE IF NOT EXISTS project_preferences (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id),
+    data TEXT NOT NULL CHECK (json_valid(data) AND json_extract(data, '$.projectId') = project_id)
+  );
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

@@ -229,6 +229,16 @@ async function runFlow(client: Client) {
     const stills = await client.submit(projectId, stillProposal);
     check(stills.length === 2, `two stills for beat ${beatIndex}`);
     await client.tool("approve", { kind: "still", contentId: content.id, beatIndex, assetId: stills[0] }, projectId);
+    if (beatIndex === 1) {
+      // Model override (F3): the candidate set aside at approval is proposed again from its own shot
+      // spec, and the project gets a preference for stills; nothing is re-briefed.
+      const again = await client.tool<GenerationProposal>("regenerate_with", { assetId: stills[1], recipeId: "mock-image-edit" }, projectId);
+      check(again.spec?.kind === "still" && JSON.stringify(again.spec) === JSON.stringify(stillProposal.spec), "regenerate_with carries the same shot spec");
+      check(again.target.kind === "shot" && again.target.beatIndex === 1, "regenerate_with lands on the same beat");
+      await client.tool("set_recipe_preference", { projectId, capability: "image_edit", recipeId: "mock-image-edit" }, projectId);
+      const preferred = await client.tool<{ preferences: { recipes: Record<string, string> } }>("get_project_state", { projectId }, projectId);
+      check(preferred.preferences.recipes.image_edit === "mock-image-edit", "the project's recipe preference is saved");
+    }
     const clipProposal = await client.tool<GenerationProposal>("generate_clip", { contentId: content.id, beatIndex, recipeId: "mock-image-to-video" }, projectId);
     const clips = await client.submit(projectId, clipProposal);
     check(clips.length === 1, `one clip for beat ${beatIndex}`);

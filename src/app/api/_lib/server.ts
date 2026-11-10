@@ -7,6 +7,7 @@
 import "server-only";
 import { z } from "zod";
 import { IdSchema } from "@/lib/domain/common";
+import { GenerationProposalSchema } from "@/lib/domain/job";
 import type { DocumentAuthor } from "@/lib/domain/document";
 import { errorResponse, readJson } from "@/server/http";
 import { getStore, withStore } from "@/server/runtime";
@@ -92,5 +93,14 @@ export async function runToolRequest(request: Request, name: string, projectId?:
   if (projectId && input.projectId !== undefined && input.projectId !== projectId) {
     return Response.json({ error: "This input belongs to another project." }, { status: 400 });
   }
-  return withStore(async (store) => toolResponse(await callTool(toolContextFor(store), name, input)));
+  return withStore(async (store) => {
+    const result = await callTool(toolContextFor(store), name, input);
+    // A tool that finds its project from an asset (regenerate_with, refine_still) must not hand this
+    // project's page a proposal for another project.
+    if (projectId && result.ok) {
+      const proposal = GenerationProposalSchema.safeParse(result.output);
+      if (proposal.success && proposal.data.projectId !== projectId) return Response.json({ error: "This asset belongs to another project." }, { status: 400 });
+    }
+    return toolResponse(result);
+  });
 }

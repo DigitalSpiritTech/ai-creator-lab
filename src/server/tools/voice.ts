@@ -149,7 +149,7 @@ export const generateVoiceOver = defineTool({
       projectId: input.projectId,
       capability: "text_to_speech",
       recipeId: input.recipeId,
-      prompt: beat.spokenLine.trim(),
+      shot: { kind: "speech", line: beat.spokenLine.trim() },
       references: [{ role: "voice", assetId: sample.id }],
       count: input.count,
       target: { kind: "shot", contentId: content.id, beatIndex: beat.index, slot: "voice" },

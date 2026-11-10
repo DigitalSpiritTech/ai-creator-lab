@@ -39,6 +39,8 @@ const ROSTER = [
   "reset_shots",
   "list_document_versions",
   "restore_document_version",
+  "set_recipe_preference",
+  "regenerate_with",
 ];
 
 const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));

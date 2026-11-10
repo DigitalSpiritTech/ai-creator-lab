@@ -19,6 +19,7 @@ import { type GenerationProposal, GenerationProposalSchema } from "@/lib/domain/
 import { type LlmModel, type Usage, addUsage, anthropicModel, emptyUsage } from "@/server/agent/model";
 import { stagePrompt, systemPrompt } from "@/server/agent/prompts/creative-director";
 import { loadSnapshot, renderSnapshot } from "@/server/agent/state";
+import { PROMPT_STYLE_LABELS } from "@/lib/catalog";
 import { BACKDROP_NAMES, backdropOf } from "@/server/tools/prompts";
 import { agentToolNames, agentTools } from "@/server/agent/tools";
 import { conversationsOf } from "@/server/store/conversations";
@@ -103,6 +104,7 @@ function resultText(context: ToolContext, projectId: string, name: string, outpu
       `Proposal ${p.id} is waiting for the user's approval on its card. Nothing has been generated.`,
       `${p.count} candidate(s) with ${p.recipeTitle} (${p.capability}), ${p.references.length} reference image(s), estimate ${estimateText(p)}.`,
       `Target: ${JSON.stringify(p.target)}.`,
+      p.promptStyle && p.promptStyle !== "standard" ? `The prompt is written in ${PROMPT_STYLE_LABELS[p.promptStyle]} style.` : "",
       backdrop ? `Background: ${BACKDROP_NAMES[backdrop]}, chosen to contrast with the outfit; tell the user.` : "",
     ]
       .filter(Boolean)

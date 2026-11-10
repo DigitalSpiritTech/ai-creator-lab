@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 import { createHash } from "node:crypto";
-import { type AspectRatio, type BackendRouting, type Capability, type Placement, type Recipe, bindRecipe, imageSlotNames, placeRecipe, placedTitle, placementNote } from "@/lib/catalog";
+import { type AspectRatio, type BackendRouting, type Capability, type Placement, type PromptStyle, type Recipe, bindRecipe, imageSlotNames, placeRecipe, placedTitle, placementNote } from "@/lib/catalog";
 import { AspectRatioSchema } from "@/lib/catalog";
 import type { Asset } from "@/lib/domain/asset";
 import { fail } from "@/lib/domain/failure";
@@ -16,9 +16,11 @@ import {
   type GenerationTarget,
   type JobInput,
 } from "@/lib/domain/job";
+import { EDITED_PROMPT_LIMIT, type ShotSpec, type ShotSpecInput, ShotSpecSchema } from "@/lib/domain/shot-spec";
 import { DEFAULT_RECIPE_IDS, purposeRecipe } from "@/server/catalog/defaults";
 import type { EstimateOutcome, ExecutorSet } from "@/server/executors";
 import type { RunDeps } from "@/server/executors/run";
+import { renderPrompt } from "@/server/tools/render";
 import type { ToolContext } from "@/server/tools/registry";
 import { requireGeneration } from "@/server/tools/registry";
 import { linkedReferenceIds, referenceableIn } from "@/server/tools/shared";
@@ -27,7 +29,10 @@ export interface ProposalSpec {
   projectId: string;
   capability: Capability;
   recipeId?: string;
-  prompt: string;
+  /** The shot spec the prompt is rendered from for whichever recipe runs. */
+  shot?: ShotSpecInput;
+  /** A prompt written by hand; used when there is no `shot` (it becomes a free spec). */
+  prompt?: string;
   references: { role: string; assetId: string }[];
   count: number;
   target: GenerationTarget;
@@ -125,7 +130,7 @@ export function referenceAssets(context: ToolContext, projectId: string, referen
   return assets;
 }
 
-function generationInput(spec: Pick<ProposalSpec, "prompt" | "aspectRatio" | "durationSeconds" | "slots" | "seed">, assets: Asset[]): GenerationInput {
+function generationInput(spec: { prompt: string } & Pick<ProposalSpec, "aspectRatio" | "durationSeconds" | "slots" | "seed">, assets: Asset[]): GenerationInput {
   const voice = assets.find((asset) => asset.kind === "audio");
   return {
     prompt: spec.prompt,
@@ -169,10 +174,17 @@ export function isFaceLock(spec: Pick<ProposalSpec, "capability" | "target">): b
 }
 
 /**
- * The recipe a proposal runs: the requested one, else the workspace default, else the purpose
- * default (`character_start` for a face lock, when configured and verified), else the capability's.
+ * The recipe a proposal runs, first match wins (documented in `@/lib/domain/preferences`): the
+ * requested one, else this project's preference for the capability, else the workspace default,
+ * else the purpose default (`character_start` for a face lock, when configured and verified), else
+ * the capability's starter chain. Only the requested recipe is strict; the rest are skipped when
+ * they cannot run here or cannot take this many references.
  */
-export async function proposalRecipe(context: ToolContext, spec: Pick<ProposalSpec, "capability" | "recipeId" | "target">, references: number): Promise<Recipe> {
+export async function proposalRecipe(
+  context: ToolContext,
+  spec: Pick<ProposalSpec, "capability" | "recipeId" | "target"> & { projectId?: string },
+  references: number,
+): Promise<Recipe> {
   const generation = requireGeneration(context);
   const recipes = await generation.recipes();
   return pickRecipe(
@@ -180,7 +192,12 @@ export async function proposalRecipe(context: ToolContext, spec: Pick<ProposalSp
     generation.executors,
     spec.capability,
     references,
-    [spec.recipeId, context.store.workspace.get().defaultRecipes[spec.capability], isFaceLock(spec) ? purposeRecipe(recipes, "character_start")?.id : undefined],
+    [
+      spec.recipeId,
+      spec.projectId ? context.store.preferences.get(spec.projectId).recipes[spec.capability] : undefined,
+      context.store.workspace.get().defaultRecipes[spec.capability],
+      isFaceLock(spec) ? purposeRecipe(recipes, "character_start")?.id : undefined,
+    ],
     generation.routing?.(),
   );
 }
@@ -203,6 +220,24 @@ export function placeForProposal(context: ToolContext, recipe: Recipe): { recipe
   };
 }
 
+/** The shot spec of a proposal spec: its own, or the hand-written prompt as a free spec. */
+export function shotOf(spec: Pick<ProposalSpec, "shot" | "prompt">): ShotSpec {
+  if (spec.shot) return ShotSpecSchema.parse(spec.shot);
+  if (!spec.prompt) fail("invalid", "A proposal needs a prompt or a shot spec.");
+  const prompt = spec.prompt.trim();
+  if (prompt.length > EDITED_PROMPT_LIMIT) {
+    fail("invalid", `This prompt is ${prompt.length.toLocaleString("en-US")} characters, longer than the ${EDITED_PROMPT_LIMIT.toLocaleString("en-US")} another recipe takes. Shorten it on the card first.`);
+  }
+  return ShotSpecSchema.parse({ kind: "free", prompt });
+}
+
+/** The spec rendered in the recipe's prompt style; a spec the model cannot take is refused readably. */
+export function renderFor(recipe: Recipe, shot: ShotSpec): { prompt: string; style: PromptStyle } {
+  const rendered = renderPrompt(shot, recipe);
+  if (!rendered.ok) fail("invalid", rendered.error);
+  return { prompt: rendered.prompt, style: rendered.style };
+}
+
 /** Builds and estimates a proposal. Nothing is submitted. */
 export async function buildProposal(context: ToolContext, spec: ProposalSpec): Promise<GenerationProposal> {
   const generation = requireGeneration(context);
@@ -211,10 +246,12 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
   const picked = await proposalRecipe(context, spec, assets.filter((asset) => asset.kind !== "audio").length);
   const placed = placeForProposal(context, picked);
   const recipe = placed.recipe;
+  const shot = shotOf(spec);
+  const { prompt, style } = renderFor(recipe, shot);
   const id = context.newId();
   const executor = generation.executors.forRecipe(recipe) ?? fail("invalid", `${placed.title} cannot run with the keys and backends configured now.`);
   const slots = recipe.kind === "workflow" ? Object.fromEntries(Object.entries(spec.slots ?? {}).filter(([name]) => name in recipe.sidecar.slots)) : {};
-  const estimated = summarizeEstimate(await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, slots }, assets) }));
+  const estimated = summarizeEstimate(await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, prompt, slots }, assets) }));
   // Where it runs comes first, so a fallback to Comfy Cloud is never silent.
   const estimate = placed.note ? { ...estimated, note: `${placed.note} ${estimated.note}`.trim().slice(0, 600) } : estimated;
   return GenerationProposalSchema.parse({
@@ -224,7 +261,9 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
     recipeId: recipe.id,
     recipeTitle: placed.title,
     ...(placed.backendId ? { backendId: placed.backendId } : {}),
-    prompt: spec.prompt,
+    prompt,
+    spec: shot,
+    promptStyle: style,
     references: spec.references,
     aspectRatio: spec.aspectRatio,
     durationSeconds: spec.durationSeconds,
@@ -273,7 +312,7 @@ export function boundForSubmit(routing: BackendRouting | undefined, recipe: Reci
 export async function proposalRequest(
   context: ToolContext,
   proposal: GenerationProposal,
-): Promise<{ recipe: Recipe; input: GenerationInput; inputs: JobInput[] }> {
+): Promise<{ recipe: Recipe; input: GenerationInput; inputs: JobInput[]; spec?: ShotSpec }> {
   const generation = requireGeneration(context);
   const listed = (await generation.recipes()).find((entry) => entry.id === proposal.recipeId);
   if (!listed) fail("not_found", `There is no recipe ${proposal.recipeId}.`);
@@ -281,5 +320,8 @@ export async function proposalRequest(
   const recipe = boundForSubmit(generation.routing?.(), listed, proposal.backendId);
   const assets = referenceAssets(context, proposal.projectId, proposal.references);
   const inputs = assets.map((asset, index) => ({ role: proposal.references[index].role, assetId: asset.id, sha256: asset.sha256 }));
-  return { recipe, input: generationInput(proposal, assets), inputs };
+  // The server renders the prompt from the spec for the recipe that runs; only a prompt the person
+  // edited on the card (bounded by EditedPromptSchema at the gate) replaces it.
+  const prompt = proposal.spec && !proposal.promptEdited ? renderFor(recipe, proposal.spec).prompt : proposal.prompt;
+  return { recipe, input: generationInput({ ...proposal, prompt }, assets), inputs, ...(proposal.spec ? { spec: proposal.spec } : {}) };
 }

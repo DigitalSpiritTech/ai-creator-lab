@@ -17,6 +17,7 @@ import {
   type SetItem,
   SetItemSchema,
 } from "@/lib/domain/library";
+import { ProjectPreferencesSchema } from "@/lib/domain/preferences";
 import { BriefSchema, ProjectSchema, saveBrief } from "@/lib/domain/project";
 import { ScriptSchema } from "@/lib/domain/script";
 import { briefContent } from "@/lib/domain/document";
@@ -33,12 +34,14 @@ export const ProjectStateSchema = z.object({
   contents: z.array(ContentPieceSchema),
   assets: z.array(AssetSchema),
   activeJobs: z.array(JobSchema),
+  /** This project's recipe preference per capability (set_recipe_preference). */
+  preferences: ProjectPreferencesSchema,
 });
 
 export const getProjectState = defineTool({
   name: "get_project_state",
   description:
-    "Read everything about one project: the brief, linked Library characters (with this project's wardrobe and reference sheet), products, sets, scripts, content pieces with shots, active assets (newest 200), and unfinished jobs. Call this before deciding the next step.",
+    "Read everything about one project: the brief, linked Library characters (with this project's wardrobe and reference sheet), products, sets, scripts, content pieces with shots, active assets (newest 200), unfinished jobs, and this project's recipe preferences. Call this before deciding the next step.",
   input: z.object({ projectId: IdSchema }).strict(),
   output: ProjectStateSchema,
   run: ({ store }, { projectId }) => {
@@ -61,6 +64,7 @@ export const getProjectState = defineTool({
       contents: store.content.listByProject(projectId),
       assets: store.assets.list({ projectId, state: "active", limit: 200 }),
       activeJobs: store.jobs.listByProject(projectId).filter((job) => job.status !== "completed" && job.status !== "failed"),
+      preferences: store.preferences.get(projectId),
     };
   },
 });

@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { AspectRatioSchema, CapabilitySchema } from "@/lib/catalog/capabilities";
+import { PromptStyleSchema } from "@/lib/catalog/prompt-style";
 import { SlotSidecarSchema } from "@/lib/catalog/slots";
 import { RecipeTagsSchema } from "@/lib/catalog/tags";
 
@@ -53,6 +54,8 @@ const commonFields = {
   defaults: RecipeDefaultsSchema,
   notes: z.string().max(600).optional(),
   tags: RecipeTagsSchema.optional(),
+  /** The prompt grammar the model reads; inferred from the id or model when absent (see `inferPromptStyle`). */
+  promptStyle: PromptStyleSchema.optional(),
 };
 
 const FieldTargetSchema = z

@@ -15,7 +15,7 @@ import { importImage } from "@/server/media/images";
 import { conversationsOf } from "@/server/store/conversations";
 import { callTool } from "@/server/tools";
 import { CHECKLISTS } from "@/server/agent/prompts/checklists";
-import { type Harness, type TurnResult, agentHarness, approveProposal, guidedPrompt, latestState, resultJson, runTurn, stateValue, waitingIds } from "./support/agent-harness";
+import { type Harness, type TurnResult, agentHarness, approveProposal, latestState, resultJson, runTurn, stateValue, waitingIds } from "./support/agent-harness";
 import { averyBible, generateAssets, ridgelineBeats, seedProject } from "./support/domain-fixtures";
 
 const cleanups: (() => void)[] = [];
@@ -85,16 +85,8 @@ describe("agent evals", () => {
           (params) => {
             assert.match(latestState(params), /Next step: 5\. Face lock/);
             const characterId = stateValue(params, "characterId");
-            return [
-              toolUse("propose_candidates", {
-                projectId: project.id,
-                capability: "text_to_image",
-                count: 4,
-                aspectRatio: "1:1",
-                target: { kind: "character_reference", characterId, slot: "face" },
-                prompt: guidedPrompt(params),
-              }),
-            ];
+            assert.match(latestState(params), /generate_face_candidates with projectId/);
+            return [toolUse("generate_face_candidates", { projectId: project.id, characterId })];
           },
           say(`Four face candidates are proposed; approve the card to run them. When they arrive, look for: ${CHECKLISTS.face[1]}.`),
         ]),
@@ -123,17 +115,8 @@ describe("agent evals", () => {
           },
           (params) => {
             assert.match(latestState(params), /Next step: 6\. Body reference/);
-            return [
-              toolUse("propose_candidates", {
-                projectId: project.id,
-                capability: "image_edit",
-                count: 2,
-                aspectRatio: "9:16",
-                referenceAssetIds: [faces[1]],
-                target: { kind: "character_reference", characterId, slot: "body" },
-                prompt: guidedPrompt(params),
-              }),
-            ];
+            assert.match(latestState(params), new RegExp(`generate_body_reference with projectId ${project.id} and characterId ${characterId}`));
+            return [toolUse("generate_body_reference", { projectId: project.id, characterId })];
           },
           say("Face locked. Two full-body references in athleticwear are proposed from it."),
         ]),
@@ -343,15 +326,10 @@ describe("agent evals", () => {
         harness,
         "Show me some faces.",
         scriptedModel([
-          (params) => [
-            toolUse("propose_candidates", {
-              projectId: project.id,
-              capability: "text_to_image",
-              count: 4,
-              target: { kind: "character_reference", characterId, slot: "face" },
-              prompt: guidedPrompt(params),
-            }),
-          ],
+          (params) => {
+            assert.match(latestState(params), /generate_face_candidates/);
+            return [toolUse("generate_face_candidates", { projectId: project.id, characterId })];
+          },
           say("Four candidates proposed."),
         ]),
       ),
@@ -381,17 +359,8 @@ describe("agent evals", () => {
           },
           (params) => {
             assert.deepEqual(waitingIds(params), [], "rejected candidates are no longer waiting");
-            const prompt = guidedPrompt(params);
-            assert.match(prompt, /generous spray of light freckles/);
-            return [
-              toolUse("propose_candidates", {
-                projectId: project.id,
-                capability: "text_to_image",
-                count: 4,
-                target: { kind: "character_reference", characterId, slot: "face" },
-                prompt,
-              }),
-            ];
+            assert.match(latestState(params), /generous spray of light freckles/, "the revised bible is in the state");
+            return [toolUse("generate_face_candidates", { projectId: project.id, characterId })];
           },
           say("I archived those four, updated Avery's bible to a warmer look with more freckles, and proposed four new faces."),
         ]),

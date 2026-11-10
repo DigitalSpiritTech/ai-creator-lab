@@ -101,13 +101,6 @@ export function latestState(params: Pick<StreamParams, "messages">): string {
   throw new Error("No project state block in the conversation.");
 }
 
-/** The exact prompt the stage guidance handed the model ("...and exactly this prompt:\n<prompt>"). */
-export function guidedPrompt(params: Pick<StreamParams, "messages">): string {
-  const match = latestState(params).match(/exactly this prompt:\n(.+)/);
-  if (!match) throw new Error("The stage guidance has no prompt.");
-  return match[1];
-}
-
 /** Candidate ids the stage guidance says are waiting for the user. */
 export function waitingIds(params: Pick<StreamParams, "messages">): string[] {
   const match = latestState(params).match(/waiting for the user in the workspace: ([^\n]+)\./);

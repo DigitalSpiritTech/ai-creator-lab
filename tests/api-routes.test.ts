@@ -45,6 +45,8 @@ async function loadRoutes() {
     tools: await import("@/app/api/projects/[id]/tools/[name]/route"),
     workspaceTools: await import("@/app/api/tools/[name]/route"),
     submit: await import("@/app/api/projects/[id]/proposals/submit/route"),
+    rerender: await import("@/app/api/projects/[id]/proposals/rerender/route"),
+    recipeOptions: await import("@/app/api/projects/[id]/recipe-options/route"),
     jobs: await import("@/app/api/projects/[id]/jobs/route"),
     asset: await import("@/app/api/assets/[id]/route"),
     usage: await import("@/app/api/assets/[id]/usage/route"),
@@ -214,6 +216,43 @@ describe("projects and tools", () => {
 });
 
 describe("generation gate, jobs, and assets", () => {
+  test("the card's recipe selector: options, a server re-render, and the project preference over HTTP", async () => {
+    const id = await createProject("Selector check");
+    const proposed = await routes.tools.POST(
+      json(`/api/projects/${id}/tools/propose_candidates`, { projectId: id, capability: "text_to_image", prompt: "A bottle on a gym bench", count: 1 }),
+      params({ id, name: "propose_candidates" }),
+    );
+    const proposal = (await proposed.json()) as { id: string; recipeId: string; spec: { kind: string }; prompt: string };
+    assert.equal(proposal.spec.kind, "free");
+
+    const listed = await routes.recipeOptions.GET(new Request(url(`/api/projects/${id}/recipe-options?capability=text_to_image&references=0`)), params({ id }));
+    assert.equal(listed.status, 200);
+    const options = (await listed.json()) as { options: { id: string; fits: boolean }[]; preference: string | null };
+    assert.ok(options.options.some((option) => option.id === "mock-text-to-image" && option.fits), "no key: only the mock is offered");
+    assert.ok(options.options.every((option) => option.id.startsWith("mock-")), "nothing needing a key is offered");
+    assert.equal(options.preference, null);
+
+    const rerendered = await routes.rerender.POST(json(`/api/projects/${id}/proposals/rerender`, { proposal, recipeId: "mock-text-to-image", count: 2 }), params({ id }));
+    assert.equal(rerendered.status, 200);
+    const next = (await rerendered.json()) as { id: string; count: number; prompt: string };
+    assert.notEqual(next.id, proposal.id);
+    assert.equal(next.count, 2);
+    assert.equal(next.prompt, proposal.prompt);
+    const wrongProject = await routes.rerender.POST(json(`/api/projects/${randomUUID()}/proposals/rerender`, { proposal, recipeId: "mock-text-to-image" }), params({ id: randomUUID() }));
+    assert.equal(wrongProject.status, 400);
+    const keyed = await routes.rerender.POST(json(`/api/projects/${id}/proposals/rerender`, { proposal, recipeId: "z-image-turbo-t2i" }), params({ id }));
+    assert.equal(keyed.status, 400, "a recipe that needs a key is refused");
+    assert.equal((await routes.tools.POST(json(`/api/projects/${id}/tools/rerender_proposal`, { proposal, recipeId: "mock-text-to-image" }), params({ id, name: "rerender_proposal" }))).status, 404, "internal tools have their own routes");
+
+    const preferred = await routes.tools.POST(
+      json(`/api/projects/${id}/tools/set_recipe_preference`, { projectId: id, capability: "text_to_image", recipeId: "mock-text-to-image" }),
+      params({ id, name: "set_recipe_preference" }),
+    );
+    assert.equal(preferred.status, 200);
+    const after = (await (await routes.recipeOptions.GET(new Request(url(`/api/projects/${id}/recipe-options?capability=text_to_image`)), params({ id }))).json()) as { preference: string | null };
+    assert.equal(after.preference, "mock-text-to-image");
+  });
+
   test("a mock proposal goes through the gate, jobs finish, and the asset streams with ranges", async () => {
     const id = await createProject("Gate check");
     const proposed = await routes.tools.POST(
@@ -254,6 +293,15 @@ describe("generation gate, jobs, and assets", () => {
       await new Promise((done) => setTimeout(done, 250));
     }
     assert.equal(assetIds.length, 2, "mock jobs did not finish");
+
+    // Regenerate with (F3) finds its project from the asset: another project's route refuses it.
+    const regenerate = (project: string, input: Record<string, unknown>) =>
+      routes.tools.POST(json(`/api/projects/${project}/tools/regenerate_with`, { assetId: assetIds[0], recipeId: "mock-text-to-image", ...input }), params({ id: project, name: "regenerate_with" }));
+    assert.equal((await regenerate(otherProject, {})).status, 400, "no projectId in the input: the output's project is checked");
+    assert.equal((await regenerate(otherProject, { projectId: otherProject })).status, 400, "a projectId that is not the asset's is refused");
+    const own = await regenerate(id, { projectId: id });
+    assert.equal(own.status, 200);
+    assert.equal(((await own.json()) as { projectId: string }).projectId, id);
 
     // Submitting the same proposal again never runs it twice.
     const again = await routes.submit.POST(json(`/api/projects/${id}/proposals/submit`, { proposal }), params({ id }));

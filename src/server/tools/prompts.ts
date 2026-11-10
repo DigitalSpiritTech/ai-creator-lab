@@ -23,18 +23,18 @@ export const FACE_LOCK = { capability: "text_to_image", aspectRatio: "1:1", coun
 export const BODY_REFERENCE = { capability: "image_edit", aspectRatio: "9:16", count: 2 } as const;
 
 /** Ends a fragment with exactly one period. */
-function sentence(value: string): string {
+export function sentence(value: string): string {
   const trimmed = value.trim();
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
 /** Drops a trailing period so the fragment can continue with a clause. */
-function clause(value: string): string {
+export function clause(value: string): string {
   return value.trim().replace(/[.!]+$/, "");
 }
 
 /** A fragment placed mid-sentence: no trailing period, lowercase first letter. */
-function inline(value: string): string {
+export function inline(value: string): string {
   const text = clause(value);
   return text.charAt(0).toLowerCase() + text.slice(1);
 }

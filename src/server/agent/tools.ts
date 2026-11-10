@@ -28,9 +28,9 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: after the user confirms the bible draft, save it with projectId and the wardrobe they picked.',
   ].join(" "),
   propose_candidates: [
-    `Propose a generation from your own prompt. ${PROPOSAL_NOTE}`,
-    "Use it for the face lock (text_to_image, count 4, target character_reference face, the face prompt from the stage guidance) and the body reference (image_edit, the locked face as the only referenceAssetIds entry, target character_reference body).",
-    'Example: the bible is saved and the face is not locked, so propose four face candidates.',
+    `Propose a generation from your own prompt, sent to the model as written (it is not rewritten when the recipe changes). ${PROPOSAL_NOTE}`,
+    "Use it only for manual or one-off generations the step tools do not cover; the face lock, body reference, sheet, product photos, stills, and clips have their own tools, which write the prompt in each model's style.",
+    'Example: the user asks for a loose square image of the bottle on a gym bench for a social post.',
   ].join(" "),
   select_reference: [
     "Lock a character's face or body reference to the candidate the user picked, bump the bible version, and archive the other candidates for that slot. The face must be locked before the body. Slot voice sets the uploaded recording voice-overs are cloned from (archiveSiblings false).",
@@ -143,6 +143,15 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
   restore_document_version: [
     "Restore an earlier version of a document as its newest version; later steps read it at once. A restored bible keeps the locked face, body, and voice; a restored script withdraws approvals the way an edit would, so say which beats need new approvals.",
     'Example: the user says "go back to the bible from before the hair change", so list the bible\'s versions and restore that one.',
+  ].join(" "),
+  set_recipe_preference: [
+    "Make one recipe this project's choice for a capability from now on (recipeId null clears it and the Settings default applies again). A recipeId passed on a single tool call still wins. Nothing is generated.",
+    "Call list_recipes for the capability first to get the id. Stills with references are image_edit; face locks and product photos from text are text_to_image; clips are image_to_video.",
+    'Example: "use Nano Banana for product shots from now on" gives capability image_edit and the Nano Banana Pro edit recipe id.',
+  ].join(" "),
+  regenerate_with: [
+    `Propose the same generation as an existing candidate with another recipe: same shot spec, references, and destination, the prompt rewritten in that model's style, no re-brief. ${PROPOSAL_NOTE}`,
+    'Example: the user rejects beat 4\'s still and says "try that one with GPT Image", so pass its assetId and the GPT Image recipe id.',
   ].join(" "),
 };
 

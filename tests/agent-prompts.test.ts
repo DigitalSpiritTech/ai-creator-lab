@@ -182,13 +182,17 @@ describe("creative director prompt", () => {
       "what to look for",
       "12. Voice-overs",
       "14. Next piece",
+      "set_recipe_preference",
+      "regenerate_with",
+      "never needs a re-brief",
     ]) {
       assert.ok(CREATIVE_DIRECTOR_PROMPT.includes(phrase), phrase);
     }
-    assert.ok(CREATIVE_DIRECTOR_PROMPT.length < 12_400, `${CREATIVE_DIRECTOR_PROMPT.length} characters`);
+    // The model-override rules (F3) added about 650 characters to the cached prompt.
+    assert.ok(CREATIVE_DIRECTOR_PROMPT.length < 13_500, `${CREATIVE_DIRECTOR_PROMPT.length} characters`);
   });
 
-  test("stage guidance follows project state and hands the model the exact face prompt", async () => {
+  test("stage guidance follows project state and points the face lock at the tool that renders its prompt", async () => {
     const { store, cleanup } = tempStore();
     cleanups.push(cleanup);
     const now = clock();
@@ -211,7 +215,8 @@ describe("creative director prompt", () => {
     assert.ok(saved.ok);
     const stage = nextStage(loadSnapshot(store, project.id)!);
     assert.equal(stage.id, "face");
-    assert.ok(stage.guidance.includes(facePrompt(averyBible())));
+    assert.match(stage.guidance, new RegExp(`generate_face_candidates with projectId ${project.id} and characterId [0-9a-f-]{36}`));
+    assert.ok(!stage.guidance.includes(facePrompt(averyBible())), "the model never copies a model-specific prompt");
     assert.match(stagePrompt(loadSnapshot(store, project.id)!, { omittedTurns: 3 }), /3 older turn\(s\) are not shown/);
   });
 });

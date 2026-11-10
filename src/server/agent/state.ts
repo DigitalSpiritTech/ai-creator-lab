@@ -7,12 +7,12 @@
 import type { ContentPiece } from "@/lib/domain/content";
 import type { GenerationTarget } from "@/lib/domain/job";
 import type { CharacterItem, CharacterLink, ProductItem, SetItem } from "@/lib/domain/library";
+import type { ProjectPreferences } from "@/lib/domain/preferences";
 import type { Project } from "@/lib/domain/project";
 import type { Script } from "@/lib/domain/script";
 import type { Store } from "@/server/store";
 import { checklistText } from "@/server/agent/prompts/checklists";
-import { purposeRecipeId } from "@/server/catalog/defaults";
-import { BACKDROP_NAMES, BODY_REFERENCE, FACE_LOCK, backdropFor, bodyPrompt, faceLockPrompt } from "@/server/tools/prompts";
+import { BACKDROP_NAMES, BODY_REFERENCE, FACE_LOCK, backdropFor } from "@/server/tools/prompts";
 
 export interface ProjectSnapshot {
   project: Project;
@@ -34,6 +34,8 @@ export interface ProjectSnapshot {
   /** Library items not linked to this project (archived ones left out). */
   libraryCharacters: CharacterItem[];
   libraryProducts: ProductItem[];
+  /** This project's recipe preferences by capability. */
+  preferences: ProjectPreferences;
 }
 
 /** Reads the snapshot. Returns undefined when the project does not exist. */
@@ -91,6 +93,7 @@ export function loadSnapshot(store: Store, projectId: string): ProjectSnapshot |
     runningJobs: jobs.filter((job) => job.status !== "completed" && job.status !== "failed").map((job) => ({ id: job.id, target: job.request.target })),
     libraryCharacters: library.filter((item): item is CharacterItem => item.kind === "character"),
     libraryProducts: library.filter((item): item is ProductItem => item.kind === "product"),
+    preferences: store.preferences.get(projectId),
   };
 }
 
@@ -172,7 +175,7 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
       id: "face",
       step: 5,
       title: "Face lock",
-      guidance: `${UPLOAD_FACE} Otherwise propose the face lock: propose_candidates with projectId ${project.id}, capability "${FACE_LOCK.capability}", count ${FACE_LOCK.count}, aspectRatio "${FACE_LOCK.aspectRatio}", target {"kind":"character_reference","characterId":"${item.id}","slot":"face"}, and exactly this prompt:\n${faceLockPrompt(item.bible, purposeRecipeId("character_start"))}`,
+      guidance: `${UPLOAD_FACE} Otherwise propose the face lock: generate_face_candidates with projectId ${project.id} and characterId ${item.id} (${FACE_LOCK.count} ${FACE_LOCK.aspectRatio} candidates; the tool writes the face prompt from the bible in the chosen model's style).`,
     };
   }
   if (!bodyAssetId) {
@@ -187,7 +190,7 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
       id: "body",
       step: 6,
       title: "Body reference",
-      guidance: `${fromPhoto ? "The face is an uploaded photo of a real person. Suggest uploading a full-body photo to the body slot on the Assets tab; or, if they prefer," : "Propose the body reference:"} propose_candidates with projectId ${project.id}, capability "${BODY_REFERENCE.capability}", count ${BODY_REFERENCE.count}, aspectRatio "${BODY_REFERENCE.aspectRatio}", referenceAssetIds ["${faceAssetId}"], target {"kind":"character_reference","characterId":"${item.id}","slot":"body"}, and exactly this prompt:\n${bodyPrompt(item.bible, "gray", { photographed: fromPhoto })}`,
+      guidance: `${fromPhoto ? "The face is an uploaded photo of a real person. Suggest uploading a full-body photo to the body slot on the Assets tab; or, if they prefer," : "Propose the body reference:"} generate_body_reference with projectId ${project.id} and characterId ${item.id} (${BODY_REFERENCE.count} ${BODY_REFERENCE.aspectRatio} candidates from the locked face ${faceAssetId}; the tool writes the athleticwear prompt).`,
     };
   }
   if (!link.sheetAssetId) {
@@ -361,6 +364,10 @@ export function renderSnapshot(snapshot: ProjectSnapshot): string {
       return `beat ${shot.beatIndex} still ${describe(shot.still)}, clip ${describe(shot.clip)}${voice}`;
     });
     lines.push(`Ad: "${content.title}" (contentId ${content.id}, script v${content.scriptVersion}): ${shots.join("; ")}.`);
+  }
+  const preferred = Object.entries(snapshot.preferences.recipes);
+  if (preferred.length) {
+    lines.push(`Recipe preferences for this project: ${preferred.map(([capability, recipeId]) => `${capability} uses ${recipeId}`).join("; ")}. Proposals of those capabilities use them unless a recipeId is passed.`);
   }
   if (snapshot.runningJobs.length) lines.push(`Generating now: ${snapshot.runningJobs.length} job(s).`);
   return lines.join("\n");

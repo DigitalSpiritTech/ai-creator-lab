@@ -18,6 +18,7 @@ import {
   createJob,
   sameRequest,
 } from "@/lib/domain/job";
+import type { ShotSpec } from "@/lib/domain/shot-spec";
 import type { BudgetCrossing, SpendPolicy } from "@/lib/domain/spend";
 import { markVerifiedRun } from "@/server/catalog/backends";
 import { type AllowanceState, checkSpend } from "@/server/executors/allowance";
@@ -55,6 +56,8 @@ export interface RunRequest {
   input: GenerationInput;
   inputs?: JobInput[];
   target?: GenerationTarget;
+  /** The shot spec the prompt was rendered from; kept on the job for "Regenerate with...". */
+  spec?: ShotSpec;
 }
 
 export type StartOutcome =
@@ -119,7 +122,13 @@ export async function startGeneration(
   request: RunRequest,
   options: { confirmUnquoted?: boolean } = {},
 ): Promise<StartOutcome> {
-  const jobRequest = { recipe: request.recipe, input: request.input, inputs: request.inputs ?? [], target: request.target ?? { kind: "loose" as const } };
+  const jobRequest = {
+    recipe: request.recipe,
+    input: request.input,
+    inputs: request.inputs ?? [],
+    target: request.target ?? { kind: "loose" as const },
+    ...(request.spec ? { spec: request.spec } : {}),
+  };
   const existing = deps.store.jobs.getByRequest(request.requestId);
   if (existing) {
     if (existing.projectId !== request.projectId || !sameRequest(existing.request, jobRequest)) {

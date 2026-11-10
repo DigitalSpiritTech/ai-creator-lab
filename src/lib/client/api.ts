@@ -3,7 +3,7 @@
  * gate, and asset URLs.
  * @packageDocumentation
  */
-import type { Asset, GenerationProposal, SettingsView, SubmitResponse } from "@/lib/client/types";
+import type { Asset, GenerationProposal, RecipeOptionsView, SettingsView, SubmitResponse } from "@/lib/client/types";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -81,4 +81,18 @@ export function assetUrl(id: string, options: { poster?: boolean; download?: boo
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return "Something went wrong.";
+}
+
+/**
+ * The proposal card's recipe selector: the same proposal for another recipe. The server renders the
+ * prompt in that model's style and makes the estimate; nothing runs.
+ */
+export function rerenderProposal(proposal: GenerationProposal, recipeId: string, count?: number): Promise<GenerationProposal> {
+  return sendJson(`/api/projects/${proposal.projectId}/proposals/rerender`, { proposal, recipeId, ...(count ? { count } : {}) });
+}
+
+/** What the recipe selector lists: for a capability and reference count, or for a candidate's own job. */
+export function getRecipeOptions(projectId: string, query: { capability: string; references: number } | { assetId: string }): Promise<RecipeOptionsView> {
+  const params = new URLSearchParams("assetId" in query ? { assetId: query.assetId } : { capability: query.capability, references: String(query.references) });
+  return getJson(`/api/projects/${projectId}/recipe-options?${params.toString()}`);
 }

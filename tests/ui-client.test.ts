@@ -176,6 +176,17 @@ describe("cards", () => {
     assert.match(html, /Cancel/);
   });
 
+  test("proposal card says which model the prompt was written for and lets the person edit it", () => {
+    const html = renderToStaticMarkup(createElement(ProposalCard, { proposal: proposal({ promptStyle: "gemini-image" }) }));
+    assert.match(html, /Written for Nano Banana \(Gemini image\)/);
+    assert.match(html, /<textarea[^>]*aria-label="Prompt"/);
+    assert.match(html, /\/ 8,000 characters/);
+    assert.doesNotMatch(html, /Use for the rest of this project/, "outside a project page there is no project to save a preference to");
+    assert.deepEqual(summarizeTool("set_recipe_preference", { capability: "image_edit" }, { recipeTitle: "Nano Banana Pro on Comfy Router" }, "ok").title, "Set Nano Banana Pro on Comfy Router for image edit in this project");
+    assert.equal(summarizeTool("set_recipe_preference", { capability: "image_edit" }, { recipeTitle: null }, "ok").title, "Cleared this project's image edit preference");
+    assert.equal(summarizeTool("regenerate_with", {}, { recipeTitle: "GPT Image 2", count: 1, estimate: { kind: "free", usd: 0, credits: 0, note: "" } }, "ok").title, "Proposed the same shot with another model");
+  });
+
   test("auto-approve shows the submission instead of the buttons; a rejected estimate cannot run", () => {
     const auto = renderToStaticMarkup(createElement(ProposalCard, { proposal: proposal(), autoApprove: true }));
     assert.match(auto, /Auto-approved under your budget/);

@@ -12,6 +12,7 @@ Prompts are rendered per model from a shot spec, never copied from an LTX prompt
 | `renderH3SingleShot` | `minimax-h3-i2v` (one image), `minimax-h3-flf2v` (two) | Base image to video; first and last frame when `<Picture 2>` is a last frame |
 | `renderH3Prompt` | multi-frame reference (R2V weights plus Add Guide anchors) | Full reference: subjects, picture roles, timestamped cuts |
 | `renderH3Chain` | `minimax-h3-i2v`, once per segment | Each segment starts from the previous segment's last frame |
+| `renderH3Clip` (in `render.ts`) | `minimax-h3-i2v`, `minimax-h3-flf2v`, Router `minimax/minimax-h3*` | A beat's clip spec mapped by `h3ClipSpec` to a single-shot spec; what generate_clip proposes for an H3 recipe |
 
 Each returns `{ ok: true, prompt, frames, anchors }` or `{ ok: false, errors }`; nothing throws on bad input.
 
