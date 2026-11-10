@@ -15,7 +15,7 @@ const repoRoot = join(__dirname, "..", "..");
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   // The workspace packages ship TypeScript source (no build step); Next.js compiles them with the app.
-  transpilePackages: ["@creator-lab/core", "@creator-lab/recipes", "@creator-lab/executors", "@creator-lab/ui"],
+  transpilePackages: ["@creator-lab/core", "@creator-lab/recipes", "@creator-lab/executors", "@creator-lab/ui", "@creator-lab/content-ugc-ad"],
   // Trace server files from the monorepo root so the packages' sources are included.
   outputFileTracingRoot: repoRoot,
   // Allow the 12 MiB image plus multipart overhead to reach the bounded upload parser.

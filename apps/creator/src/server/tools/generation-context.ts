@@ -10,6 +10,7 @@ import { backendRouting, listBackends } from "@/server/catalog/backends";
 import { defaultRecipes } from "@creator-lab/recipes/defaults";
 import { adapterRecipes } from "@creator-lab/recipes/router-adapters";
 import { createExecutors } from "@creator-lab/executors";
+import { serverPlugins } from "@/plugins/server";
 import { readSecrets } from "@/server/secrets";
 import type { Store } from "@/server/store";
 import type { GenerationContext } from "@/server/tools/registry";
@@ -36,10 +37,16 @@ export function createGenerationContext(store: Store, options: { workflowsDir?: 
     recipes: async () => {
       catalog ??= defaultRecipes(workflowsDir);
       const starters = await catalog;
-      // Router models the user switched on in Settings add their adapter recipes after the starters.
-      const enabled = adapterRecipes(store.workspace.get().routerModels);
+      // Router models the user switched on in Settings add their adapter recipes after the starters,
+      // then recipes from plugins; an id already listed keeps its first definition.
       const known = new Set(starters.map((recipe) => recipe.id));
-      return [...starters, ...enabled.filter((recipe) => !known.has(recipe.id))];
+      const extra: Recipe[] = [];
+      for (const recipe of [...adapterRecipes(store.workspace.get().routerModels), ...serverPlugins.recipes()]) {
+        if (known.has(recipe.id)) continue;
+        known.add(recipe.id);
+        extra.push(recipe);
+      }
+      return [...starters, ...extra];
     },
   };
   forStore.clear();

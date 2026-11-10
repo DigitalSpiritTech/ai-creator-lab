@@ -13,10 +13,12 @@
  *
  * Renderers are pure, never throw on content, and stay within the recipe's limit
  * ({@link promptLimit}); a spec that cannot be rendered for a model returns a readable error.
+ * They reach the app through the plugin registry ({@link STARTER_RENDERERS}).
  * @packageDocumentation
  */
 import { type PromptStyle, type PromptStyleSource, inferPromptStyle } from "@creator-lab/core/catalog";
 import type { ClipSpec, ShotSpec } from "@creator-lab/core/domain/shot-spec";
+import type { PromptRendererContribution, RendererTable, ShotRenderers } from "@creator-lab/core/registry";
 import { geminiBodyPrompt, geminiFacePrompt, geminiProductPhotoPrompt, geminiRefinePrompt, geminiSheetPrompt, geminiStillPrompt } from "./prompts-gemini-image";
 import { gptBodyPrompt, gptFacePrompt, gptProductPhotoPrompt, gptRefinePrompt, gptSheetPrompt, gptStillPrompt } from "./prompts-gpt-image";
 import { H3_PROMPT_LIMIT, type H3ShotSpecInput, renderH3SingleShot } from "./prompts-minimax-h3";
@@ -35,9 +37,7 @@ import {
 
 export type RenderResult = { ok: true; prompt: string; style: PromptStyle } | { ok: false; style: PromptStyle; error: string };
 
-type Renderers = { [K in ShotSpec["kind"]]?: (spec: Extract<ShotSpec, { kind: K }>) => string | { error: string } };
-
-const STANDARD: Required<Renderers> = {
+const STANDARD: Required<ShotRenderers> = {
   face: (spec) => facePrompt(spec, spec.garment),
   body: (spec) => bodyPrompt(spec, spec.backdrop, { photographed: spec.photographed }),
   sheet: (spec) => referenceSheetPrompt(spec, spec.wardrobe, { photographed: spec.photographed }),
@@ -57,46 +57,63 @@ const STANDARD: Required<Renderers> = {
   free: (spec) => spec.prompt,
 };
 
-const RENDERERS: Record<PromptStyle, Renderers> = {
-  standard: STANDARD,
-  krea: { face: (spec) => kreaFacePrompt(spec, spec.garment) },
-  "gemini-image": {
-    face: geminiFacePrompt,
-    body: geminiBodyPrompt,
-    sheet: geminiSheetPrompt,
-    product_photo: geminiProductPhotoPrompt,
-    still: geminiStillPrompt,
-    refine: geminiRefinePrompt,
+/**
+ * The renderers this package registers (through `starterRecipesPlugin`), one contribution per
+ * prompt style. Another plugin can add the kinds a style does not render yet.
+ */
+export const STARTER_RENDERERS: readonly PromptRendererContribution[] = [
+  { promptStyle: "standard", render: STANDARD, limit: PROMPT_LIMIT },
+  { promptStyle: "krea", render: { face: (spec) => kreaFacePrompt(spec, spec.garment) } },
+  {
+    promptStyle: "gemini-image",
+    render: {
+      face: geminiFacePrompt,
+      body: geminiBodyPrompt,
+      sheet: geminiSheetPrompt,
+      product_photo: geminiProductPhotoPrompt,
+      still: geminiStillPrompt,
+      refine: geminiRefinePrompt,
+    },
   },
-  "gpt-image": {
-    face: gptFacePrompt,
-    body: gptBodyPrompt,
-    sheet: gptSheetPrompt,
-    product_photo: gptProductPhotoPrompt,
-    still: gptStillPrompt,
-    refine: gptRefinePrompt,
+  {
+    promptStyle: "gpt-image",
+    render: {
+      face: gptFacePrompt,
+      body: gptBodyPrompt,
+      sheet: gptSheetPrompt,
+      product_photo: gptProductPhotoPrompt,
+      still: gptStillPrompt,
+      refine: gptRefinePrompt,
+    },
   },
-  "minimax-h3": { clip: renderH3Clip },
-};
+  { promptStyle: "minimax-h3", render: { clip: renderH3Clip }, limit: H3_PROMPT_LIMIT },
+];
+
+/** The starter renderers as a table: the default for callers that do not pass the registry's. */
+export const STARTER_RENDERER_TABLE: RendererTable = Object.fromEntries(STARTER_RENDERERS.map(({ promptStyle, render, limit }) => [promptStyle, { render, limit }]));
 
 /** The longest prompt a style's renderer may return (free prompts keep their own 8000 bound). */
-export function promptLimit(style: PromptStyle): number {
-  return style === "minimax-h3" ? H3_PROMPT_LIMIT : PROMPT_LIMIT;
+export function promptLimit(style: PromptStyle, table: RendererTable = STARTER_RENDERER_TABLE): number {
+  return table[style]?.limit ?? PROMPT_LIMIT;
 }
 
 /** Whether a style writes its own prompt for this kind of spec rather than the house prompt. */
-export function rendersNatively(style: PromptStyle, kind: ShotSpec["kind"]): boolean {
-  return style === "standard" || RENDERERS[style][kind] !== undefined;
+export function rendersNatively(style: PromptStyle, kind: ShotSpec["kind"], table: RendererTable = STARTER_RENDERER_TABLE): boolean {
+  return style === "standard" || table[style]?.render[kind] !== undefined;
 }
 
-/** Renders a spec for a recipe in the recipe's prompt style. */
-export function renderPrompt(spec: ShotSpec, recipe: PromptStyleSource): RenderResult {
+/**
+ * Renders a spec for a recipe in the recipe's prompt style. `table` is the plugin registry's
+ * renderers (`registry.renderers()`); without one, the starter renderers.
+ */
+export function renderPrompt(spec: ShotSpec, recipe: PromptStyleSource, table: RendererTable = STARTER_RENDERER_TABLE): RenderResult {
   const style = inferPromptStyle(recipe);
-  const renderer = (RENDERERS[style][spec.kind] ?? STANDARD[spec.kind]) as (value: ShotSpec) => string | { error: string };
-  const used: PromptStyle = RENDERERS[style][spec.kind] ? style : "standard";
+  const own = table[style]?.render[spec.kind];
+  const renderer = (own ?? table.standard?.render[spec.kind] ?? STANDARD[spec.kind]) as (value: ShotSpec) => string | { error: string };
+  const used: PromptStyle = own ? style : "standard";
   const output = renderer(spec);
   if (typeof output !== "string") return { ok: false, style: used, error: output.error };
-  const limit = spec.kind === "free" ? 8000 : promptLimit(used);
+  const limit = spec.kind === "free" ? 8000 : promptLimit(used, table);
   if (output.length > limit) return { ok: false, style: used, error: `The ${used} prompt is ${output.length} characters; the limit is ${limit}. Shorten the beat's visual or the setting.` };
   return { ok: true, prompt: output, style: used };
 }

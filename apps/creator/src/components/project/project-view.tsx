@@ -1,6 +1,7 @@
 /**
- * The project page: chat (or manual mode) on the left, the workspace with Documents, Script, Shots,
- * Assets, and Export tabs on the right, and a job strip while generations run.
+ * The project page: chat (or manual mode) on the left, the workspace on the right with the panels
+ * of the project's content type (from the plugin registry; for the Ad: Documents, Script, Shots,
+ * Assets, and Export), and a job strip while generations run.
  * @packageDocumentation
  */
 "use client";
@@ -8,32 +9,27 @@
 import { Loader2, MessageSquare, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
-import { AssetsTab } from "@/components/project/assets-tab";
+import type { PanelHost } from "@creator-lab/core/registry";
 import { ChatPanel } from "@/components/project/chat-panel";
-import { DocumentsTab } from "@/components/project/documents-tab";
-import { ExportTab } from "@/components/project/export-tab";
 import { ManualPanel } from "@/components/project/manual-panel";
 import { type ChatItem, ProjectContext, type ProjectContextValue, localId } from "@/components/project/project-context";
-import { ScriptTab } from "@/components/project/script-tab";
-import { ShotsTab } from "@/components/project/shots-tab";
+import { WorkspacePanels } from "@/components/project/workspace-panels";
 import { Notice } from "@/components/shell/page-header";
 import { Button } from "@creator-lab/ui/button";
 import { useLoad } from "@/lib/client/use-load";
-import { errorMessage, getJson } from "@/lib/client/api";
+import { callTool, errorMessage, getJson } from "@/lib/client/api";
 import { describeJobStatus, describeTarget } from "@/lib/client/format";
 import type { ProjectView as ProjectViewData } from "@/lib/client/types";
 import { type StoredMessage, historyToItems } from "@/lib/client/chat";
 import { useJobPolling } from "@/lib/client/use-job-polling";
-import { cn } from "@creator-lab/ui/utils";
-
-const TABS = ["Documents", "Script", "Shots", "Assets", "Export"] as const;
-type Tab = (typeof TABS)[number];
+import { appPlugins } from "@/plugins/panels";
+import { appLabel } from "@/plugins/registry";
 
 export function ProjectView({ projectId }: { projectId: string }) {
   const [view, setView] = useState<ProjectViewData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [items, setItems] = useState<ChatItem[]>([]);
-  const [tab, setTab] = useState<Tab>("Documents");
+  const [panel, setPanel] = useState<string | null>(null);
   const [mode, setMode] = useState<"chat" | "manual">("chat");
 
   const refresh = useCallback(async () => {
@@ -80,6 +76,23 @@ export function ProjectView({ projectId }: { projectId: string }) {
     [projectId, view, refresh, jobs.kick, jobs.unfinished, jobs.recent],
   );
 
+  const contentTypeId = view ? appPlugins.contentTypeForApp(view.project.appId)?.id : undefined;
+  const notify = context?.notify;
+  const host = useMemo<PanelHost | null>(
+    () =>
+      contentTypeId && notify
+        ? {
+            projectId,
+            contentTypeId,
+            openPanel: setPanel,
+            refresh,
+            notify,
+            callTool: (name, input) => callTool(name, input, projectId),
+          }
+        : null,
+    [projectId, contentTypeId, notify, refresh],
+  );
+
   if (!context) {
     return (
       <div className="p-8">
@@ -101,7 +114,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
       <div className="flex h-screen min-h-0 flex-col">
         <header className="flex items-center justify-between gap-4 border-b px-5 py-3">
           <div className="min-w-0">
-            <div className="text-xs text-muted-foreground"><Link href="/projects" className="hover:underline">Projects</Link> / UGC Creator</div>
+            <div className="text-xs text-muted-foreground"><Link href="/projects" className="hover:underline">Projects</Link> / {appLabel(context.view.project.appId, appPlugins)}</div>
             <h1 className="truncate text-lg font-semibold tracking-tight">{context.view.project.name}</h1>
           </div>
           {context.view.project.brief ? (
@@ -147,22 +160,13 @@ export function ProjectView({ projectId }: { projectId: string }) {
               {mode === "chat" ? <ChatPanel items={items} setItems={setItems} /> : <ManualPanel />}
             </div>
           </section>
-          <section className="flex min-h-0 flex-col" aria-label="Workspace">
-            <div className="flex gap-1 border-b p-2" role="tablist">
-              {TABS.map((name) => (
-                <Button key={name} size="sm" variant={tab === name ? "secondary" : "ghost"} role="tab" aria-selected={tab === name} onClick={() => setTab(name)}>
-                  {name}
-                </Button>
-              ))}
-            </div>
-            <div className={cn("min-h-0 flex-1 overflow-y-auto p-5")}>
-              {tab === "Documents" ? <DocumentsTab openScript={() => setTab("Script")} /> : null}
-              {tab === "Script" ? <ScriptTab /> : null}
-              {tab === "Shots" ? <ShotsTab /> : null}
-              {tab === "Assets" ? <AssetsTab /> : null}
-              {tab === "Export" ? <ExportTab /> : null}
-            </div>
-          </section>
+          {contentTypeId && host ? (
+            <WorkspacePanels contentTypeId={contentTypeId} active={panel} onSelect={setPanel} host={host} />
+          ) : (
+            <section className="p-5" aria-label="Workspace">
+              <Notice>This project was made in {context.view.project.appId}, which is not installed here.</Notice>
+            </section>
+          )}
         </div>
       </div>
     </ProjectContext.Provider>

@@ -6,6 +6,7 @@
   "description": "Domain contracts, the pure catalog types, the spend policy, and the plugin registry. No I/O, no React.",
   "exports": {
     "./catalog": "./src/catalog/index.ts",
+    "./registry": "./src/registry/index.ts",
     "./*": "./src/*.ts"
   },
   "dependencies": {

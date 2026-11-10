@@ -21,6 +21,7 @@ import { DEFAULT_RECIPE_IDS, purposeRecipe } from "@creator-lab/recipes/defaults
 import type { EstimateOutcome, ExecutorSet } from "@creator-lab/executors";
 import type { RunDeps } from "@/server/generation/run";
 import { renderPrompt } from "@creator-lab/recipes/render";
+import { serverPlugins } from "@/plugins/server";
 import type { ToolContext } from "@/server/tools/registry";
 import { requireGeneration } from "@/server/tools/registry";
 import { linkedReferenceIds, referenceableIn } from "@/server/tools/shared";
@@ -233,7 +234,7 @@ export function shotOf(spec: Pick<ProposalSpec, "shot" | "prompt">): ShotSpec {
 
 /** The spec rendered in the recipe's prompt style; a spec the model cannot take is refused readably. */
 export function renderFor(recipe: Recipe, shot: ShotSpec): { prompt: string; style: PromptStyle } {
-  const rendered = renderPrompt(shot, recipe);
+  const rendered = renderPrompt(shot, recipe, serverPlugins.renderers());
   if (!rendered.ok) fail("invalid", rendered.error);
   return { prompt: rendered.prompt, style: rendered.style };
 }

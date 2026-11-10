@@ -1,0 +1,13 @@
+{
+  "name": "@creator-lab/content-ugc-ad",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "description": "The UGC Ad content type as a plugin: the Ad made in the UGC Creator App, its steps from brief to assembly, and its workspace panels.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@creator-lab/core": "0.0.1"
+  }
+}

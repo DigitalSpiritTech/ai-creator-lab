@@ -10,6 +10,7 @@ import type { CharacterItem, CharacterLink, ProductItem, SetItem } from "@creato
 import type { ProjectPreferences } from "@creator-lab/core/domain/preferences";
 import type { Project } from "@creator-lab/core/domain/project";
 import type { Script } from "@creator-lab/core/domain/script";
+import { UGC_AD_STEPS, type UgcAdStepId } from "@creator-lab/content-ugc-ad";
 import type { Store } from "@/server/store";
 import { checklistText } from "@/server/agent/prompts/checklists";
 import { BACKDROP_NAMES, BODY_REFERENCE, FACE_LOCK, backdropFor } from "@creator-lab/recipes/prompts";
@@ -97,7 +98,8 @@ export function loadSnapshot(store: Store, projectId: string): ProjectSnapshot |
   };
 }
 
-export type StageId = "brief" | "character" | "face" | "body" | "sheet" | "product" | "script" | "shots" | "stills" | "clips" | "voice" | "assemble" | "next";
+/** The UGC Ad plugin's steps (`@creator-lab/content-ugc-ad`); a test checks the numbers and titles match. */
+export type StageId = UgcAdStepId;
 
 export interface Stage {
   id: StageId;
@@ -105,6 +107,15 @@ export interface Stage {
   step: number;
   title: string;
   guidance: string;
+}
+
+const STEPS = new Map<StageId, (typeof UGC_AD_STEPS)[number]>(UGC_AD_STEPS.map((step) => [step.id, step]));
+
+/** A stage's id, flow step number, and title, as the UGC Ad plugin declares them. */
+export function stepOf(id: StageId): Pick<Stage, "id" | "step" | "title"> {
+  const step = STEPS.get(id);
+  if (!step) throw new Error(`The UGC Ad plugin has no step ${id}.`);
+  return { id, step: step.number, title: step.title };
 }
 
 function running(snapshot: ProjectSnapshot, matches: (target: GenerationTarget) => boolean): number {
@@ -134,9 +145,7 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
   const { project, character, product, script, content, candidates } = snapshot;
   if (!project.brief) {
     return {
-      id: "brief",
-      step: 3,
-      title: "Brief",
+      ...stepOf("brief"),
       guidance:
         "Find out what they are selling, who buys it, where the ad will run, and the tone. Take what they already said, ask for the rest one question at a time with a default, then call save_brief.",
     };
@@ -151,9 +160,7 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
         ].join("\n")
       : "";
     return {
-      id: "character",
-      step: 4,
-      title: "Character",
+      ...stepOf("character"),
       guidance: [
         reuse,
         "To build a new character, ask at most eight short questions with defaults (who would the buyer trust, age range, look, hair, style of dress, how they talk, one memorable detail, anything they must never do). Show the draft bible as a short list, then save_character_bible with projectId. The visualCore is one sentence under 60 words; boundaries always include no health-outcome claims and no competitor names unless the user says otherwise.",
@@ -166,30 +173,26 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
   const { faceAssetId, bodyAssetId } = item.bible.references;
   if (!faceAssetId) {
     if (candidates.face.length) {
-      return { id: "face", step: 5, title: "Face lock", guidance: waiting("face", candidates.face, "face", 'When the user picks one, call select_reference with slot "face" and confirm the name.') };
+      return { ...stepOf("face"), guidance: waiting("face", candidates.face, "face", 'When the user picks one, call select_reference with slot "face" and confirm the name.') };
     }
     if (running(snapshot, (target) => target.kind === "character_reference" && target.slot === "face")) {
-      return { id: "face", step: 5, title: "Face lock", guidance: "Face candidates are generating. Say they will appear in the workspace and what to look for." };
+      return { ...stepOf("face"), guidance: "Face candidates are generating. Say they will appear in the workspace and what to look for." };
     }
     return {
-      id: "face",
-      step: 5,
-      title: "Face lock",
+      ...stepOf("face"),
       guidance: `${UPLOAD_FACE} Otherwise propose the face lock: generate_face_candidates with projectId ${project.id} and characterId ${item.id} (${FACE_LOCK.count} ${FACE_LOCK.aspectRatio} candidates; the tool writes the face prompt from the bible in the chosen model's style).`,
     };
   }
   if (!bodyAssetId) {
     if (candidates.body.length) {
-      return { id: "body", step: 6, title: "Body reference", guidance: waiting("body", candidates.body, "body", 'When the user picks one, call select_reference with slot "body".') };
+      return { ...stepOf("body"), guidance: waiting("body", candidates.body, "body", 'When the user picks one, call select_reference with slot "body".') };
     }
     if (running(snapshot, (target) => target.kind === "character_reference" && target.slot === "body")) {
-      return { id: "body", step: 6, title: "Body reference", guidance: "Body candidates are generating. Say they will appear in the workspace and what to look for." };
+      return { ...stepOf("body"), guidance: "Body candidates are generating. Say they will appear in the workspace and what to look for." };
     }
     const fromPhoto = snapshot.uploads.face;
     return {
-      id: "body",
-      step: 6,
-      title: "Body reference",
+      ...stepOf("body"),
       guidance: `${fromPhoto ? "The face is an uploaded photo of a real person. Suggest uploading a full-body photo to the body slot on the Assets tab; or, if they prefer," : "Propose the body reference:"} generate_body_reference with projectId ${project.id} and characterId ${item.id} (${BODY_REFERENCE.count} ${BODY_REFERENCE.aspectRatio} candidates from the locked face ${faceAssetId}; the tool writes the athleticwear prompt).`,
     };
   }
@@ -199,36 +202,28 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
       : "";
     if (!link.wardrobe) {
       return {
-        id: "sheet",
-        step: 7,
-        title: "Reference sheet",
+        ...stepOf("sheet"),
         guidance: `Pick this project's outfit. Suggest the one from the bible's wardrobe defaults that suits the brief and has a clear tone difference from gray (${item.bible.wardrobeDefaults.map((outfit) => `"${outfit}" (${BACKDROP_NAMES[backdropFor(outfit)]} background)`).join(", ")}) as the default, or the user names one. Then call generate_reference_sheet with projectId, characterId ${item.id}, and that wardrobe, and say which background the sheet uses.${photoNote}`,
       };
     }
     if (candidates.sheet.length) {
       return {
-        id: "sheet",
-        step: 7,
-        title: "Reference sheet",
+        ...stepOf("sheet"),
         guidance: waiting("reference sheet", candidates.sheet, "sheet", "Ask them to inspect at full size. When they choose, call approve with kind sheet. Small flaws: refine_still on that sheet instead of regenerating."),
       };
     }
     if (running(snapshot, (target) => target.kind === "reference_sheet")) {
-      return { id: "sheet", step: 7, title: "Reference sheet", guidance: "Reference sheets are generating. Say they will appear in the workspace and what to look for." };
+      return { ...stepOf("sheet"), guidance: "Reference sheets are generating. Say they will appear in the workspace and what to look for." };
     }
     return {
-      id: "sheet",
-      step: 7,
-      title: "Reference sheet",
+      ...stepOf("sheet"),
       guidance: `Propose the reference sheet in "${link.wardrobe}": generate_reference_sheet with projectId ${project.id} and characterId ${item.id}.${photoNote}`,
     };
   }
   if (!product) {
     const library = snapshot.libraryProducts.slice(0, 3);
     return {
-      id: "product",
-      step: 8,
-      title: "Product",
+      ...stepOf("product"),
       guidance: [
         library.length ? `The Library has ${library.map((entry) => `${entry.name} (productId ${entry.id})`).join("; ")}; offer to reuse it with save_product (productId, projectId, its fields unchanged).` : "",
         "Ask for the product name, the link, and the exact claims they are allowed to make, then save_product with projectId. Product photos are uploaded in the workspace.",
@@ -240,43 +235,37 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
   }
   if (!script) {
     return {
-      id: "script",
-      step: 9,
-      title: "Script",
+      ...stepOf("script"),
       guidance: "Draft the script (see Writing scripts), show it as a short beat list, and save it with save_script once the user agrees or asks you to go ahead.",
     };
   }
   if (!content || content.scriptId !== script.id) {
-    return { id: "shots", step: 10, title: "Shots", guidance: `Create the Ad from the script: plan_shots with projectId ${project.id} and scriptId ${script.id}.` };
+    return { ...stepOf("shots"), guidance: `Create the Ad from the script: plan_shots with projectId ${project.id} and scriptId ${script.id}.` };
   }
   if (content.scriptVersion !== script.version) {
-    return { id: "shots", step: 10, title: "Shots", guidance: `The script is at version ${script.version} but the Ad uses ${content.scriptVersion}: call plan_shots with contentId ${content.id} to bring it up to date.` };
+    return { ...stepOf("shots"), guidance: `The script is at version ${script.version} but the Ad uses ${content.scriptVersion}: call plan_shots with contentId ${content.id} to bring it up to date.` };
   }
   const stillBeat = content.shots.find((shot) => shot.still.state !== "approved");
   if (stillBeat) {
     const slot = stillBeat.still;
     if (slot.state === "open") {
       return {
-        id: "stills",
-        step: 10,
-        title: "Shots",
+        ...stepOf("stills"),
         guidance: waiting(`beat ${stillBeat.beatIndex} still`, slot.candidateIds, "still", `When the user chooses, call approve with kind still, contentId ${content.id}, beatIndex ${stillBeat.beatIndex}. Close but not right: refine_still.`),
       };
     }
-    return { id: "stills", step: 10, title: "Shots", guidance: `Propose the start frame for beat ${stillBeat.beatIndex}: compose_still with contentId ${content.id} and beatIndex ${stillBeat.beatIndex}.` };
+    return { ...stepOf("stills"), guidance: `Propose the start frame for beat ${stillBeat.beatIndex}: compose_still with contentId ${content.id} and beatIndex ${stillBeat.beatIndex}.` };
   }
   const clipBeat = content.shots.find((shot) => shot.clip.state !== "approved");
   if (clipBeat) {
     const slot = clipBeat.clip;
     if (slot.state === "open") {
       return {
-        id: "clips",
-        step: 11,
-        title: "Clips",
+        ...stepOf("clips"),
         guidance: waiting(`beat ${clipBeat.beatIndex} clip`, slot.candidateIds, "clip", `When the user chooses, call approve with kind clip, contentId ${content.id}, beatIndex ${clipBeat.beatIndex}.`),
       };
     }
-    return { id: "clips", step: 11, title: "Clips", guidance: `Propose the clip for beat ${clipBeat.beatIndex}: generate_clip with contentId ${content.id} and beatIndex ${clipBeat.beatIndex}.` };
+    return { ...stepOf("clips"), guidance: `Propose the clip for beat ${clipBeat.beatIndex}: generate_clip with contentId ${content.id} and beatIndex ${clipBeat.beatIndex}.` };
   }
   const voiceBeat = content.shots.find((shot) => {
     const beat = script.beats[shot.beatIndex - 1];
@@ -286,27 +275,23 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
     const slot = voiceBeat.voice;
     if (slot.state === "open") {
       return {
-        id: "voice",
-        step: 12,
-        title: "Voice-overs",
+        ...stepOf("voice"),
         guidance: waiting(`beat ${voiceBeat.beatIndex} voice-over`, slot.candidateIds, "voice", `When the user chooses, call approve with kind voice, contentId ${content.id}, beatIndex ${voiceBeat.beatIndex}. Say the take plays on the Shots tab.`),
       };
     }
     if (running(snapshot, (target) => target.kind === "shot" && target.slot === "voice" && target.beatIndex === voiceBeat.beatIndex)) {
-      return { id: "voice", step: 12, title: "Voice-overs", guidance: `Beat ${voiceBeat.beatIndex}'s voice-over is generating. Say it will appear on the Shots tab.` };
+      return { ...stepOf("voice"), guidance: `Beat ${voiceBeat.beatIndex}'s voice-over is generating. Say it will appear on the Shots tab.` };
     }
     const sample = item.bible.references.voiceAssetId ? "the character's voice sample" : "the first approved talking clip's voice";
     return {
-      id: "voice",
-      step: 12,
-      title: "Voice-overs",
+      ...stepOf("voice"),
       guidance: `Beat ${voiceBeat.beatIndex} is ${script.beats[voiceBeat.beatIndex - 1]?.type === "broll" ? "b-roll" : "a text card"} with a line and no approved voice-over. Propose it: generate_voice_over with projectId ${project.id} and beatIndex ${voiceBeat.beatIndex} (cloned from ${sample}). If the user would rather skip voice-overs, go on to assembling; those beats keep ambient sound only.`,
     };
   }
   if (snapshot.completedExports === 0) {
-    return { id: "assemble", step: 13, title: "Assemble", guidance: `Every beat has an approved clip${content.shots.some((shot) => shot.voice.state === "approved") ? " and the voice-overs are approved" : ""}. Offer to assemble: assemble_ad with contentId ${content.id} (captions on by default).` };
+    return { ...stepOf("assemble"), guidance: `Every beat has an approved clip${content.shots.some((shot) => shot.voice.state === "approved") ? " and the voice-overs are approved" : ""}. Offer to assemble: assemble_ad with contentId ${content.id} (captions on by default).` };
   }
-  return { id: "next", step: 14, title: "Next piece", guidance: "Offer another ad in this project, or a new project with the same character." };
+  return { ...stepOf("next"), guidance: "Offer another ad in this project, or a new project with the same character." };
 }
 
 function short(value: string, max = 120): string {
