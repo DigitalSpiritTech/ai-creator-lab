@@ -46,7 +46,7 @@ describe("MCP server", () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
     assert.ok(TOOLS.length >= 22);
-    // The 33 core tools first, then the installed plugins' tools.
+    // The 34 core tools first, then the installed plugins' tools.
     const expected = ROSTER_TOOLS.filter((tool) => tool.name !== "delete_asset_everywhere").map((tool) => tool.name);
     assert.deepEqual(expected.slice(0, TOOLS.length - 1), TOOLS.filter((tool) => tool.name !== "delete_asset_everywhere").map((tool) => tool.name));
     assert.equal(tools.length, expected.length + 1);
