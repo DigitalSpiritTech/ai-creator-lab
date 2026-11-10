@@ -26,6 +26,8 @@ const StoredVersionSchema: z.ZodType<StoredDocumentVersion> = z.discriminatedUni
 export interface DocumentEntry<K extends StoredDocumentKind> {
   kind: K;
   subjectId: string;
+  /** The owner of the saving request; the default owner when absent. */
+  ownerId?: string;
   content: DocumentContent<K>;
   author: DocumentAuthor | null;
   restoredFrom: number | null;

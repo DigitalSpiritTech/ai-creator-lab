@@ -9,6 +9,7 @@ import { z } from "zod";
 import type { BackendRouting, Recipe } from "@creator-lab/core/catalog";
 import type { DocumentAuthor } from "@creator-lab/core/domain/document";
 import { fail } from "@creator-lab/core/domain/failure";
+import { DEFAULT_OWNER_ID } from "@creator-lab/core/domain/owner";
 import type { ExecutorSet } from "@creator-lab/executors";
 import type { Store } from "@/server/store";
 
@@ -38,11 +39,23 @@ export interface ToolContext {
   generation?: GenerationContext;
   /** Who is calling, recorded on document versions: the assistant, or a person in the app. */
   author?: DocumentAuthor;
+  /** The owner the request acts for (`requestOwner`); the default owner when absent. */
+  ownerId?: string;
 }
 
 /** A tool context; `author` defaults to "user" (the app's own routes) and is "assistant" for the chat and MCP. */
-export function createToolContext(store: Store, generation?: GenerationContext, author: DocumentAuthor = "user"): ToolContext {
-  return { store, now: () => Date.now(), newId: () => randomUUID(), generation, author };
+export function createToolContext(
+  store: Store,
+  generation?: GenerationContext,
+  author: DocumentAuthor = "user",
+  ownerId: string = DEFAULT_OWNER_ID,
+): ToolContext {
+  return { store, now: () => Date.now(), newId: () => randomUUID(), generation, author, ownerId };
+}
+
+/** The owner a tool call acts for. */
+export function ownerOf(context: Pick<ToolContext, "ownerId">): string {
+  return context.ownerId ?? DEFAULT_OWNER_ID;
 }
 
 export function requireGeneration(context: ToolContext): GenerationContext {

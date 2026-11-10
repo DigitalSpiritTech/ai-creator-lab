@@ -75,6 +75,7 @@ async function stagedAsset(store: Store, job: Job, output: StagedOutput): Promis
   const audio: AudioMetadata | undefined = file.audio ? { ...file.audio, transcript: job.request.input.prompt.slice(0, 2000) } : undefined;
   return {
     projectId: job.projectId,
+    ownerId: job.ownerId,
     kind: assetKindFor(job, file.mime),
     mime: file.mime,
     relativePath,
@@ -125,6 +126,7 @@ export async function commitJobOutputs(
         const kind = job.request.target.kind === "reference_sheet" && output.kind === "image" ? "sheet" : output.kind;
         fields = {
           projectId: job.projectId,
+          ownerId: job.ownerId,
           kind,
           mime: output.mime,
           relativePath,

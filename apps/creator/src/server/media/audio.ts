@@ -27,6 +27,8 @@ export interface AudioImport {
   projectId: string | null;
   name: string;
   bytes: Uint8Array;
+  /** The uploader; a project upload belongs to the project's owner instead. Defaults to the default owner. */
+  ownerId?: string;
 }
 
 /** Containers a recording may arrive in. Anything else (playlists, concat scripts, images) is refused before ffmpeg decodes it. */
@@ -82,7 +84,7 @@ function audioExtension(mime: AudioInfo["mime"]): string {
 
 /** Saves an uploaded recording once per project (or once in the Library when `projectId` is null). */
 export async function importAudio(store: Store, input: AudioImport, context: { now: number; newId: () => string }): Promise<Asset> {
-  if (input.projectId !== null) store.projects.getRequired(input.projectId);
+  const project = input.projectId !== null ? store.projects.getRequired(input.projectId) : null;
   if (input.bytes.length === 0 || input.bytes.length > MAX_AUDIO_BYTES) fail("invalid", "Choose a recording up to 25 MB.");
   const originalSha256 = sha256(input.bytes);
   const existing = store.assets.findUpload(input.projectId, originalSha256);
@@ -91,6 +93,7 @@ export async function importAudio(store: Store, input: AudioImport, context: { n
   const id = context.newId();
   const asset = AssetSchema.parse({
     id,
+    ownerId: project?.ownerId ?? input.ownerId,
     projectId: input.projectId,
     kind: "audio",
     mime: info.mime,
@@ -144,6 +147,7 @@ export async function extractVoiceSample(
     const id = context.newId();
     const asset = AssetSchema.parse({
       id,
+      ownerId: clip.ownerId,
       projectId: clip.projectId,
       kind: "audio",
       mime: "audio/flac",

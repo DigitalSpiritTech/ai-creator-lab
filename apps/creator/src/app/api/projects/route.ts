@@ -1,11 +1,12 @@
 /**
- * Projects: list them, or create one from the UGC Creator App.
+ * Projects: list them, or create one in an installed App (`startProject`): an unknown App is a 400,
+ * a parent must exist and belong to the same owner, and an `inbound` context seeds the brief and
+ * links Library items in the same transaction.
  * @packageDocumentation
  */
-import { randomUUID } from "node:crypto";
-import { CreateProjectSchema, createProject } from "@creator-lab/core/domain/project";
 import { readJson } from "@/server/http";
-import { route, withStore } from "@/app/api/_lib/server";
+import { type StartProject, startProject } from "@/server/tools/project";
+import { route, toolContextFor, withStore } from "@/app/api/_lib/server";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +24,11 @@ export async function GET(): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   return route(async () => {
-    const input = CreateProjectSchema.parse(await readJson(request));
+    const input = await readJson(request);
     return withStore((store) => {
-      const project = store.projects.create(createProject(input, randomUUID(), Date.now()));
-      return Response.json({ project }, { status: 201 });
+      // startProject parses the body; a malformed one is a 400 with the first problem.
+      const { project, links } = startProject(toolContextFor(store, "user", request), input as StartProject);
+      return Response.json({ project, links }, { status: 201 });
     });
   });
 }

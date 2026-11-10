@@ -15,6 +15,7 @@ import {
 } from "./library";
 import { type Brief, BriefSchema } from "./project";
 import { BeatSchema, type Script } from "./script";
+import { ownerField } from "./owner";
 
 export const DocumentKindSchema = z.enum(["brief", "bible", "product", "script"]);
 export type DocumentKind = z.infer<typeof DocumentKindSchema>;
@@ -30,6 +31,7 @@ export const ScriptContentSchema = z
 const versionBase = {
   /** The project id for a brief, the Library item id for a bible or product, the script id for a script. */
   subjectId: IdSchema,
+  ...ownerField,
   version: z.number().int().positive(),
   author: DocumentAuthorSchema.nullable(),
   /** The version this one restored, when it was made by a restore. */

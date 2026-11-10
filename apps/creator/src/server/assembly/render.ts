@@ -159,6 +159,7 @@ export async function renderExport(
     written.push(relativePath);
     const asset = AssetSchema.parse({
       id,
+      ownerId: store.projects.get(record.projectId)?.ownerId,
       projectId: record.projectId,
       kind: "export",
       mime: "video/mp4",

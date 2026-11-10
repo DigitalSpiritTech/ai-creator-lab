@@ -10,6 +10,7 @@ import { IdSchema } from "@creator-lab/core/domain/common";
 import { GenerationProposalSchema } from "@creator-lab/core/domain/job";
 import type { DocumentAuthor } from "@creator-lab/core/domain/document";
 import { errorResponse, readJson } from "@/server/http";
+import { requestOwner } from "@/server/owner";
 import { getStore, withStore } from "@/server/runtime";
 import { readSecrets } from "@/server/secrets";
 import type { Store } from "@/server/store";
@@ -40,8 +41,9 @@ export function generationFor(store: Store): GenerationContext {
   return generation;
 }
 
-export function toolContextFor(store: Store, author: DocumentAuthor = "user"): ToolContext {
-  return createToolContext(store, generationFor(store), author);
+/** A tool context for a route; pass the request so the context carries the owner it acts for. */
+export function toolContextFor(store: Store, author: DocumentAuthor = "user", request?: Request): ToolContext {
+  return createToolContext(store, generationFor(store), author, requestOwner(request));
 }
 
 /** Runs a handler and turns thrown Responses, Zod errors, and service failures into safe responses. */
@@ -94,7 +96,7 @@ export async function runToolRequest(request: Request, name: string, projectId?:
     return Response.json({ error: "This input belongs to another project." }, { status: 400 });
   }
   return withStore(async (store) => {
-    const result = await callTool(toolContextFor(store), name, input);
+    const result = await callTool(toolContextFor(store, "user", request), name, input);
     // A tool that finds its project from an asset (regenerate_with, refine_still) must not hand this
     // project's page a proposal for another project.
     if (projectId && result.ok) {

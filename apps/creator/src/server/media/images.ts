@@ -18,6 +18,8 @@ export interface ImageImport {
   projectId: string | null;
   name: string;
   bytes: Uint8Array;
+  /** The uploader; a project upload belongs to the project's owner instead. Defaults to the default owner. */
+  ownerId?: string;
 }
 
 export async function normalizeImage(bytes: Uint8Array): Promise<{ png: Buffer; width: number; height: number }> {
@@ -49,7 +51,7 @@ export async function importImage(
   input: ImageImport,
   context: { now: number; newId: () => string },
 ): Promise<Asset> {
-  if (input.projectId !== null) store.projects.getRequired(input.projectId);
+  const project = input.projectId !== null ? store.projects.getRequired(input.projectId) : null;
   if (input.bytes.length === 0 || input.bytes.length > MAX_IMAGE_BYTES) fail("invalid", "Choose an image up to 12 MB.");
   const originalSha256 = sha256(input.bytes);
   const existing = store.assets.findUpload(input.projectId, originalSha256);
@@ -58,6 +60,7 @@ export async function importImage(
   const id = context.newId();
   const asset = AssetSchema.parse({
     id,
+    ownerId: project?.ownerId ?? input.ownerId,
     projectId: input.projectId,
     kind: "image",
     mime: "image/png",

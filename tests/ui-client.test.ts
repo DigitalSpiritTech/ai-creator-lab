@@ -268,7 +268,7 @@ describe("product appearance and assistant provider", () => {
     assert.match(html, /Appearance/);
     assert.match(html, /never by its name/);
     const product = {
-      id: randomUUID(), kind: "product" as const, archived: false, brokenAssetIds: [], revision: 2, createdAt: 1, updatedAt: 1,
+      id: randomUUID(), ownerId: "local", kind: "product" as const, archived: false, brokenAssetIds: [], revision: 2, createdAt: 1, updatedAt: 1,
       name: "Ridgeline 32 oz insulated bottle", appearance: "Matte sage-green steel bottle", link: null, allowedClaims: ["Dishwasher safe"], imageAssetIds: [],
     };
     assert.equal(productFields(product).appearance, "Matte sage-green steel bottle");

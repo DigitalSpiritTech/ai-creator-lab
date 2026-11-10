@@ -168,6 +168,24 @@ export const MIGRATIONS: readonly string[] = [
     data TEXT NOT NULL CHECK (json_valid(data) AND json_extract(data, '$.projectId') = project_id)
   );
   `,
+  // Version 7: owner context (v0.2 F8). Projects, Library items, assets, jobs, and document versions
+  // name their owner; every existing row belongs to the default owner, "local". Projects also get
+  // an optional parent and the origin of an inbound context (none for existing projects). The
+  // indexes let a later multi-owner install list one owner's records without reading every row.
+  `
+  UPDATE projects SET data = json_set(data,
+      '$.ownerId', coalesce(json_extract(data, '$.ownerId'), 'local'),
+      '$.parentProjectId', json_extract(data, '$.parentProjectId'),
+      '$.origin', json(coalesce(json_extract(data, '$.origin'), 'null')));
+  UPDATE library_items SET data = json_set(data, '$.ownerId', coalesce(json_extract(data, '$.ownerId'), 'local'));
+  UPDATE assets SET data = json_set(data, '$.ownerId', coalesce(json_extract(data, '$.ownerId'), 'local'));
+  UPDATE jobs SET data = json_set(data, '$.ownerId', coalesce(json_extract(data, '$.ownerId'), 'local'));
+  UPDATE document_versions SET data = json_set(data, '$.ownerId', coalesce(json_extract(data, '$.ownerId'), 'local'));
+  CREATE INDEX projects_owner ON projects(json_extract(data, '$.ownerId'));
+  CREATE INDEX projects_parent ON projects(json_extract(data, '$.parentProjectId'));
+  CREATE INDEX library_items_owner ON library_items(json_extract(data, '$.ownerId'));
+  CREATE INDEX assets_owner ON assets(json_extract(data, '$.ownerId'));
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

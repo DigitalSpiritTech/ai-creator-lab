@@ -10,6 +10,7 @@ import { IdSchema, RecipeIdSchema, RevisionSchema, Sha256Schema, TimestampSchema
 import { SlotKindSchema } from "./content";
 import { FailureCodeSchema, fail } from "./failure";
 import { ShotSpecSchema } from "./shot-spec";
+import { DEFAULT_OWNER_ID, OwnerIdSchema, ownerField } from "./owner";
 
 export const ExecutorKindSchema = z.enum(["router", "workflow", "mock"]);
 export type ExecutorKind = z.infer<typeof ExecutorKindSchema>;
@@ -115,6 +116,8 @@ const jobBase = {
   id: IdSchema,
   requestId: IdSchema,
   projectId: IdSchema,
+  /** The project's owner; the outputs inherit it. */
+  ...ownerField,
   recipeId: RecipeIdSchema,
   capability: CapabilitySchema,
   executor: ExecutorKindSchema,
@@ -189,6 +192,7 @@ export const NewJobSchema = z
     id: IdSchema,
     requestId: IdSchema,
     projectId: IdSchema,
+    ownerId: OwnerIdSchema.default(DEFAULT_OWNER_ID),
     request: JobRequestSchema,
     reservedUsd: z.number().nonnegative().nullable().default(null),
   })
@@ -202,6 +206,7 @@ export function createJob(input: NewJob, now: number): Job {
     id: data.id,
     requestId: data.requestId,
     projectId: data.projectId,
+    ownerId: data.ownerId,
     recipeId: data.request.recipe.id,
     capability: data.request.recipe.capability,
     executor: data.request.recipe.kind,

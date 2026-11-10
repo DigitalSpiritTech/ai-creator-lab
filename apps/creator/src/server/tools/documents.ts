@@ -27,7 +27,7 @@ import {
 import { saveBrief } from "@creator-lab/core/domain/project";
 import { ScriptChangeSchema } from "@creator-lab/core/domain/script";
 import type { Store } from "@/server/store";
-import { type ToolContext, defineTool } from "@/server/tools/registry";
+import { type ToolContext, defineTool, ownerOf } from "@/server/tools/registry";
 import { saveScriptRevision } from "@/server/tools/script";
 
 /** Appends a version of a document after its live record was saved. A save that changed nothing records nothing. */
@@ -41,6 +41,7 @@ export function recordDocument<K extends StoredDocumentKind>(
   return context.store.documents.record({
     kind,
     subjectId,
+    ownerId: ownerOf(context),
     content,
     author: context.author ?? null,
     restoredFrom,

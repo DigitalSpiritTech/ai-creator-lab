@@ -90,8 +90,11 @@ export function decodeAll<T>(rows: unknown[], schema: z.ZodType<T>): T[] {
   return rows.map((row) => decode(row, schema));
 }
 
-/** Validates a record through its contract and serializes it for a `data` column. */
-export function encode<T>(schema: z.ZodType<T>, value: T): { record: T; json: string } {
+/**
+ * Validates a record through its contract and serializes it for a `data` column. Takes the
+ * contract's input shape, so fields with defaults (an owner, for example) may be left out.
+ */
+export function encode<S extends z.ZodType>(schema: S, value: z.input<S>): { record: z.output<S>; json: string } {
   const record = schema.parse(value);
   return { record, json: JSON.stringify(record) };
 }

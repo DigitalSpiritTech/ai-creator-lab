@@ -14,6 +14,7 @@ import { importAudio } from "@/server/media/audio";
 import { importImage } from "@/server/media/images";
 import { assetUsage } from "@/server/media/lifecycle";
 import { readAudioUpload, readImageUpload } from "@/server/media/upload";
+import { requestOwner } from "@/server/owner";
 import { route, withStore } from "@/app/api/_lib/server";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +26,12 @@ export async function POST(request: Request): Promise<Response> {
     if (as !== null && as !== "sheet" && as !== "voice") return Response.json({ error: "Upload as an image, a sheet, or a voice recording." }, { status: 400 });
     if (as === "voice") {
       const recording = await readAudioUpload(request);
-      return withStore(async (store) => Response.json({ asset: await importAudio(store, recording, { now: Date.now(), newId: randomUUID }) }, { status: 201 }));
+      return withStore(async (store) => Response.json({ asset: await importAudio(store, { ...recording, ownerId: requestOwner(request) }, { now: Date.now(), newId: randomUUID }) }, { status: 201 }));
     }
     const upload = await readImageUpload(request);
     if (as === "sheet" && !upload.projectId) return Response.json({ error: "Upload a reference sheet inside a project." }, { status: 400 });
     return withStore(async (store) => {
-      let asset = await importImage(store, upload, { now: Date.now(), newId: randomUUID });
+      let asset = await importImage(store, { ...upload, ownerId: requestOwner(request) }, { now: Date.now(), newId: randomUUID });
       if (as === "sheet" && asset.kind !== "sheet") {
         asset = store.transaction(() => {
           const current = store.assets.getRequired(asset.id);

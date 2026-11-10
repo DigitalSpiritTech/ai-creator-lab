@@ -192,6 +192,35 @@ describe("projects and tools", () => {
     assert.equal(invalid.status, 400);
   });
 
+  test("creates projects only in an installed App, under a valid parent, and seeds one from an inbound context", async () => {
+    const unknownApp = await routes.projects.POST(json("/api/projects", { name: "Jingle", appId: "jingle-maker" }));
+    assert.equal(unknownApp.status, 400);
+    assert.match(((await unknownApp.json()) as { error: string }).error, /no installed App "jingle-maker"/);
+
+    const parentId = await createProject("Autumn campaign");
+    const child = await routes.projects.POST(json("/api/projects", { name: "Cup holder ad", parentProjectId: parentId }));
+    assert.equal(child.status, 201);
+    const { project } = (await child.json()) as { project: { id: string; ownerId: string; parentProjectId: string } };
+    assert.equal(project.parentProjectId, parentId);
+    assert.equal(project.ownerId, "local");
+    const orphan = await routes.projects.POST(json("/api/projects", { name: "Orphan", parentProjectId: randomUUID() }));
+    assert.equal(orphan.status, 404);
+
+    const cycle = await routes.project.PATCH(json(`/api/projects/${parentId}`, { parentProjectId: project.id }, "PATCH"), params({ id: parentId }));
+    assert.equal(cycle.status, 400);
+    const moved = await routes.project.PATCH(json(`/api/projects/${project.id}`, { parentProjectId: null }, "PATCH"), params({ id: project.id }));
+    assert.equal(moved.status, 200);
+    assert.equal(((await moved.json()) as { project: { parentProjectId: string | null } }).project.parentProjectId, null);
+
+    const brief = { productSummary: "Ridgeline 32 oz insulated bottle", audience: "Commuters", platforms: ["TikTok"], tone: "Warm and direct" };
+    const seeded = await routes.projects.POST(json("/api/projects", { name: "From example", inbound: { brief, source: { kind: "gallery", ref: "ridgeline-bottle-launch" } } }));
+    assert.equal(seeded.status, 201);
+    const body = (await seeded.json()) as { project: { brief: { tone: string }; origin: { kind: string } }; links: unknown[] };
+    assert.equal(body.project.brief.tone, "Warm and direct");
+    assert.equal(body.project.origin.kind, "gallery");
+    assert.deepEqual(body.links, []);
+  });
+
   test("runs roster tools, refuses the gate tool and other projects' input", async () => {
     const id = await createProject("Avery tests");
     const brief = { productSummary: "Ridgeline 32 oz insulated bottle", audience: "Commuters", platforms: ["TikTok"], tone: "Warm and direct" };
