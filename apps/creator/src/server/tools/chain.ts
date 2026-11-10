@@ -88,6 +88,9 @@ export function chainedTake(
   const strategy = resolveLengthStrategy(args.recipe, seconds, { customGraphs: customGraphs(context, args.recipe) });
   if (strategy.kind === "unsupported") fail("invalid", strategy.reason);
   if (strategy.kind !== "chained") return undefined;
+  if (args.recipe.kind === "mock" && requireGeneration(context).executors.mock.video !== "mp4") {
+    fail("invalid", "A chained take hands frames from one segment to the next, and the mock makes storyboards. Start the app with MOCK_VIDEO=mp4 for real mock clips, or shorten the take.");
+  }
   const still = args.assets.find((asset) => asset.kind !== "audio") ?? fail("invalid", "A chained take starts from the beat's approved still.");
   const voiceReference = args.assets.find((asset) => asset.kind === "audio") ?? null;
   // Speech to video follows the take it was given; image to video takes the beat's approved voice-over as its audio.

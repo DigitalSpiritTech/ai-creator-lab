@@ -665,9 +665,8 @@ async function submitChained(
       if (step.kind === "completed") outcome = "completed";
       else if (step.kind === "failed") outcome = "failed";
       else if (step.kind === "paused") outcome = "blocked";
-    } else if (chain.status === "completed") {
-      outcome = "existing";
-    } else if (chain.status === "running" || chain.status === "stitching") {
+    } else if (started.kind === "started" && (chain.status === "running" || chain.status === "stitching")) {
+      // A chain already running carries on in the loop (or the restart recovery) that started it.
       void runChainToCompletion(deps, chain.id).catch(() => undefined);
     }
     results.push({

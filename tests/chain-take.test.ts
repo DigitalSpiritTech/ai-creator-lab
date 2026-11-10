@@ -288,6 +288,11 @@ describe("a chained talking take on the mock", () => {
     assert.ok(!short.ok && /would cut it/.test(short.failure.message), "a take shorter than its voice take is refused");
     const defaulted = await ok<GenerationProposal>(harness.tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video" });
     assert.equal(defaulted.durationSeconds, 16, "with no length given, the take runs as long as its voice take (15.6 s) plus a breath");
+    // The mock's storyboards have no frames to hand over, so a chained mock take is refused up front.
+    const generation = harness.tools.generation!;
+    harness.tools.generation = { ...generation, executors: { ...generation.executors, mock: new MockExecutor({ jobs: harness.store.jobs }) } };
+    const storyboards = await callTool(harness.tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 20 });
+    assert.ok(!storyboards.ok && /MOCK_VIDEO=mp4/.test(storyboards.failure.message), "a chained take on storyboards is refused with the fix");
   });
 
   test("a restart in the middle resumes the chain without resubmitting a segment", async () => {

@@ -292,7 +292,13 @@ export async function advanceChain(deps: RunDeps, chainId: string): Promise<Chai
         save(deps, chain, { segments: withSegment(chain, segment.index, { jobId: admitted.id }) });
         continue;
       }
-      const admittedStep = await admitSegment(deps, chain, segment);
+      let admittedStep: ChainStep | Chain;
+      try {
+        admittedStep = await admitSegment(deps, chain, segment);
+      } catch (cause) {
+        // Writing the handover frame or the voice slice is local and free: try again shortly.
+        return { kind: "waiting", chain: deps.store.chains.getRequired(chainId), job: null, retryAfterMs: toJobError(cause).retryable ? 5000 : 30_000 };
+      }
       if ("kind" in admittedStep) return admittedStep;
       continue;
     }
