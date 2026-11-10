@@ -10,6 +10,7 @@ import { capabilityMedia } from "@creator-lab/core/catalog";
 import { type Asset, type AssetKind, type AssetMime, AssetSchema, type AudioMetadata, type VideoMetadata, extensionFor, isAudioMime } from "@creator-lab/core/domain/asset";
 import { MediaPathSchema } from "@creator-lab/core/domain/common";
 import { addCandidates } from "@creator-lab/core/domain/content";
+import { addPieceCandidates } from "@creator-lab/core/domain/piece";
 import { fail } from "@creator-lab/core/domain/failure";
 import { type Job, type RetrievedFile, advanceJob, isTerminal } from "@creator-lab/core/domain/job";
 import { removeMedia, writeAtomic } from "@/server/media/files";
@@ -43,6 +44,11 @@ export interface CommitResult {
 
 function attachToTarget(store: Store, job: Job, assetIds: string[], now: number): void {
   const target = job.request.target;
+  if (target.kind === "piece") {
+    const piece = store.pieces.get(target.contentId);
+    if (piece && piece.slots[target.slot]) store.pieces.update(addPieceCandidates(piece, target.slot, assetIds, now));
+    return;
+  }
   if (target.kind !== "shot") return;
   const content = store.content.get(target.contentId);
   if (!content || !content.shots.some((shot) => shot.beatIndex === target.beatIndex)) return;

@@ -22,7 +22,7 @@ import { IdSchema } from "@creator-lab/core/domain/common";
 import { fail, toFailure } from "@creator-lab/core/domain/failure";
 import { AGENT_TOOL_DESCRIPTIONS } from "@/server/agent/tools";
 import { readAssetBytes } from "@/server/media/files";
-import { INTERNAL_TOOLS, TOOLS, type ToolContext, callTool, toolsToJsonSchema } from "@/server/tools";
+import { INTERNAL_TOOLS, ROSTER_TOOLS, type ToolContext, callTool, toolsToJsonSchema } from "@/server/tools";
 
 export const APPROVE_AND_GENERATE = "approve_and_generate";
 
@@ -49,9 +49,12 @@ export function mcpPermissions(env: Record<string, string | undefined> = process
   return { spend: env.MCP_ALLOW_SPEND === "1", delete: env.MCP_ALLOW_DELETE === "1" };
 }
 
-/** The tools offered over MCP: the roster, plus `approve_and_generate` and deletion when allowed. */
+/**
+ * The tools offered over MCP: the roster (the core tools, then the installed plugins' tools), plus
+ * `approve_and_generate` and deletion when allowed.
+ */
 export function mcpTools(permissions: McpPermissions = mcpPermissions()): McpTool[] {
-  const roster = toolsToJsonSchema(TOOLS.filter((tool) => permissions.delete || tool.name !== "delete_asset_everywhere")).map((tool) => ({
+  const roster = toolsToJsonSchema(ROSTER_TOOLS.filter((tool) => permissions.delete || tool.name !== "delete_asset_everywhere")).map((tool) => ({
     name: tool.name,
     description: AGENT_TOOL_DESCRIPTIONS[tool.name] ?? tool.description,
     inputSchema: tool.input_schema as McpTool["inputSchema"],

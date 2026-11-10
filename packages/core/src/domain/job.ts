@@ -10,6 +10,7 @@ import { IdSchema, RecipeIdSchema, RevisionSchema, Sha256Schema, TimestampSchema
 import { SlotKindSchema } from "./content";
 import { FailureCodeSchema, fail } from "./failure";
 import { ShotSpecSchema } from "./shot-spec";
+import { SlotKeySchema } from "./piece";
 import { DEFAULT_OWNER_ID, OwnerIdSchema, ownerField } from "./owner";
 
 export const ExecutorKindSchema = z.enum(["router", "workflow", "mock"]);
@@ -24,6 +25,8 @@ export const GenerationTargetSchema = z.discriminatedUnion("kind", [
   z
     .object({ kind: z.literal("shot"), contentId: IdSchema, beatIndex: z.number().int().positive(), slot: SlotKindSchema })
     .strict(),
+  /** A named slot of a plugin content piece (a Social Post's 4:5 still). */
+  z.object({ kind: z.literal("piece"), contentId: IdSchema, slot: SlotKeySchema }).strict(),
   z.object({ kind: z.literal("loose") }).strict(),
 ]);
 export type GenerationTarget = z.infer<typeof GenerationTargetSchema>;

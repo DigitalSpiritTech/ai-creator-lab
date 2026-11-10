@@ -24,6 +24,7 @@ import {
   SetItemSchema,
   linkToProject,
 } from "@creator-lab/core/domain/library";
+import { PluginPieceSchema } from "@creator-lab/core/domain/piece";
 import { ProjectPreferencesSchema } from "@creator-lab/core/domain/preferences";
 import {
   BriefSchema,
@@ -50,6 +51,8 @@ export const ProjectStateSchema = z.object({
   sets: z.array(SetItemSchema),
   scripts: z.array(ScriptSchema),
   contents: z.array(ContentPieceSchema),
+  /** Content pieces of plugin content types (a Social Post), newest first. */
+  pieces: z.array(PluginPieceSchema),
   assets: z.array(AssetSchema),
   activeJobs: z.array(JobSchema),
   /** This project's recipe preference per capability (set_recipe_preference). */
@@ -59,7 +62,7 @@ export const ProjectStateSchema = z.object({
 export const getProjectState = defineTool({
   name: "get_project_state",
   description:
-    "Read everything about one project: the brief, linked Library characters (with this project's wardrobe and reference sheet), products, sets, scripts, content pieces with shots, active assets (newest 200), unfinished jobs, and this project's recipe preferences. Call this before deciding the next step.",
+    "Read everything about one project: the brief, linked Library characters (with this project's wardrobe and reference sheet), products, sets, scripts, content pieces with shots (contents, the Ad) or slots (pieces, a plugin content type such as a social post), active assets (newest 200), unfinished jobs, and this project's recipe preferences. Call this before deciding the next step.",
   input: z.object({ projectId: IdSchema }).strict(),
   output: ProjectStateSchema,
   run: ({ store }, { projectId }) => {
@@ -80,6 +83,7 @@ export const getProjectState = defineTool({
       sets,
       scripts: store.scripts.listByProject(projectId),
       contents: store.content.listByProject(projectId),
+      pieces: store.pieces.listByProject(projectId),
       assets: store.assets.list({ projectId, state: "active", limit: 200 }),
       activeJobs: store.jobs.listByProject(projectId).filter((job) => job.status !== "completed" && job.status !== "failed"),
       preferences: store.preferences.get(projectId),

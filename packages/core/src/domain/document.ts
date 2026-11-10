@@ -16,8 +16,10 @@ import {
 import { type Brief, BriefSchema } from "./project";
 import { BeatSchema, type Script } from "./script";
 import { ownerField } from "./owner";
+import { PieceBodySchema } from "./piece";
 
-export const DocumentKindSchema = z.enum(["brief", "bible", "product", "script"]);
+/** `piece` is a plugin content piece's body (a Social Post's copy); its plugin validates the content. */
+export const DocumentKindSchema = z.enum(["brief", "bible", "product", "script", "piece"]);
 export type DocumentKind = z.infer<typeof DocumentKindSchema>;
 
 /** Who saved a version: the assistant (chat or an MCP client) or a person in the app. Null when not recorded. */
@@ -29,7 +31,7 @@ export const ScriptContentSchema = z
   .strict();
 
 const versionBase = {
-  /** The project id for a brief, the Library item id for a bible or product, the script id for a script. */
+  /** The project id for a brief, the Library item id for a bible or product, the script id for a script, the piece id for a piece. */
   subjectId: IdSchema,
   ...ownerField,
   version: z.number().int().positive(),
@@ -49,12 +51,17 @@ export const ProductVersionSchema = z
 export const ScriptVersionSchema = z
   .object({ ...versionBase, kind: z.literal("script"), content: ScriptContentSchema })
   .strict();
+/** A plugin content piece's body; `subjectId` is the piece id. */
+export const PieceVersionSchema = z
+  .object({ ...versionBase, kind: z.literal("piece"), content: PieceBodySchema })
+  .strict();
 
 export const DocumentVersionSchema = z.discriminatedUnion("kind", [
   BriefVersionSchema,
   BibleVersionSchema,
   ProductVersionSchema,
   ScriptVersionSchema,
+  PieceVersionSchema,
 ]);
 export type DocumentVersion = z.infer<typeof DocumentVersionSchema>;
 
@@ -113,5 +120,9 @@ export function versionSummary(version: DocumentVersion): string {
       return clip(`${version.content.name} · ${version.content.allowedClaims.length} claims · ${version.content.imageAssetIds.length} photos`);
     case "script":
       return clip(`${version.content.title} · ${version.content.beats.length} beats`);
+    case "piece": {
+      const first = Object.values(version.content).find((value): value is string => typeof value === "string" && value.trim().length > 0);
+      return clip(first ?? `${Object.keys(version.content).length} fields`);
+    }
   }
 }

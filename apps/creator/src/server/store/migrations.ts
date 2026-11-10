@@ -186,6 +186,35 @@ export const MIGRATIONS: readonly string[] = [
   CREATE INDEX library_items_owner ON library_items(json_extract(data, '$.ownerId'));
   CREATE INDEX assets_owner ON assets(json_extract(data, '$.ownerId'));
   `,
+  // Version 8: content pieces of plugin content types (v0.2 F8, F13 Social Post). Core keeps the
+  // envelope and the named slots; the plugin owns the body. Document history gains the piece kind
+  // (a piece's body, such as a post's copy), so the table is rebuilt with the wider kind check;
+  // nothing references it, and every row is copied as it was.
+  `
+  CREATE TABLE plugin_pieces (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id),
+    type TEXT NOT NULL,
+    data TEXT NOT NULL CHECK (${jsonOwnId}
+      AND json_extract(data, '$.projectId') = project_id
+      AND json_extract(data, '$.type') = type)
+  );
+  CREATE INDEX plugin_pieces_project ON plugin_pieces(project_id, type);
+  CREATE TABLE document_versions_next (
+    kind TEXT NOT NULL CHECK (kind IN ('brief', 'bible', 'product', 'piece')),
+    subject_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    data TEXT NOT NULL CHECK (json_valid(data)
+      AND json_extract(data, '$.kind') = kind
+      AND json_extract(data, '$.subjectId') = subject_id
+      AND json_extract(data, '$.version') = version),
+    PRIMARY KEY (kind, subject_id, version)
+  );
+  INSERT INTO document_versions_next(kind, subject_id, version, data)
+    SELECT kind, subject_id, version, data FROM document_versions;
+  DROP TABLE document_versions;
+  ALTER TABLE document_versions_next RENAME TO document_versions;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

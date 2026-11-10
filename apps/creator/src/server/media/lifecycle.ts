@@ -21,6 +21,7 @@ export function loadAssetGraph(store: Store): AssetGraph {
     contents: store.content.listAll(),
     exports: store.content.listExports(),
     assets: store.assets.list({ state: "any" }),
+    pieces: store.pieces.listAll(),
   };
 }
 
@@ -61,6 +62,7 @@ export async function deleteAssetEverywhere(
     for (const item of planned.libraryItems) store.library.update(item);
     for (const link of planned.links) store.library.updateLink(link);
     for (const content of planned.contents) store.content.update(content);
+    for (const piece of planned.pieces) store.pieces.update(piece);
     for (const record of planned.exports) store.content.markExportBroken(record.id, record.brokenAssetIds);
     store.assets.update(planned.asset);
     return { planned, original: asset };

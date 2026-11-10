@@ -1,10 +1,13 @@
 /**
- * The domain tool registry. The agent loop and the MCP server read this one list.
+ * The domain tool registry. The agent loop and the MCP server read this one list: the 33 core
+ * roster tools, then the tools content plugins register (named with their plugin's prefix, such as
+ * `social_post_`), each offered to the assistant only in projects of its own content type.
  * @packageDocumentation
  */
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
 import { z } from "zod";
 import { type ServiceFailure, toFailure } from "@creator-lab/core/domain/failure";
+import type { PluginRegistry } from "@creator-lab/core/registry";
 import { listDocumentVersions, restoreDocumentVersion } from "@/server/tools/documents";
 import { approve, archiveAssetTool, deleteAssetEverywhereTool, listAssets } from "@/server/tools/assets";
 import {
@@ -34,6 +37,8 @@ import { getProjectState, saveBriefTool } from "@/server/tools/project";
 import { type Tool, type ToolContext, toJsonSchemaTools } from "@/server/tools/registry";
 import { planShots, resetShots, saveScript, setCutOrder } from "@/server/tools/script";
 import { extractVoiceSampleTool, generateVoiceOver } from "@/server/tools/voice";
+import { pluginTool } from "@/server/tools/plugins";
+import { serverPlugins } from "@/plugins/server";
 
 export { createToolContext, type GenerationContext, type Tool, type ToolContext } from "@/server/tools/registry";
 export { createGenerationContext } from "@/server/tools/generation-context";
@@ -96,10 +101,67 @@ export const INTERNAL_TOOLS: readonly Tool[] = [submitProposal, rerenderProposal
  */
 export const AGENT_TOOLS: readonly Tool[] = TOOLS.filter((tool) => tool.name !== "delete_asset_everywhere");
 
-const TOOL_INDEX = new Map([...TOOLS, ...INTERNAL_TOOLS].map((tool) => [tool.name, tool]));
+/** The tools installed content plugins register, in registration order. */
+export const PLUGIN_TOOLS: readonly Tool[] = serverPlugins.tools().map((tool) => pluginTool(tool, serverPlugins, callTool));
+
+/** Every tool a route, the assistant, or an MCP client may name: the core roster plus plugin tools. */
+export const ROSTER_TOOLS: readonly Tool[] = [...TOOLS, ...PLUGIN_TOOLS];
+
+/**
+ * Roster tools every content type's assistant is offered whatever its steps name: reading the
+ * project, generic generation and its gate-bound proposals, approval, the Archive, the Library, the
+ * document history, and recipe choice. The rest of the roster is offered where a step names it.
+ */
+export const WORKSPACE_TOOL_NAMES: readonly string[] = [
+  "get_project_state",
+  "save_brief",
+  "propose_candidates",
+  "refine_still",
+  "approve",
+  "archive_asset",
+  "list_assets",
+  "list_recipes",
+  "link_library_item",
+  "unlink_library_item",
+  "archive_library_item",
+  "create_set",
+  "list_document_versions",
+  "restore_document_version",
+  "set_recipe_preference",
+  "regenerate_with",
+];
+
+/**
+ * The tools the assistant is offered in a project of `contentTypeId`: the workspace tools, the
+ * roster tools its steps name, and its plugin's own tools, in roster order. For the Ad that is all
+ * of `AGENT_TOOLS`. An unknown content type gets `AGENT_TOOLS`.
+ */
+export function agentToolsFor(contentTypeId: string | undefined, registry: Pick<PluginRegistry, "contentType" | "tools"> = serverPlugins): Tool[] {
+  const type = contentTypeId ? registry.contentType(contentTypeId) : undefined;
+  if (!type) return [...AGENT_TOOLS];
+  const named = new Set([...WORKSPACE_TOOL_NAMES, ...type.steps.flatMap((step) => step.tools)]);
+  const own = new Set(registry.tools(type.id).map((tool) => tool.name));
+  return [...AGENT_TOOLS.filter((tool) => named.has(tool.name)), ...PLUGIN_TOOLS.filter((tool) => own.has(tool.name))];
+}
+
+function indexTools(tools: readonly Tool[]): Map<string, Tool> {
+  const index = new Map<string, Tool>();
+  for (const tool of tools) {
+    if (index.has(tool.name)) throw new Error(`Tool ${tool.name} is registered twice.`);
+    index.set(tool.name, tool);
+  }
+  return index;
+}
+
+const TOOL_INDEX = indexTools([...TOOLS, ...INTERNAL_TOOLS, ...PLUGIN_TOOLS]);
 
 export function getTool(name: string): Tool | undefined {
   return TOOL_INDEX.get(name);
+}
+
+/** Whether `name` is a roster tool a route may run (core or plugin; never an internal tool). */
+export function isRosterTool(name: string): boolean {
+  return ROSTER_TOOLS.some((tool) => tool.name === name);
 }
 
 export type ToolResult = { ok: true; output: unknown } | { ok: false; failure: ServiceFailure };

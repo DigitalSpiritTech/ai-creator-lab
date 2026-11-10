@@ -203,6 +203,13 @@ export const unlinkLibraryItem = defineTool({
           }
         }
       }
+      for (const piece of store.pieces.listByProject(input.projectId)) {
+        for (const [slot, state] of Object.entries(piece.slots)) {
+          if (state.state === "approved" && [...ancestry(store, state.assetId)].some((id) => held.has(id))) {
+            fail("invalid", `The approved ${slot} in "${piece.title}" was made from ${libraryItemName(item)}'s images. Replace or archive it before unlinking.`);
+          }
+        }
+      }
       store.library.unlink(input.projectId, input.itemId);
       return { projectId: input.projectId, itemId: input.itemId, unlinked: true as const };
     }),

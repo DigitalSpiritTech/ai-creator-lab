@@ -24,10 +24,12 @@ import {
   reviseCharacterBible,
   updateProduct,
 } from "@creator-lab/core/domain/library";
+import { revisePiece } from "@creator-lab/core/domain/piece";
 import { saveBrief } from "@creator-lab/core/domain/project";
 import { ScriptChangeSchema } from "@creator-lab/core/domain/script";
 import type { Store } from "@/server/store";
 import { type ToolContext, defineTool, ownerOf } from "@/server/tools/registry";
+import { checkPieceBody, savePiece } from "@/server/tools/pieces";
 import { saveScriptRevision } from "@/server/tools/script";
 
 /** Appends a version of a document after its live record was saved. A save that changed nothing records nothing. */
@@ -55,6 +57,7 @@ function currentContent(store: Store, kind: StoredDocumentKind, subjectId: strin
     const brief = store.projects.getRequired(subjectId).brief;
     return brief ? briefContent(brief) : null;
   }
+  if (kind === "piece") return store.pieces.getRequired(subjectId).body;
   const item = store.library.getRequired(subjectId);
   if (kind === "bible") return item.kind === "character" ? bibleContent(item) : fail("invalid", "This Library item is not a character.");
   return item.kind === "product" ? productContent(item) : fail("invalid", "This Library item is not a product.");
@@ -63,14 +66,14 @@ function currentContent(store: Store, kind: StoredDocumentKind, subjectId: strin
 const ListInputSchema = z
   .object({
     kind: DocumentKindSchema,
-    subjectId: IdSchema.describe("The project id for the brief, the Library item id for a bible or product, the script id for a script."),
+    subjectId: IdSchema.describe("The project id for the brief, the Library item id for a bible or product, the script id for a script, the content piece id for a piece (a plugin content piece's body, such as a social post's copy)."),
   })
   .strict();
 
 export const listDocumentVersions = defineTool({
   name: "list_document_versions",
   description:
-    "List every saved version of one document in the artifact panel, oldest first: the brief (subjectId is the project id), a character bible or product card (the Library item id), or a script (the script id). Each version says who saved it (assistant or user) and whether it restored an earlier one. current is the version the live record holds.",
+    "List every saved version of one document in the artifact panel, oldest first: the brief (subjectId is the project id), a character bible or product card (the Library item id), a script (the script id), or a plugin content piece's body such as a social post's copy (kind piece, the content piece id). Each version says who saved it (assistant or user) and whether it restored an earlier one. current is the version the live record holds.",
   input: ListInputSchema,
   output: z.object({
     kind: DocumentKindSchema,
@@ -135,6 +138,10 @@ export const restoreDocumentVersion = defineTool({
         if (item.kind !== "character") fail("invalid", "This Library item is not a character.");
         const saved = store.library.update(reviseCharacterBible(item as CharacterItem, source.content, time)) as CharacterItem;
         document = recordDocument(context, "bible", subjectId, bibleContent(saved), version);
+      } else if (source.kind === "piece") {
+        const piece = store.pieces.getRequired(subjectId);
+        const saved = savePiece(context, revisePiece(piece, { body: checkPieceBody(piece.type, source.content) }, time), version);
+        document = context.store.documents.latest("piece", saved.id);
       } else {
         const item = store.library.getRequired(subjectId);
         if (item.kind !== "product") fail("invalid", "This Library item is not a product.");

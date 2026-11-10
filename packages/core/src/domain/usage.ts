@@ -8,6 +8,7 @@ import { IdSchema, nextRevision } from "./common";
 import { type ContentPiece, type ExportRecord, type Slot, SlotKindSchema } from "./content";
 import { fail } from "./failure";
 import type { LibraryItem, ProjectLink } from "./library";
+import type { PluginPiece } from "./piece";
 
 export const AssetUsageSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("character_reference"), itemId: IdSchema, slot: z.enum(["face", "body", "wardrobe", "voice"]) }),
@@ -15,6 +16,9 @@ export const AssetUsageSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("reference_sheet"), projectId: IdSchema, itemId: IdSchema }),
   z.object({ kind: z.literal("shot_candidate"), contentId: IdSchema, beatIndex: z.number().int(), slot: SlotKindSchema }),
   z.object({ kind: z.literal("shot_approval"), contentId: IdSchema, beatIndex: z.number().int(), slot: SlotKindSchema }),
+  /** A candidate or the approved choice in a plugin content piece's slot. */
+  z.object({ kind: z.literal("piece_candidate"), contentId: IdSchema, slot: z.string() }),
+  z.object({ kind: z.literal("piece_approval"), contentId: IdSchema, slot: z.string() }),
   z.object({ kind: z.literal("export_source"), exportId: IdSchema }),
   z.object({ kind: z.literal("export_output"), exportId: IdSchema }),
   z.object({ kind: z.literal("asset_input"), assetId: IdSchema }),
@@ -28,6 +32,8 @@ export interface AssetGraph {
   contents: ContentPiece[];
   exports: ExportRecord[];
   assets: Asset[];
+  /** Plugin content pieces; absent means none. */
+  pieces?: PluginPiece[];
 }
 
 export function findAssetUsage(graph: AssetGraph, assetId: string): AssetUsage[] {
@@ -62,6 +68,12 @@ export function findAssetUsage(graph: AssetGraph, assetId: string): AssetUsage[]
       }
     }
   }
+  for (const piece of graph.pieces ?? []) {
+    for (const [slot, state] of Object.entries(piece.slots)) {
+      if (state.state === "approved" && state.assetId === assetId) usage.push({ kind: "piece_approval", contentId: piece.id, slot });
+      else if (state.state !== "empty" && state.candidateIds.includes(assetId)) usage.push({ kind: "piece_candidate", contentId: piece.id, slot });
+    }
+  }
   for (const record of graph.exports) {
     if (record.sources.some((source) => source.assetId === assetId || source.voice?.assetId === assetId)) usage.push({ kind: "export_source", exportId: record.id });
     if (record.status === "completed" && record.assetId === assetId) usage.push({ kind: "export_output", exportId: record.id });
@@ -80,7 +92,7 @@ export function findAssetUsage(graph: AssetGraph, assetId: string): AssetUsage[]
 export function blockingArchiveUsage(usage: AssetUsage[]): AssetUsage[] {
   return usage.filter(
     (entry) =>
-      entry.kind === "character_reference" || entry.kind === "reference_sheet" || entry.kind === "shot_approval",
+      entry.kind === "character_reference" || entry.kind === "reference_sheet" || entry.kind === "shot_approval" || entry.kind === "piece_approval",
   );
 }
 
@@ -110,6 +122,7 @@ export interface DeletePlan {
   links: ProjectLink[];
   contents: ContentPiece[];
   exports: ExportRecord[];
+  pieces: PluginPiece[];
 }
 
 /**
@@ -189,11 +202,22 @@ export function planDeleteEverywhere(
       }),
     });
   }
+  const pieces: PluginPiece[] = [];
+  for (const piece of graph.pieces ?? []) {
+    const touched = Object.values(piece.slots).some((slot) => slot.state !== "empty" && slot.candidateIds.includes(id));
+    if (!touched) continue;
+    const wasApproved = Object.values(piece.slots).some((slot) => slot.state === "approved" && slot.assetId === id);
+    pieces.push({
+      ...nextRevision(piece, now),
+      slots: Object.fromEntries(Object.entries(piece.slots).map(([key, slot]) => [key, dropFromSlot(slot, id)])),
+      brokenAssetIds: wasApproved ? addBroken(piece.brokenAssetIds, id) : piece.brokenAssetIds,
+    });
+  }
   const exports: ExportRecord[] = [];
   for (const record of graph.exports) {
     const depends =
       record.sources.some((source) => source.assetId === id || source.voice?.assetId === id) || (record.status === "completed" && record.assetId === id);
     if (depends) exports.push({ ...record, brokenAssetIds: addBroken(record.brokenAssetIds, id) });
   }
-  return { asset: markAssetDeleted(asset, now), usage, libraryItems, links, contents, exports };
+  return { asset: markAssetDeleted(asset, now), usage, libraryItems, links, contents, exports, pieces };
 }

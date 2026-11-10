@@ -17,11 +17,11 @@ import type { Store } from "@/server/store";
 import {
   type GenerationContext,
   type ToolContext,
-  TOOLS,
   type ToolResult,
   callTool,
   createGenerationContext,
   createToolContext,
+  isRosterTool,
 } from "@/server/tools";
 
 
@@ -86,7 +86,7 @@ export { getStore, withStore };
  * With `projectId`, an input that names a different project is refused.
  */
 export async function runToolRequest(request: Request, name: string, projectId?: string): Promise<Response> {
-  if (!TOOLS.some((tool) => tool.name === name)) return Response.json({ error: "There is no such tool." }, { status: 404 });
+  if (!isRosterTool(name)) return Response.json({ error: "There is no such tool." }, { status: 404 });
   const body = await readJson(request, 64 * 1024);
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
     return Response.json({ error: "Send the tool input as a JSON object." }, { status: 400 });

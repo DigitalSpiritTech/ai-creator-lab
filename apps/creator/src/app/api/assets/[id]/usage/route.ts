@@ -1,6 +1,6 @@
 /**
  * Where an asset is used, for the delete-everywhere confirmation: every Library item, reference
- * sheet, shot, and export that would be marked broken.
+ * sheet, shot, content piece slot, and export that would be marked broken.
  * @packageDocumentation
  */
 import { libraryItemName } from "@creator-lab/core/domain/library";
@@ -16,7 +16,7 @@ function describe(store: Store, entry: AssetUsage): string {
     const item = store.library.get(id);
     return item ? libraryItemName(item) : "a Library item";
   };
-  const contentName = (id: string) => store.content.get(id)?.title ?? "a content piece";
+  const contentName = (id: string) => store.content.get(id)?.title ?? store.pieces.get(id)?.title ?? "a content piece";
   switch (entry.kind) {
     case "character_reference":
       return `${itemName(entry.itemId)}: ${entry.slot} reference`;
@@ -28,6 +28,10 @@ function describe(store: Store, entry: AssetUsage): string {
       return `${contentName(entry.contentId)}: approved ${entry.slot} for beat ${entry.beatIndex}`;
     case "shot_candidate":
       return `${contentName(entry.contentId)}: ${entry.slot} candidate for beat ${entry.beatIndex}`;
+    case "piece_approval":
+      return `${contentName(entry.contentId)}: approved ${entry.slot}`;
+    case "piece_candidate":
+      return `${contentName(entry.contentId)}: ${entry.slot} candidate`;
     case "export_source":
       return "An export uses this clip";
     case "export_output":
