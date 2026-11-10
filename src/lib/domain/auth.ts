@@ -38,8 +38,20 @@ export type AuthSetupRequest = z.infer<typeof AuthSetupRequestSchema>;
 export const AuthLoginRequestSchema = z.object({ password: z.string().min(1, "Enter the password.").max(AUTH_PASSWORD_MAX_LENGTH) }).strict();
 export type AuthLoginRequest = z.infer<typeof AuthLoginRequestSchema>;
 
-/** Where to go after signing in: a path on this site only. */
+/**
+ * Where to go after signing in: a path on this site only. Control characters and backslashes are
+ * refused outright (browsers strip tabs and newlines, so `/\t/host` would become `//host`), and the
+ * result is re-parsed against a fixed origin so nothing can resolve to another host.
+ */
 export function safeNextPath(value: string | null | undefined): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\") || value.startsWith("/login")) return "/";
-  return value;
+  if (!value || /[\u0000-\u001F\u007F\\]/.test(value)) return "/";
+  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/login")) return "/";
+  const base = "http://studio.invalid";
+  try {
+    const url = new URL(value, base);
+    if (url.origin !== base || url.pathname.startsWith("/login")) return "/";
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return "/";
+  }
 }
