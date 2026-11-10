@@ -60,7 +60,7 @@ export interface RegisteredTool extends PluginToolDefinition {
   plugin: string;
 }
 
-/** The prefix a plugin's tool names start with: its id in snake case (`social_post_`). */
+/** The prefix a plugin's tool names start with: its id in snake case (`memo_pad_` for `memo-pad`). */
 export function toolPrefix(pluginId: string): string {
   return `${pluginId.replaceAll("-", "_")}_`;
 }

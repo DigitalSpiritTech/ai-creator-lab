@@ -36,7 +36,7 @@ export interface Store {
   readonly jobs: ReturnType<typeof jobRepository>;
   readonly scripts: ReturnType<typeof scriptRepository>;
   readonly content: ReturnType<typeof contentRepository>;
-  /** Content pieces of plugin content types (a Social Post): slots plus a plugin-owned body. */
+  /** Content pieces of plugin content types: named slots plus a plugin-owned body. */
   readonly pieces: ReturnType<typeof pieceRepository>;
   /** Version history of the brief, character bibles, and product cards. */
   readonly documents: ReturnType<typeof documentRepository>;

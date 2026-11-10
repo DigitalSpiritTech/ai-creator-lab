@@ -1,5 +1,5 @@
 /**
- * The assistant for a content type a plugin brings its own assistant for (a Social Post): its
+ * The assistant for a content type whose plugin brings its own assistant: its
  * system prompt, and a project state block built from the generic project (brief, Library links,
  * running jobs) plus the plugin's own lines and next step. The Ad keeps the creative director.
  * @packageDocumentation

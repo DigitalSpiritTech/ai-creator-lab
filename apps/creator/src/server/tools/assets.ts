@@ -21,7 +21,7 @@ const ApproveInputSchema = z
   .object({
     kind: z
       .enum(["still", "clip", "voice", "sheet", "slot"])
-      .describe("still, clip, or voice (a voice-over take) for a beat's shot; sheet for a project's character reference sheet; slot for a named slot of a plugin content piece (a social post's 4:5 still)."),
+      .describe("still, clip, or voice (a voice-over take) for a beat's shot; sheet for a project's character reference sheet; slot for a named slot of a plugin content piece (such as a 4:5 still)."),
     assetId: IdSchema,
     contentId: IdSchema.optional().describe("Required for still, clip, voice, and slot."),
     beatIndex: z.number().int().positive().optional().describe("Required for still, clip, and voice; beats start at 1."),
@@ -42,7 +42,7 @@ const ApproveInputSchema = z
 export const approve = defineTool({
   name: "approve",
   description:
-    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), a beat's voice-over take, a project's character reference sheet (needs a wardrobe), or a plugin content piece's slot (kind slot, such as a social post's 4:5 still). The other candidates are archived with the reason 'not selected' unless archiveSiblings is false.",
+    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), a beat's voice-over take, a project's character reference sheet (needs a wardrobe), or a named slot of a plugin content piece (kind slot, such as its 4:5 still). The other candidates are archived with the reason 'not selected' unless archiveSiblings is false.",
   input: ApproveInputSchema,
   output: z.object({
     content: ContentPieceSchema.nullable(),

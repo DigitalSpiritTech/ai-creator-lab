@@ -1,5 +1,5 @@
 /**
- * Plugin content pieces (a Social Post), one row each. The envelope and slots are checked by
+ * Plugin content pieces, one row each. The envelope and slots are checked by
  * `PluginPieceSchema`; the body is checked by its plugin before it reaches the store.
  * @packageDocumentation
  */

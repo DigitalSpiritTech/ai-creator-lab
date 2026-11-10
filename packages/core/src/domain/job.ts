@@ -25,7 +25,7 @@ export const GenerationTargetSchema = z.discriminatedUnion("kind", [
   z
     .object({ kind: z.literal("shot"), contentId: IdSchema, beatIndex: z.number().int().positive(), slot: SlotKindSchema })
     .strict(),
-  /** A named slot of a plugin content piece (a Social Post's 4:5 still). */
+  /** A named slot of a plugin content piece (such as its 4:5 still). */
   z.object({ kind: z.literal("piece"), contentId: IdSchema, slot: SlotKeySchema }).strict(),
   z.object({ kind: z.literal("loose") }).strict(),
 ]);

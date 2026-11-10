@@ -186,9 +186,9 @@ export const MIGRATIONS: readonly string[] = [
   CREATE INDEX library_items_owner ON library_items(json_extract(data, '$.ownerId'));
   CREATE INDEX assets_owner ON assets(json_extract(data, '$.ownerId'));
   `,
-  // Version 8: content pieces of plugin content types (v0.2 F8, F13 Social Post). Core keeps the
+  // Version 8: content pieces of plugin content types (v0.2 F8 and F13). Core keeps the
   // envelope and the named slots; the plugin owns the body. Document history gains the piece kind
-  // (a piece's body, such as a post's copy), so the table is rebuilt with the wider kind check;
+  // (a piece's body), so the table is rebuilt with the wider kind check;
   // nothing references it, and every row is copied as it was.
   `
   CREATE TABLE plugin_pieces (

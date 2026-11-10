@@ -66,14 +66,14 @@ function currentContent(store: Store, kind: StoredDocumentKind, subjectId: strin
 const ListInputSchema = z
   .object({
     kind: DocumentKindSchema,
-    subjectId: IdSchema.describe("The project id for the brief, the Library item id for a bible or product, the script id for a script, the content piece id for a piece (a plugin content piece's body, such as a social post's copy)."),
+    subjectId: IdSchema.describe("The project id for the brief, the Library item id for a bible or product, the script id for a script, the content piece id for a piece (a plugin content piece's body, such as its copy)."),
   })
   .strict();
 
 export const listDocumentVersions = defineTool({
   name: "list_document_versions",
   description:
-    "List every saved version of one document in the artifact panel, oldest first: the brief (subjectId is the project id), a character bible or product card (the Library item id), a script (the script id), or a plugin content piece's body such as a social post's copy (kind piece, the content piece id). Each version says who saved it (assistant or user) and whether it restored an earlier one. current is the version the live record holds.",
+    "List every saved version of one document in the artifact panel, oldest first: the brief (subjectId is the project id), a character bible or product card (the Library item id), a script (the script id), or a plugin content piece's body such as its copy (kind piece, the content piece id). Each version says who saved it (assistant or user) and whether it restored an earlier one. current is the version the live record holds.",
   input: ListInputSchema,
   output: z.object({
     kind: DocumentKindSchema,

@@ -1,7 +1,7 @@
 /**
  * Saving plugin content pieces: every body is checked with the schema its plugin registered for the
  * piece type, and every saved body is a version in the document history (kind `piece`), so the
- * artifact panel's history and restore work for a Social Post's copy exactly as for a brief.
+ * artifact panel's history and restore work for a plugin's piece body exactly as for a brief.
  * @packageDocumentation
  */
 import { z } from "zod";

@@ -1,7 +1,7 @@
 /**
  * The domain tool registry. The agent loop and the MCP server read this one list: the 33 core
- * roster tools, then the tools content plugins register (named with their plugin's prefix, such as
- * `social_post_`), each offered to the assistant only in projects of its own content type.
+ * roster tools, then the tools content plugins register (named with their plugin's id as a prefix,
+ * `<plugin_id>_<action>`), each offered to the assistant only in projects of its own content type.
  * @packageDocumentation
  */
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";

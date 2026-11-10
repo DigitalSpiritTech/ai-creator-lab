@@ -18,7 +18,7 @@ import { BeatSchema, type Script } from "./script";
 import { ownerField } from "./owner";
 import { PieceBodySchema } from "./piece";
 
-/** `piece` is a plugin content piece's body (a Social Post's copy); its plugin validates the content. */
+/** `piece` is a plugin content piece's body (such as a post's copy); its plugin validates the content. */
 export const DocumentKindSchema = z.enum(["brief", "bible", "product", "script", "piece"]);
 export type DocumentKind = z.infer<typeof DocumentKindSchema>;
 

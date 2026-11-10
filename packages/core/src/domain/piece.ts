@@ -3,7 +3,7 @@
  * than the Ad, whose shots and cut live in `content.ts`). Core owns the envelope (project, owner,
  * type, title, revision) and the piece's named slots, each the same candidate and approval state a
  * shot's still has; the plugin owns `body` and checks it with the schema it registers for its piece
- * type, so core never learns what a Social Post is.
+ * type, so core never learns what any plugin's content is.
  *
  * Slots are where generations land: a job aimed at `{ kind: "piece", contentId, slot }` adds its
  * outputs to that slot's candidates, `approve` (kind `slot`) approves one and archives the rest,

@@ -41,7 +41,7 @@ export interface PluginToolPort {
 }
 
 /**
- * A domain tool a plugin adds. Its name starts with the plugin id in snake case (`social_post_`)
+ * A domain tool a plugin adds. Its name starts with the plugin id in snake case (`memo_pad_`)
  * so it never collides with the core roster; input and output are Zod, like every roster tool.
  */
 export interface PluginToolDefinition {
