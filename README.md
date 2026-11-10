@@ -47,7 +47,25 @@ npm run build
 npm start
 ```
 
-Those are the clone, the move into the folder, the dependency install, the build, and the start. Then open http://127.0.0.1:3000 in your browser. The app only listens on your own machine (127.0.0.1) and only answers requests addressed to localhost or 127.0.0.1. There is no setting to open it to other hosts. To run it on your own server, reach it through an SSH tunnel (for example `ssh -L 3000:127.0.0.1:3000 you@your-server`), or put a reverse proxy in front that rewrites the Host header to `127.0.0.1:3000` (and the Origin header to `http://127.0.0.1:3000`, or saving will be refused) and adds its own login.
+Those are the clone, the move into the folder, the dependency install, the build, and the start. Then open http://127.0.0.1:3000 in your browser. By default the app only listens on your own machine (127.0.0.1), only answers requests addressed to localhost or 127.0.0.1, and asks for no password. To use it from another computer, see the next section.
+
+### On a network, with a password
+
+To reach the studio from a laptop, a tablet, or a server you rent, start it on every interface and name the address people will type:
+
+```
+HOST=0.0.0.0 STUDIO_ALLOWED_HOSTS=studio.lan,192.168.1.20 npm start
+```
+
+- `HOST` is the address the server listens on (`127.0.0.1` when unset). Anything other than a loopback address turns on the app password.
+- `STUDIO_ALLOWED_HOSTS` is a comma-separated list of the host names or addresses in the browser's address bar, besides localhost. A request for any other name is refused, which stops DNS rebinding. Behind a reverse proxy that keeps the app on `127.0.0.1`, list the proxy's public name here; that also turns on the password.
+- The first time it starts this way, the server log prints a one-time setup code. Open the app, enter the code and choose a password (12 characters or more). From then on every page and API call needs a signed-in browser; Sign out is at the bottom of the left rail. Sessions last 30 days.
+- Behind HTTPS (a TLS proxy that sets `X-Forwarded-Proto: https`), the session cookie is marked Secure. Without HTTPS the password crosses the network in the clear, so use a network you trust, or a VPN such as Tailscale.
+- Forgot the password? Stop the server, delete `auth.json` from the data folder, and start again: a new setup code is printed.
+
+### Read-only mode
+
+`STUDIO_READ_ONLY=1` turns the studio into a viewer of its data folder: every request that could change something is refused, the chat is off, and a banner says so. It is meant for showing finished work, so it never asks for a password, even on a network: only use it on a data folder you would show to anyone who can reach the port. [docs/DEMO-DEPLOY.md](docs/DEMO-DEPLOY.md) shows how to host one.
 
 ## Settings: keys and the monthly budget
 
@@ -112,7 +130,7 @@ Auto-approve is a checkbox in Settings. When it is on, proposals under the budge
 
 ## Your data folder
 
-Everything lives in one folder: `.data` inside the project folder by default, or wherever `STUDIO_DATA_DIR` points. It holds the database (`studio.sqlite`), your media, your exports, and `secrets.json` with your saved keys. To back up, stop the app and copy the whole folder. To move to another machine, copy the folder and set `STUDIO_DATA_DIR` there. Treat the copy like a password file, because it contains your keys unless you used environment variables. The folder is ignored by git.
+Everything lives in one folder: `.data` inside the project folder by default, or wherever `STUDIO_DATA_DIR` points. It holds the database (`studio.sqlite`), your media, your exports, `secrets.json` with your saved keys, and, once you have set an app password, `auth.json` with its hash and the signed-in sessions. To back up, stop the app and copy the whole folder. To move to another machine, copy the folder and set `STUDIO_DATA_DIR` there. Treat the copy like a password file, because it contains your keys unless you used environment variables. The folder is ignored by git.
 
 ## Starter workflows and adding your own
 
@@ -120,7 +138,9 @@ Twenty-three open-weights workflows ship in `workflows/` (Z-Image, Qwen-Image 25
 
 ## Troubleshooting
 
-- The app must stay on your own computer. `npm start` binds to 127.0.0.1 on purpose; the local-only check refuses other hosts, and it is not a login. Do not expose the port to a network. [SECURITY.md](SECURITY.md) says what is and is not protected.
+- `npm start` binds to 127.0.0.1 on purpose. To open it to a network, use `HOST` and the app password (see "On a network, with a password"); do not forward the port some other way. [SECURITY.md](SECURITY.md) says what is and is not protected.
+- "This host name is not one this studio answers to." Add the name or address in your browser's address bar to `STUDIO_ALLOWED_HOSTS` and restart.
+- "Too many failed attempts." Ten wrong passwords in ten minutes pause sign-in for everyone for the rest of that window; browsers already signed in keep working.
 
 - "Paid generation is off." `GENERATION_ALLOWANCE_USD` in `.env.local` must be above zero. Restart after editing `.env.local`.
 - "More than the ... left in this month's budget." Add to this month in the dialog or in Settings, raise the monthly budget, or wait for the reset day.
@@ -140,7 +160,7 @@ Stack: Next.js 16 App Router, React 19, TypeScript, Tailwind 4 with shadcn/ui, Z
 
 Scripts (all in `package.json`):
 
-- `npm run dev` starts the dev server on 127.0.0.1.
+- `npm run dev` starts the dev server on 127.0.0.1 (or on `HOST`, with the app password; `npm start` the same). Both go through `scripts/serve.mjs`, which passes `HOST` to Next.js as `--hostname`.
 - `npm run build`, `npm start` build and serve.
 - `npm run lint`, `npm run typecheck`, `npm test` are the checks. `npm run test:acceptance` runs the whole flow against the mock executor with no credits.
 - `npm run --silent mcp` starts the MCP server on stdio (see below).

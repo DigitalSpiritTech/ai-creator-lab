@@ -16,7 +16,11 @@ export class ApiError extends Error {
 }
 
 async function parse<T>(response: Response): Promise<T> {
-  const body = (await response.json().catch(() => null)) as { error?: string } | null;
+  const body = (await response.json().catch(() => null)) as { error?: string; signIn?: string } | null;
+  // The session ended (signed out elsewhere, expired): go to the sign-in page and come back here.
+  if (response.status === 401 && body?.signIn === "/login" && typeof window !== "undefined") {
+    window.location.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+  }
   if (!response.ok) throw new ApiError(response.status, body?.error ?? "The studio could not complete this request.");
   return body as T;
 }

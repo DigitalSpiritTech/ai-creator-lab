@@ -1,7 +1,8 @@
 #!/bin/sh
-# Starts a hosted copy: the read-only demo, or the password-protected judging copy. Refuses to
-# listen on all interfaces in any other configuration, so this image cannot expose a writable
-# studio by accident.
+# Starts a hosted copy: the read-only demo, the judging copy, or your own studio behind the app
+# password. Every mode listens on all interfaces inside the container, so a writable studio is
+# only ever started with the app password in force (the setup code is printed to the log on the
+# first start).
 set -e
 if [ -z "$STUDIO_PUBLIC_HOST" ]; then
   echo "Set STUDIO_PUBLIC_HOST=<the hostname this copy is served on>." >&2
@@ -23,7 +24,9 @@ elif [ -n "$STUDIO_JUDGE_PASSWORD" ] || [ "$STUDIO_JUDGE_OPEN" = "1" ]; then
     exit 1
   fi
 else
-  echo "This image only runs the read-only demo (STUDIO_READ_ONLY=1) or the judging copy (STUDIO_JUDGE_PASSWORD, or STUDIO_JUDGE_OPEN=1 for no password)." >&2
-  exit 1
+  # Your own studio on a server: the app password is required for every page and API call.
+  export STUDIO_ALLOWED_HOSTS="${STUDIO_ALLOWED_HOSTS:-$STUDIO_PUBLIC_HOST}"
+  echo "Starting the studio with the app password (sign in at https://$STUDIO_PUBLIC_HOST/login)."
 fi
+export HOST=0.0.0.0
 exec npx next start --hostname 0.0.0.0 --port "${PORT:-3000}"

@@ -6,7 +6,8 @@
  *
  * Layers (`ACCEPTANCE_LAYER`):
  * - `http` (default when `src/app/api` exists): builds the app (skip with ACCEPTANCE_SKIP_BUILD=1),
- *   runs `next start` on a free loopback port, and drives the flow over the API routes.
+ *   runs `next start` on a free loopback port, and drives the flow over the API routes; then starts
+ *   `HOST=0.0.0.0 npm start` on a fresh data folder and checks the app password (`authCheck`).
  * - `tools`: drives the same flow through `callTool` against the store, without a server.
  * - `both`: tools first, then http.
  *
@@ -406,6 +407,9 @@ async function httpClient(): Promise<Client> {
       env: {
         ...process.env,
         NODE_ENV: "production",
+        // The flow runs on loopback, where no password is asked; `authCheck` covers the network bind.
+        HOST: "127.0.0.1",
+        STUDIO_ALLOWED_HOSTS: "",
         STUDIO_DATA_DIR: dataDir,
         COMFY_API_KEY: PLACEHOLDER_KEY,
         ANTHROPIC_API_KEY: PLACEHOLDER_KEY,
@@ -530,6 +534,68 @@ async function httpClient(): Promise<Client> {
   };
 }
 
+/**
+ * Access control on a real server: `HOST=0.0.0.0 npm start` with no password set. The API refuses
+ * unauthenticated calls, pages go to the sign-in page, the setup code from the server log sets the
+ * password, the session cookie opens the API, and sign-out closes it again.
+ */
+async function authCheck(): Promise<void> {
+  const root = await mkdtemp(join(tmpdir(), "creator-lab-acceptance-auth-"));
+  const port = await freePort();
+  const base = `http://127.0.0.1:${port}`;
+  let output = "";
+  const server = spawn(process.execPath, [join(ROOT, "scripts", "serve.mjs"), "start", "--port", String(port)], {
+    cwd: ROOT,
+    env: { ...process.env, NODE_ENV: "production", HOST: "0.0.0.0", STUDIO_ALLOWED_HOSTS: "", STUDIO_DATA_DIR: join(root, "data"), GENERATION_ALLOWANCE_USD: "0", COMFY_API_KEY: PLACEHOLDER_KEY, ANTHROPIC_API_KEY: PLACEHOLDER_KEY },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  server.stdout?.on("data", (chunk) => (output += chunk));
+  server.stderr?.on("data", (chunk) => (output += chunk));
+  try {
+    const deadline = Date.now() + 60_000;
+    for (;;) {
+      if (server.exitCode !== null) throw new Error(`The server exited early:\n${output}`);
+      check(Date.now() < deadline, `the network server did not start:\n${output}`);
+      const ready = await fetch(`${base}/api/auth/session`).catch(() => null);
+      if (ready?.ok) {
+        const status = (await ready.json()) as { required: boolean; configured: boolean; authenticated: boolean };
+        check(status.required && !status.configured && !status.authenticated, `HOST=0.0.0.0 asks for a password that is not set yet (${JSON.stringify(status)})`);
+        break;
+      }
+      await new Promise((wait) => setTimeout(wait, 250));
+    }
+    const refused = await fetch(`${base}/api/projects`);
+    check(refused.status === 401, `an unauthenticated API call is refused (got ${refused.status})`);
+    check(((await refused.json()) as { signIn?: string }).signIn === "/login", "the 401 names the sign-in page");
+    const page = await fetch(`${base}/projects`, { redirect: "manual" });
+    check(page.status === 307 && new URL(page.headers.get("location") ?? "", base).href === `${base}/login?next=%2Fprojects`, `a page goes to the sign-in page (got ${page.status} ${page.headers.get("location")})`);
+    const login = await fetch(`${base}/login`);
+    check(login.ok && (await login.text()).includes("Choose a password"), "the first visit asks for a password");
+    const code = output.match(/setup code to choose one: ([0-9A-Z]{4}(?:-[0-9A-Z]{4}){4})/)?.[1];
+    check(code, `the setup code is in the server log:\n${output}`);
+    const password = `acceptance-${randomUUID()}`;
+    const setup = await fetch(`${base}/api/auth/setup`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ setupCode: code, password }) });
+    check(setup.ok, `the setup code sets the password (got ${setup.status})`);
+    const cookie = setup.headers.get("set-cookie")?.split(";")[0];
+    check(cookie && /HttpOnly/.test(setup.headers.get("set-cookie") ?? ""), "setup signs the browser in with an HttpOnly cookie");
+    const listed = await fetch(`${base}/api/projects`, { headers: { cookie } });
+    check(listed.ok, `the session opens the API (got ${listed.status})`);
+    const created = await fetch(`${base}/api/projects`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ name: "Ridgeline bottle, network" }) });
+    check(created.status === 201, `a signed-in write works (got ${created.status})`);
+    const signedOut = await fetch(`${base}/api/auth/logout`, { method: "POST", headers: { cookie } });
+    check(signedOut.ok, "sign-out answers");
+    check((await fetch(`${base}/api/projects`, { headers: { cookie } })).status === 401, "the signed-out session no longer opens the API");
+    check(!output.includes(password), "the password never reaches the server log");
+    console.log("[auth] HOST=0.0.0.0: first visit asks for a password, the API refuses unauthenticated calls, sessions open and close");
+  } finally {
+    const exited = new Promise((done) => server.once("exit", done));
+    server.kill("SIGTERM");
+    await Promise.race([exited, new Promise((done) => setTimeout(done, 10_000))]);
+    if (server.exitCode === null) server.kill("SIGKILL");
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
 function build(): void {
   if (process.env.ACCEPTANCE_SKIP_BUILD === "1" && existsSync(join(ROOT, ".next", "BUILD_ID"))) return;
   console.log("[http] building the app (set ACCEPTANCE_SKIP_BUILD=1 to reuse the last build)");
@@ -545,6 +611,7 @@ async function main(): Promise<void> {
   if (layer === "http" || layer === "both") {
     build();
     await runLayer(await httpClient());
+    await authCheck();
   }
   console.log(`Acceptance smoke passed (${layer}).`);
 }

@@ -6,36 +6,59 @@
  * @packageDocumentation
  */
 import { z } from "zod";
-import { publicHost } from "@/server/demo";
+import { assertSignedIn } from "@/server/auth";
+import { acceptedHosts, isNetworkExposed } from "@/server/auth/network";
+import { READ_ONLY_MESSAGE, READ_ONLY_METHODS, isReadOnly, publicHost } from "@/server/demo";
 import { ServiceFailureSchema } from "@/lib/domain/failure";
 
 /**
- * Prevents cross-origin writes and DNS-rebinding access to this local application.
+ * The whole per-request policy for routes: trusted host and origin, the read-only flag, and a
+ * signed-in session when the server is reachable from the network (see `@/server/auth`).
+ * @param request - Incoming request.
+ * @returns Nothing.
+ * @throws A 403 Response for untrusted hosts or origins or a write in read-only mode, or a 401
+ * Response when a session is required and missing.
+ */
+export function assertLocalRequest(request: Request): void {
+  assertTrustedOrigin(request);
+  if (isReadOnly() && !READ_ONLY_METHODS.has(request.method)) {
+    throw Response.json({ error: READ_ONLY_MESSAGE }, { status: 403 });
+  }
+  assertSignedIn(request);
+}
+
+/**
+ * Prevents cross-origin requests and DNS-rebinding access: the Host must be one this server
+ * answers to, and a browser request must come from the app's own origin. Not authentication.
  * @param request - Incoming request.
  * @returns Nothing.
  * @throws A 403 Response for untrusted hosts or origins.
  */
-export function assertLocalRequest(request: Request): void {
+export function assertTrustedOrigin(request: Request): void {
   const url = new URL(request.url);
-  const allowedHosts = ["localhost", "127.0.0.1", "[::1]"];
-  const demoHost = publicHost();
-  if (demoHost) allowedHosts.push(demoHost);
+  const allowedHosts = acceptedHosts();
+  const exposed = isNetworkExposed(process.env, url.hostname) || !!publicHost();
   const host = request.headers.get("host");
   let headerHostname: string | undefined;
   try { headerHostname = host ? new URL(`http://${host}`).hostname : undefined; }
   catch { throw Response.json({ error: "Invalid studio host." }, { status: 403 }); }
-  // A read-only demo listens on all interfaces, so the framework's request URL carries the bind
-  // address; the Host header, which the platform proxy sets, is what identifies the demo there.
-  const urlHostOk = demoHost ? !!headerHostname : allowedHosts.includes(url.hostname);
+  // A server listening beyond loopback gets the bind address (0.0.0.0, a LAN address) in the
+  // framework's request URL; the Host header, which the browser or a platform proxy sets, is what
+  // identifies the site there, and it must be one of the accepted names.
+  const urlHostOk = exposed ? !!headerHostname : allowedHosts.includes(url.hostname);
   if (!urlHostOk || (headerHostname && !allowedHosts.includes(headerHostname))) {
-    throw Response.json({ error: "This edition is available on localhost only." }, { status: 403 });
+    throw Response.json(
+      { error: exposed ? "This host name is not one this studio answers to. Add it to STUDIO_ALLOWED_HOSTS." : "This edition is available on localhost only." },
+      { status: 403 },
+    );
   }
   const origin = request.headers.get("origin");
   const site = request.headers.get("sec-fetch-site");
   // Next.js can normalize request.url to localhost; the validated Host preserves
   // the actual browser origin (including 127.0.0.1 and the chosen port).
-  // A read-only demo behind a platform proxy sees http inside while the browser speaks https.
-  const protocol = demoHost && request.headers.get("x-forwarded-proto") === "https" ? "https:" : url.protocol;
+  // Behind a TLS proxy the server sees http inside while the browser speaks https. The header
+  // only shapes the origin the browser must match; a browser page cannot set it.
+  const protocol = exposed && request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() === "https" ? "https:" : url.protocol;
   const expectedOrigin = host ? new URL(`${protocol}//${host}`).origin : url.origin;
   // A link to the app from another site (a README, a chat) is a top-level navigation: the page
   // loads in its own tab and the other site reads nothing. Every other cross-site request, a

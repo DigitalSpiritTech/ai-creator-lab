@@ -9,6 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SignOutButton } from "@/components/shell/sign-out-button";
 
 export const RAIL = [
   { label: "Projects", href: "/projects", icon: FolderKanban },
@@ -18,7 +19,8 @@ export const RAIL = [
   { label: "Settings", href: "/settings", icon: Settings },
 ] as const;
 
-export function AppRail() {
+/** `signedIn`: the studio asks for the app password and this browser has a session, so Sign out shows. */
+export function AppRail({ signedIn = false }: { signedIn?: boolean }) {
   const pathname = usePathname();
   return (
     <aside className="sticky top-0 flex h-screen w-48 shrink-0 flex-col gap-1 border-r bg-sidebar p-3 text-sidebar-foreground">
@@ -44,7 +46,8 @@ export function AppRail() {
           );
         })}
       </nav>
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col gap-1">
+        {signedIn ? <SignOutButton /> : null}
         <ThemeToggle />
       </div>
     </aside>
