@@ -126,15 +126,19 @@ describe("take-then-cutaways export", () => {
     const drafted = await ok<{ edl: Edl; version: number; unplaced: number[] }>(tools, "save_edl", { contentId: planned.id });
     assert.equal(drafted.version, 1);
     assert.deepEqual(drafted.unplaced, []);
+    assert.deepEqual((drafted as { estimated?: number[] }).estimated, [], "every line was heard");
     assert.deepEqual(drafted.edl.windows, [{ beatIndex: 2, start: 2.2, end: 4.3 }, { beatIndex: 4, start: 6.4, end: 8 }]);
     assert.equal(drafted.edl.transcriptAssetId, transcriptId);
     const jobsBefore = store.jobs.listByProject(project.id).map((job) => job.id).sort();
 
     // 5. Export: the take's sound untouched, b-roll in the windows, captions at the EDL's times.
-    const first = await ok<{ export: ExportRecord; asset: Asset | null }>(tools, "assemble_ad", { contentId: planned.id, strategy: "take_cutaways", exportId: randomUUID() });
+    const firstId = randomUUID();
+    const first = await ok<{ export: ExportRecord; asset: Asset | null }>(tools, "assemble_ad", { contentId: planned.id, strategy: "take_cutaways", exportId: firstId });
     assert.equal(first.export.status, "completed", first.export.status === "failed" ? first.export.error : "");
     assert.equal(first.export.strategy, "take_cutaways");
     assert.equal(first.export.edlVersion, 1);
+    const retried = await ok<{ export: ExportRecord }>(tools, "assemble_ad", { contentId: planned.id, exportId: firstId });
+    assert.deepEqual(retried.export, first.export, "a retry by export id alone returns the same cutaway export");
 
     // The edit: beat 2's window two seconds later, saved as version 2, then the same export again.
     const moved = shiftWindow(drafted.edl, 2, 2);

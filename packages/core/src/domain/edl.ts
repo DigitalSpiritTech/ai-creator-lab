@@ -11,21 +11,27 @@
 import { z } from "zod";
 import { IdSchema, Sha256Schema } from "./common";
 import { fail } from "./failure";
-import type { Beat, Script } from "./script";
+import type { Beat, Script, ScriptChange } from "./script";
 import { type BeatSpan, BeatSpanSchema, type Transcript, alignBeats } from "./transcript";
 
-/** The longest take an EDL describes. */
-export const MAX_TAKE_SECONDS = 120;
+/** The longest talking recording a take-then-cutaways Ad asks for: its beats added up, capped here. */
+export const MAX_TAKE_SECONDS = 60;
+/**
+ * How far past MAX_TAKE_SECONDS a delivered file may run: models round a length up to their own
+ * frame rule (LTX's 8n+1 makes 60.04 s of a 60 s request). Schemas accept the file; requests never ask for it.
+ */
+export const TAKE_ROUNDING_SECONDS = 1;
+const LONGEST_FILE_SECONDS = MAX_TAKE_SECONDS + TAKE_ROUNDING_SECONDS;
 /** A window shorter than this is a flash frame, not a cutaway. */
 export const EDL_MIN_WINDOW_SECONDS = 0.5;
 const EPSILON = 1e-6;
 
-const SecondsSchema = z.number().nonnegative().max(MAX_TAKE_SECONDS);
+const SecondsSchema = z.number().nonnegative().max(LONGEST_FILE_SECONDS);
 const ms = (seconds: number) => Math.round(seconds * 1000) / 1000;
 
 /** The approved take the EDL cuts, pinned by hash. */
 export const EdlTakeSchema = z
-  .object({ assetId: IdSchema, sha256: Sha256Schema, durationSeconds: z.number().positive().max(MAX_TAKE_SECONDS) })
+  .object({ assetId: IdSchema, sha256: Sha256Schema, durationSeconds: z.number().positive().max(LONGEST_FILE_SECONDS) })
   .strict();
 export type EdlTake = z.infer<typeof EdlTakeSchema>;
 
@@ -64,7 +70,7 @@ export const EdlSchema = z
   .superRefine((edl, context) => {
     const length = edl.take.durationSeconds + EPSILON;
     if (edl.windows.some((window) => window.end > length) || edl.captions.some((cue) => cue.end > length)) {
-      context.addIssue({ code: "custom", message: `Every window and caption ends inside the take (${edl.take.durationSeconds} s).` });
+      context.addIssue({ code: "custom", message: `Every window and caption ends inside the recording (${edl.take.durationSeconds} s).` });
     }
     if (!inOrder(edl.windows)) context.addIssue({ code: "custom", path: ["windows"], message: "Windows are in time order and do not overlap." });
     if (new Set(edl.windows.map((window) => window.beatIndex)).size !== edl.windows.length) {
@@ -90,7 +96,7 @@ function checkBeats(edl: Edl, beats: readonly Pick<Beat, "index" | "type">[]): v
   for (const window of edl.windows) {
     const beat = beats[window.beatIndex - 1];
     if (!beat) fail("invalid", `Beat ${window.beatIndex} is not in the script.`);
-    if (beat.type === "talking") fail("invalid", `Beat ${window.beatIndex} is a talking beat; its picture is the take itself. Windows show b-roll and text card beats.`);
+    if (beat.type === "talking") fail("invalid", `Beat ${window.beatIndex} is a talking beat; its picture is the talking recording itself. Windows show b-roll and text card beats.`);
   }
 }
 
@@ -159,23 +165,51 @@ export function reviseEdl(edl: Edl, patch: EdlPatch, script: Pick<Script, "beats
 export function shiftWindow(edl: Edl, beatIndex: number, seconds: number): Edl {
   const window = edl.windows.find((entry) => entry.beatIndex === beatIndex) ?? fail("not_found", `No window shows beat ${beatIndex}.`);
   const moved = { ...window, start: ms(window.start + seconds), end: ms(window.end + seconds) };
-  if (moved.start < 0 || moved.end > edl.take.durationSeconds + EPSILON) fail("invalid", `Moved by ${seconds} s, the window for beat ${beatIndex} would leave the take.`);
+  if (moved.start < 0 || moved.end > edl.take.durationSeconds + EPSILON) fail("invalid", `Moved by ${seconds} s, the window for beat ${beatIndex} would leave the recording.`);
   const result = EdlSchema.safeParse({ ...edl, windows: byStart(edl.windows.map((entry) => (entry.beatIndex === beatIndex ? moved : entry))) });
   if (!result.success) fail("invalid", `Moved by ${seconds} s, the window for beat ${beatIndex} would overlap another window.`);
   return result.data;
 }
 
 /**
- * Keeps an EDL usable after a script revision: windows of beats that were removed, or that became
- * talking beats, are dropped. Times are left alone; the take decides them.
+ * Keeps an EDL in step with a script revision. Windows of beats that were removed, or that became
+ * talking beats, are dropped; times are left alone, the take decides them. With the previous
+ * version (`before`), a beat whose on-screen text changed carries the change into the caption
+ * that still holds its old text (a caption the person rewrote keeps their words), and a caption
+ * whose beat lost its text is dropped. When no line changed and no beat was added or removed, the
+ * take still says the whole script, so the list moves to the new script version; otherwise it
+ * stays on the old one and the export asks for a new draft.
  */
-export function syncEdlToScript(edl: Edl, beats: readonly Pick<Beat, "index" | "type">[]): Edl {
+export function syncEdlToScript(
+  edl: Edl,
+  after: Pick<Script, "version" | "beats">,
+  before?: Pick<Script, "beats">,
+  change?: ScriptChange,
+): Edl {
+  const beats = after.beats;
   const windows = edl.windows.filter((window) => beats[window.beatIndex - 1] && beats[window.beatIndex - 1].type !== "talking");
-  return windows.length === edl.windows.length ? edl : EdlSchema.parse({ ...edl, windows });
+  let captions = edl.captions;
+  if (before) {
+    for (const beat of beats) {
+      const old = before.beats[beat.index - 1]?.onScreenText.trim() ?? "";
+      const now = beat.onScreenText.trim();
+      if (!old || old === now) continue;
+      captions = now ? captions.map((cue) => (cue.text.trim() === old ? { ...cue, text: now } : cue)) : captions.filter((cue) => cue.text.trim() !== old);
+    }
+  }
+  const reconciled = !!before && !!change && change.voiceInvalidated.length === 0 && change.added.length === 0 && change.removed.length === 0;
+  const scriptVersion = reconciled ? Math.max(edl.scriptVersion, after.version) : edl.scriptVersion;
+  if (windows.length === edl.windows.length && captions === edl.captions && scriptVersion === edl.scriptVersion) return edl;
+  return EdlSchema.parse({ ...edl, windows, captions, scriptVersion });
+}
+
+/** Beats whose span was placed by estimate (none of their words was heard). */
+export function estimatedBeats(edl: Edl): number[] {
+  return edl.beats.filter((span) => span.estimated).map((span) => span.beatIndex);
 }
 
 /** One line for a version list: the windows as beat@start-end. */
 export function edlSummary(edl: Edl): string {
   const windows = edl.windows.map((window) => `beat ${window.beatIndex} ${window.start.toFixed(1)}-${window.end.toFixed(1)} s`);
-  return `${edl.take.durationSeconds.toFixed(1)} s take · ${windows.length ? windows.join(", ") : "no windows"} · ${edl.captions.length} captions`;
+  return `${edl.take.durationSeconds.toFixed(1)} s recording · ${windows.length ? windows.join(", ") : "no windows"} · ${edl.captions.length} captions`;
 }

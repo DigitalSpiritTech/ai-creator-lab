@@ -15,7 +15,7 @@ import {
   nextRevision,
   text,
 } from "./common";
-import { type Edl, EdlCueSchema, EdlSchema, syncEdlToScript } from "./edl";
+import { type Edl, EdlCueSchema, EdlSchema, MAX_TAKE_SECONDS, TAKE_ROUNDING_SECONDS, syncEdlToScript } from "./edl";
 import { fail } from "./failure";
 import type { Script, ScriptChange } from "./script";
 
@@ -127,7 +127,7 @@ export type AssemblyStrategy = z.infer<typeof AssemblyStrategySchema>;
 
 /** The approved take a take-then-cutaways export was cut from, pinned by hash. */
 export const ExportTakeSchema = z
-  .object({ assetId: IdSchema, sha256: Sha256Schema, durationSeconds: z.number().positive().max(120) })
+  .object({ assetId: IdSchema, sha256: Sha256Schema, durationSeconds: z.number().positive().max(MAX_TAKE_SECONDS + TAKE_ROUNDING_SECONDS) })
   .strict();
 export type ExportTake = z.infer<typeof ExportTakeSchema>;
 
@@ -169,7 +169,7 @@ export const ExportRecordSchema = z.discriminatedUnion("status", [
     record.strategy === "take_cutaways"
       ? record.take !== undefined && record.edlVersion !== undefined
       : record.sources.length > 0 && record.take === undefined,
-  "A component export has one source per beat; a take-then-cutaways export names its take and EDL version.",
+  "A component export has one source per beat; a recording-with-cutaways export names its recording and EDL version.",
 );
 export type ExportRecord = z.infer<typeof ExportRecordSchema>;
 
@@ -229,7 +229,8 @@ function withdrawApproval(slot: Slot): Slot {
  * candidates are kept so the user can re-approve. Removed beats drop their shots; added beats get
  * empty shots. The cut keeps the user's order for surviving shots and appends new ones. The take
  * speaks every line, so a changed line, or an added or removed beat, withdraws its approval; the
- * EDL drops windows of beats that are gone or became talking beats.
+ * EDL drops windows of beats that are gone or became talking beats and, given the previous script
+ * version (`before`), carries on-screen text edits into its captions (see `syncEdlToScript`).
  */
 export function syncShotsToScript(
   content: ContentPiece,
@@ -237,6 +238,7 @@ export function syncShotsToScript(
   change: ScriptChange,
   now: number,
   newId: () => string,
+  before?: Script,
 ): ContentPiece {
   if (script.id !== content.scriptId) fail("invalid", "This script belongs to another content piece.");
   if (script.version === content.scriptVersion) return content;
@@ -260,7 +262,7 @@ export function syncShotsToScript(
     shots,
     cut: { ...content.cut, order: [...kept, ...appended] },
     take: takeStale ? withdrawApproval(content.take) : content.take,
-    edl: content.edl ? syncEdlToScript(content.edl, script.beats) : null,
+    edl: content.edl ? syncEdlToScript(content.edl, script, before, change) : null,
   });
 }
 
@@ -404,7 +406,7 @@ export function beginExport(
     if (shot.voice.state === "approved" && beat?.type !== "talking") {
       const take = findAsset(shot.voice.assetId);
       if (!take || take.state.state !== "active" || take.kind !== "audio" || !take.audio) {
-        fail("invalid", `The approved voice-over for beat ${shot.beatIndex} is missing or archived. Approve another take or archive the beat's voice-over.`);
+        fail("invalid", `The approved voice-over for beat ${shot.beatIndex} is missing or archived. Approve another recording or archive the beat's voice-over.`);
       }
       voice = { assetId: take.id, sha256: take.sha256, durationSeconds: take.audio.durationSeconds };
     }
@@ -470,7 +472,7 @@ export function addTakeCandidates(content: ContentPiece, assetIds: string[], now
  */
 export function approveTake(content: ContentPiece, assetId: string, now: number): { content: ContentPiece; siblingIds: string[] } {
   const current = content.take;
-  if (current.state === "empty" || !current.candidateIds.includes(assetId)) fail("invalid", "Choose one of this Ad's takes.");
+  if (current.state === "empty" || !current.candidateIds.includes(assetId)) fail("invalid", "Choose one of this Ad's talking recordings.");
   const siblingIds = current.candidateIds.filter((id) => id !== assetId);
   if (current.state === "approved" && current.assetId === assetId) return { content, siblingIds };
   return {
@@ -502,14 +504,20 @@ export function beginCutawayExport(
   if (script.id !== content.scriptId || script.version !== content.scriptVersion) {
     fail("conflict", "The script changed. Review the shots before exporting.");
   }
-  if (content.take.state !== "approved") fail("invalid", "Approve a talking take for this Ad before a take-then-cutaways export (generate_take).");
-  const edl = content.edl ?? fail("invalid", "Draft the edit decision list from the take's transcript first (save_edl).");
+  if (content.take.state !== "approved") fail("invalid", "Approve a talking recording for this Ad before a recording-with-cutaways export (generate_take).");
+  const edl = content.edl ?? fail("invalid", "Draft the edit decision list from the recording's transcript first (save_edl).");
   if (edlVersion < 1) fail("invalid", "Save the edit decision list first (save_edl), so the export can name its version.");
-  if (edl.take.assetId !== content.take.assetId) fail("conflict", "The edit decision list was drafted for another take. Transcribe the approved take and draft it again.");
+  if (edl.take.assetId !== content.take.assetId) fail("conflict", "The edit decision list was drafted for another recording. Transcribe the approved recording and draft it again.");
+  if (edl.scriptVersion < content.scriptVersion) {
+    fail("conflict", `The script changed after the edit decision list was drafted (version ${edl.scriptVersion}, now ${content.scriptVersion}). Draft it again (save_edl with draft true).`);
+  }
   const take = findAsset(content.take.assetId);
-  if (!take || take.state.state !== "active" || take.kind !== "video" || !take.video) fail("invalid", "The approved take is missing, archived, or not a video.");
-  if (take.sha256 !== edl.take.sha256) fail("conflict", "The take changed since the edit decision list was drafted. Draft it again.");
-  if (!take.video.hasAudio) fail("invalid", "The approved take has no sound; a take-then-cutaways export keeps the take's audio.");
+  if (!take || take.state.state !== "active" || take.kind !== "video" || !take.video) fail("invalid", "The approved recording is missing, archived, or not a video.");
+  if (take.sha256 !== edl.take.sha256) fail("conflict", "The recording changed since the edit decision list was drafted. Draft it again.");
+  if (Math.abs(take.video.durationSeconds - edl.take.durationSeconds) > 0.05) {
+    fail("conflict", `The edit decision list expects a ${edl.take.durationSeconds.toFixed(2)} s recording; the approved one is ${take.video.durationSeconds.toFixed(2)} s. Draft it again.`);
+  }
+  if (!take.video.hasAudio) fail("invalid", "The approved recording has no sound; a recording-with-cutaways export keeps the recording's audio.");
   const sources = edl.windows.map((window) => {
     const shot = content.shots.find((candidate) => candidate.beatIndex === window.beatIndex);
     if (!shot) fail("invalid", `Beat ${window.beatIndex} has no shot in this Ad.`);

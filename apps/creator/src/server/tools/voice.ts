@@ -124,7 +124,7 @@ function clipLine(store: Store, projectId: string, clipAssetId: string): string 
 export const generateVoiceOver = defineTool({
   name: "generate_voice_over",
   description:
-    "Propose a voice take for one beat: its line read in the creator's cloned voice (from the character's voice sample, taken from the first approved talking clip when none is set). On a b-roll or text card beat the approved take is the voice-over the export mixes over the clip. On a talking beat it is the speech a lip-synced clip is made from (generate_clip with mode speech), for one voice across the whole ad. Nothing is generated until the user approves the proposal. Example: beat 2 is b-roll with a line and has no approved voice-over.",
+    "Propose a voice recording for one beat: its line read in the creator's cloned voice (from the character's voice sample, taken from the first approved talking clip when none is set). On a b-roll or text card beat the approved recording is the voice-over the export mixes over the clip. On a talking beat it is the speech a lip-synced clip is made from (generate_clip with mode speech), for one voice across the whole ad. Nothing is generated until the user approves the proposal. Example: beat 2 is b-roll with a line and has no approved voice-over.",
   input: z
     .object({
       projectId: IdSchema,

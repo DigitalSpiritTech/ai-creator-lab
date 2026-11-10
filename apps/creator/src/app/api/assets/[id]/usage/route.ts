@@ -33,9 +33,9 @@ function describe(store: Store, entry: AssetUsage): string {
     case "piece_candidate":
       return `${contentName(entry.contentId)}: ${entry.slot} candidate`;
     case "take_approval":
-      return `${contentName(entry.contentId)}: approved talking take`;
+      return `${contentName(entry.contentId)}: approved talking recording`;
     case "take_candidate":
-      return `${contentName(entry.contentId)}: talking take candidate`;
+      return `${contentName(entry.contentId)}: talking recording candidate`;
     case "edl_source":
       return `${contentName(entry.contentId)}: its edit decision list was made from this`;
     case "export_source":

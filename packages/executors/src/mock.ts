@@ -393,13 +393,13 @@ export class MockExecutor implements Executor {
         await renderMockTake(temporary, job.request.input.durationSeconds ?? 5);
       } catch {
         await rm(temporary, { force: true });
-        throw new ExecutorFailure(jobError("invalid", "The mock take needs FFmpeg. Install it or set FFMPEG_PATH, then try again."));
+        throw new ExecutorFailure(jobError("invalid", "The mock talking recording needs FFmpeg. Install it or set FFMPEG_PATH, then try again."));
       }
       return commitOutput(temporary, absolute, relative, { media: "video" });
     }
     if (job.capability !== "speech_to_text") return undefined;
     const recording = job.request.input.audio ?? job.request.input.images[0];
-    if (!recording) throw new ExecutorFailure(jobError("invalid", "A transcription needs the take to transcribe."));
+    if (!recording) throw new ExecutorFailure(jobError("invalid", "A transcription needs the recording to transcribe."));
     const path = isAbsolute(recording) ? recording : resolve(destination.root, recording);
     const durationSeconds = await probeVideo(path)
       .then((info) => info.durationSeconds)
@@ -408,7 +408,13 @@ export class MockExecutor implements Executor {
         throw new ExecutorFailure(jobError("invalid", "The recording to transcribe could not be read. Check that ffmpeg and ffprobe are installed."));
       });
     const fixture = this.transcript?.(job.request.input);
-    const transcript = fixture === undefined ? mockTranscript(job.request.input.prompt, durationSeconds) : parseTranscript(fixture, durationSeconds);
+    let transcript: Transcript;
+    try {
+      transcript = fixture === undefined ? mockTranscript(job.request.input.prompt, durationSeconds) : parseTranscript(fixture, durationSeconds);
+    } catch (cause) {
+      // The parser's words are meant for a person ("found no words in the recording"); keep them.
+      throw new ExecutorFailure(jobError("invalid", cause instanceof Error ? cause.message.slice(0, 1000) : "The transcription result could not be read."));
+    }
     const bytes = Buffer.from(JSON.stringify(transcript, null, 2), "utf8");
     const { absolute, relative } = outputLocation(destination, `${job.id}-0.json`);
     await mkdir(dirname(absolute), { recursive: true });

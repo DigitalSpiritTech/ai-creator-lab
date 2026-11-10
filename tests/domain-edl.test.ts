@@ -162,7 +162,7 @@ describe("the edit decision list", () => {
     assert.deepEqual(moved.windows[1], edl.windows[1], "the other window stays");
     assert.deepEqual(moved.captions, edl.captions, "captions follow the take's words, not the window");
     rejects(() => shiftWindow(edl, 2, 2.5), "invalid", /overlap/);
-    rejects(() => shiftWindow(edl, 4, 1), "invalid", /leave the take/);
+    rejects(() => shiftWindow(edl, 4, 1), "invalid", /leave the recording/);
     rejects(() => shiftWindow(edl, 3, 1), "not_found", /No window shows beat 3/);
   });
 
@@ -172,7 +172,7 @@ describe("the edit decision list", () => {
     const revised = reviseEdl(edl, { windows: [{ beatIndex: 4, start: 6.40001, end: 7.5 }, { beatIndex: 2, start: 1, end: 2 }] }, beats);
     assert.deepEqual(revised.windows, [{ beatIndex: 2, start: 1, end: 2 }, { beatIndex: 4, start: 6.4, end: 7.5 }]);
     rejects(() => reviseEdl(edl, { windows: [{ beatIndex: 2, start: 1, end: 3 }, { beatIndex: 4, start: 2.5, end: 4 }] }, beats), "invalid", /do not overlap/);
-    rejects(() => reviseEdl(edl, { windows: [{ beatIndex: 2, start: 7, end: 9 }] }, beats), "invalid", /inside the take/);
+    rejects(() => reviseEdl(edl, { windows: [{ beatIndex: 2, start: 7, end: 9 }] }, beats), "invalid", /inside the recording/);
     rejects(() => reviseEdl(edl, { windows: [{ beatIndex: 2, start: 1, end: 1.2 }] }, beats), "invalid", /at least 0\.5 s/);
     rejects(() => reviseEdl(edl, { windows: [{ beatIndex: 1, start: 1, end: 2 }] }, beats), "invalid", /talking beat/);
     rejects(() => reviseEdl(edl, { windows: [{ beatIndex: 9, start: 1, end: 2 }] }, beats), "invalid", /not in the script/);
@@ -184,9 +184,28 @@ describe("the edit decision list", () => {
   test("after a script revision, windows of removed beats and of beats that became talking are dropped", () => {
     const { edl } = drafted();
     const talking = CUTAWAY_BEATS.map((beat, index) => (index === 3 ? { ...beat, type: "talking" as const } : beat));
-    assert.deepEqual(syncEdlToScript(edl, createScript(randomUUID(), randomUUID(), "t", talking, NOW).beats).windows.map((window) => window.beatIndex), [2]);
-    assert.deepEqual(syncEdlToScript(edl, createScript(randomUUID(), randomUUID(), "t", CUTAWAY_BEATS.slice(0, 3), NOW).beats).windows.map((window) => window.beatIndex), [2]);
-    assert.equal(syncEdlToScript(edl, script().beats), edl, "unchanged when every window still fits");
+    assert.deepEqual(syncEdlToScript(edl, createScript(randomUUID(), randomUUID(), "t", talking, NOW)).windows.map((window) => window.beatIndex), [2]);
+    assert.deepEqual(syncEdlToScript(edl, createScript(randomUUID(), randomUUID(), "t", CUTAWAY_BEATS.slice(0, 3), NOW)).windows.map((window) => window.beatIndex), [2]);
+    assert.equal(syncEdlToScript(edl, script()), edl, "unchanged when every window still fits");
+  });
+
+  test("an on-screen text edit reaches the caption that still holds the old text; a caption the person rewrote keeps their words", () => {
+    const beats = script();
+    const { edl } = drafted();
+    const rewritten = reviseEdl(edl, { captions: edl.captions.map((cue) => (cue.text === "Warm by noon." ? { ...cue, text: "Hot car, warm water." } : cue)) }, beats);
+    const edits = CUTAWAY_BEATS.map((beat, index) => (index === 0 ? { ...beat, onScreenText: "Cup holder sized." } : index === 1 ? { ...beat, onScreenText: "Warm by lunch." } : index === 2 ? { ...beat, onScreenText: "" } : beat));
+    const revised = reviseScript(beats, beats.title, edits, NOW);
+    const synced = syncEdlToScript(rewritten, revised.script, beats, revised.change);
+    assert.deepEqual(synced.captions.map((cue) => cue.text), ["Cup holder sized.", "Hot car, warm water."], "beat 1 follows the script, beat 2 keeps the rewrite, beat 3's caption is dropped with its text");
+    assert.equal(synced.scriptVersion, 2, "no line changed, so the recording still says the script and the list moves to version 2");
+    const lineEdit = reviseScript(beats, beats.title, CUTAWAY_BEATS.map((beat, index) => (index === 1 ? { ...beat, spokenLine: "Warm by lunch." } : beat)), NOW);
+    assert.equal(syncEdlToScript(edl, lineEdit.script, beats, lineEdit.change).scriptVersion, 1, "a changed line keeps the list on the old version");
+    assert.equal(syncEdlToScript(edl, revised.script).scriptVersion, 1, "without the previous version nothing is reconciled");
+  });
+
+  test("a transcript with no words is refused rather than drafted from guesses", () => {
+    assert.throws(() => parseTranscript({ text: "", language: "en", duration: 8, segments: [] }), /found no words/);
+    assert.throws(() => parseTranscript({ language: null, durationSeconds: 8, text: "", words: [] }), /found no words/);
   });
 });
 
@@ -221,7 +240,7 @@ describe("the take slot and the cutaway export", () => {
 
   test("approving a take that is not a candidate is refused", () => {
     const content = planShots(randomUUID(), script(), "Ad", NOW, randomUUID);
-    rejects(() => approveTake(content, randomUUID(), NOW), "invalid", /takes/);
+    rejects(() => approveTake(content, randomUUID(), NOW), "invalid", /talking recordings/);
   });
 
   test("a changed line withdraws the take's approval; an on-screen text edit keeps it", () => {
@@ -232,6 +251,18 @@ describe("the take slot and the cutaway export", () => {
     const synced = syncShotsToScript(content, lineEdit.script, lineEdit.change, NOW, randomUUID);
     assert.equal(synced.take.state, "open", "the take says the old line");
     assert.ok(synced.edl, "the EDL is kept for the next take");
+    assert.equal(synced.edl?.scriptVersion, 1, "without the previous version the list stays on the old script");
+  });
+
+  test("an EDL older than the Ad's script refuses the export until it is drafted again", () => {
+    const { content, script: beats, take, clips } = approvedAd();
+    const assets = new Map([take, ...clips].map((asset) => [asset.id, asset]));
+    const textOnly = reviseScript(beats, beats.title, CUTAWAY_BEATS.map((beat, index) => (index === 0 ? { ...beat, onScreenText: "Cup holder sized." } : beat)), NOW);
+    const synced = syncShotsToScript(content, textOnly.script, textOnly.change, NOW, randomUUID, beats);
+    const record = beginCutawayExport(randomUUID(), synced, textOnly.script, 2, (id) => assets.get(id), NOW);
+    assert.equal(record.captionCues?.[0].text, "Cup holder sized.", "the export burns in the new on-screen text");
+    const stale = syncShotsToScript(content, textOnly.script, textOnly.change, NOW, randomUUID);
+    rejects(() => beginCutawayExport(randomUUID(), stale, textOnly.script, 2, (id) => assets.get(id), NOW), "conflict", /script changed after the edit decision list was drafted/);
   });
 
   test("the cutaway export freezes the take, each window's approved clip, and the captions", () => {
@@ -254,12 +285,15 @@ describe("the take slot and the cutaway export", () => {
     const { content, script: beats, take, clips } = approvedAd();
     const assets = new Map([take, ...clips].map((asset) => [asset.id, asset]));
     const find = (id: string) => assets.get(id);
-    rejects(() => beginCutawayExport(randomUUID(), { ...content, take: { state: "empty" } }, beats, 1, find, NOW), "invalid", /Approve a talking take/);
+    rejects(() => beginCutawayExport(randomUUID(), { ...content, take: { state: "empty" } }, beats, 1, find, NOW), "invalid", /Approve a talking recording/);
     rejects(() => beginCutawayExport(randomUUID(), { ...content, edl: null }, beats, 1, find, NOW), "invalid", /save_edl/);
     const other = video({ sha256: SHA("e") });
     assets.set(other.id, other);
     const swapped = approveTake(addTakeCandidates(content, [other.id], NOW), other.id, NOW).content;
-    rejects(() => beginCutawayExport(randomUUID(), swapped, beats, 1, find, NOW), "conflict", /another take/);
+    rejects(() => beginCutawayExport(randomUUID(), swapped, beats, 1, find, NOW), "conflict", /another recording/);
+    rejects(() => beginCutawayExport(randomUUID(), content, beats, 0, find, NOW), "invalid", /Save the edit decision list first/);
+    assets.set(take.id, { ...take, video: { ...take.video!, durationSeconds: TAKE_SECONDS + 1 } });
+    rejects(() => beginCutawayExport(randomUUID(), content, beats, 1, find, NOW), "conflict", /expects a 8\.00 s recording; the approved one is 9\.00 s/);
     assets.set(take.id, { ...take, video: { ...take.video!, hasAudio: false } });
     rejects(() => beginCutawayExport(randomUUID(), content, beats, 1, find, NOW), "invalid", /no sound/);
     assets.set(take.id, take);

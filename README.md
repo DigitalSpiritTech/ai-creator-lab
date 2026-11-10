@@ -126,14 +126,16 @@ Each step decides what the shot should show once (the beat, your character, the 
 
 Which model a step uses, first match wins: the one you pick for this run, this project's choice, the default in Settings, then the app's starter default. A project's choice never changes other projects.
 
-### One continuous take with b-roll cut in
+### One continuous recording with b-roll cut in
 
-The export above joins one clip per beat. The other way to build the same ad, on the Export tab's Build menu, is "Take then cutaways": the creator says the whole script in one continuous take, and the b-roll is cut over the lines it belongs to, the way an editor would cut a real UGC video. The delivery never restarts between beats.
+The export above joins one clip per beat. The other way to build the same ad, on the Export tab's Build menu, is "Recording with cutaways": the creator says the whole script in one continuous talking recording, and the b-roll is cut over the lines it belongs to, the way an editor would cut a real UGC video. The delivery never restarts between beats.
 
-1. Make the talking take. One clip from the first talking beat's approved still in which the creator says every line in order, as long as the beats added up. Approve one.
-2. Transcribe the take. A speech to text run finds each word and when it is said, then each beat's line is placed on the take.
-3. Draft the edit decision list. Each b-roll beat gets a window from its first word to the next line, and each beat's on-screen text becomes a caption over the same stretch. The list is a document in the Documents tab ("Edit list"), with times in seconds on the take: move a window, change where a caption starts, add or remove one, and save. Every save keeps the previous version.
-4. Export. The take's sound is kept exactly as it is, the picture in each window is that beat's approved clip, and the captions are burned in at their times. Edit the list and export again as often as you like: nothing is regenerated and nothing is spent.
+1. Make the talking recording. One clip from the first talking beat's approved still in which the creator says every line in order, as long as the beats added up (60 s at most). Approve one. If the model you chose cannot make a clip that long, the card says which ones can.
+2. Transcribe the recording. A speech to text run finds each word and when it is said, then each beat's line is placed on the recording. A transcription that heard no words is refused instead of guessed.
+3. Draft the edit decision list. Each b-roll beat gets a window from its first word to the next line, and each beat's on-screen text becomes a caption over the same stretch. A beat none of whose words was heard is placed by estimate, and the list says so. The list is a document in the Documents tab ("Edit list"), with times in seconds on the recording: move a window, change where a caption starts, add or remove one, and save. Every save keeps the previous version.
+4. Export. The recording's sound is kept exactly as it is, the picture in each window is that beat's approved clip, and the captions are burned in at their times. Edit the list and export again as often as you like: nothing is regenerated and nothing is spent.
+
+If you change a beat's on-screen text in the script later, its caption follows (unless you rewrote that caption yourself). If you change a spoken line, or add or remove a beat, the recording no longer says the script: make or approve a recording again and draft the list again before exporting.
 
 Transcription runs through the same proposal card and monthly budget as every generation. Two recipes are planned for it, Whisper on Comfy Router and open-weights Whisper on Comfy Cloud, and neither is verified yet: Router's catalog had no Whisper model when the app was built, and no Cloud node for transcribing with word timestamps has been confirmed. Until one is, `list_recipes` shows both with what they are waiting for, and transcription runs on the mock recipe only (`MOCK_RECIPES=1`), which the tests and the acceptance smoke use.
 ## A Quick Ad
@@ -185,7 +187,7 @@ Everything lives in one folder: `.data` inside the project folder by default, or
 
 ## Starter workflows and adding your own
 
-Twenty-three open-weights workflows ship in `packages/recipes/workflows/` (Z-Image, Qwen-Image 2512, FLUX.2 dev, Krea 2 Turbo and MiniMax H3 for stills; Qwen Image Edit 2511 and FLUX.2 dev with one to three references and the Krea 2 style reference for edits; LTX 2.5, Wan 2.2 and MiniMax H3 for text, image and first-and-last-frame video; Chatterbox Turbo and Qwen3-TTS for voice-overs cloned from a voice sample; Wan 2.2 S2V for clips lip-synced to a take), each with a small sidecar file that tells the app which node inputs to fill (prompt, images, a voice sample, size, length, seed). To see what they need on Comfy Cloud, how to open one in ComfyUI, and how to add your own, read [workflows/README.md](workflows/README.md).
+Twenty-three open-weights workflows ship in `packages/recipes/workflows/` (Z-Image, Qwen-Image 2512, FLUX.2 dev, Krea 2 Turbo and MiniMax H3 for stills; Qwen Image Edit 2511 and FLUX.2 dev with one to three references and the Krea 2 style reference for edits; LTX 2.5, Wan 2.2 and MiniMax H3 for text, image and first-and-last-frame video; Chatterbox Turbo and Qwen3-TTS for voice-overs cloned from a voice sample; Wan 2.2 S2V for clips lip-synced to a voice recording), each with a small sidecar file that tells the app which node inputs to fill (prompt, images, a voice sample, size, length, seed). To see what they need on Comfy Cloud, how to open one in ComfyUI, and how to add your own, read [workflows/README.md](workflows/README.md).
 
 ## Troubleshooting
 

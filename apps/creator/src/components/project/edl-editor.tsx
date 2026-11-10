@@ -32,6 +32,8 @@ export function EdlEditor({ content, edl }: { content: ContentPiece; edl: Edl })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const stale = content.take.state !== "approved" || content.take.assetId !== edl.take.assetId;
+  const scriptChanged = edl.scriptVersion !== content.scriptVersion;
+  const estimated = edl.beats.filter((span) => span.estimated).map((span) => span.beatIndex);
 
   async function run(input: Record<string, unknown>, done: string) {
     setBusy(true);
@@ -68,13 +70,23 @@ export function EdlEditor({ content, edl }: { content: ContentPiece; edl: Edl })
       <div>
         <h2 className="text-sm font-semibold">Edit decision list: {content.title}</h2>
         <p className="text-xs text-muted-foreground">
-          Times are seconds on the {edl.take.durationSeconds.toFixed(2)} s take. In a window the picture is that beat&apos;s approved clip from its first frame; the sound is always the take&apos;s. Export again (Export tab, Take then cutaways) to see a change.
+          Times are seconds on the {edl.take.durationSeconds.toFixed(2)} s talking recording. In a window the picture is that beat&apos;s approved clip from its first frame; the sound is always the recording&apos;s. Export again (Export tab, Recording with cutaways) to see a change.
         </p>
       </div>
-      {stale ? <Notice tone="warn">This list was drafted for another take. Transcribe the approved take and draft it again.</Notice> : null}
+      {stale ? <Notice tone="warn">This list was drafted for another recording. Transcribe the approved recording and draft it again.</Notice> : null}
+      {!stale && scriptChanged ? (
+        <Notice tone="warn">
+          The script changed since this list was drafted (version {edl.scriptVersion}, now {content.scriptVersion}). Draft it again from the transcript before exporting.
+        </Notice>
+      ) : null}
+      {estimated.length ? (
+        <Notice tone="muted">
+          {estimated.length === 1 ? `Beat ${estimated[0]} was` : `Beats ${estimated.join(", ")} were`} placed by estimate: none of {estimated.length === 1 ? "its" : "their"} words was heard in the recording. Check those windows and captions.
+        </Notice>
+      ) : null}
       <section className="space-y-2" aria-label="Windows">
         <h3 className="text-xs font-medium">B-roll windows</h3>
-        {windows.length === 0 ? <p className="text-xs text-muted-foreground">No windows: the take plays through.</p> : null}
+        {windows.length === 0 ? <p className="text-xs text-muted-foreground">No windows: the recording plays through.</p> : null}
         {windows.map((row, index) => (
           <div key={index} className="flex flex-wrap items-center gap-2">
             <NativeSelect value={String(row.beatIndex)} aria-label={`Window ${index + 1} beat`} onChange={(event) => setWindow(index, { beatIndex: Number(event.target.value) })}>

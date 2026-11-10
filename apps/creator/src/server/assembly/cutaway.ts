@@ -67,7 +67,7 @@ export function planCutaways(
   captions: CutawayCaption[],
   options: { fontPath?: string; output: string },
 ): CutawayPlan {
-  if (take.frames <= 0) throw new Error("The take has no frames.");
+  if (take.frames <= 0) throw new Error("The recording has no frames.");
   const total = take.frames;
   const placed = windows
     .map((window) => ({ ...window, startFrame: Math.max(0, Math.min(total, window.startFrame)), endFrame: Math.max(0, Math.min(total, window.endFrame)) }))
@@ -149,9 +149,9 @@ export function planCutaways(
   ];
   const seconds = (frames: number) => (frames / EXPORT_FPS).toFixed(2);
   const summary = [
-    `take ${total}f with ${placed.length} cutaway window${placed.length === 1 ? "" : "s"}${placed.length ? ` (${placed.map((window) => `beat ${window.beatIndex} ${seconds(window.startFrame)}-${seconds(window.endFrame)} s`).join(", ")})` : ""}`,
-    `video: scale to fit, ${EXPORT_WIDTH}x${EXPORT_HEIGHT}, setsar=1, fps=${EXPORT_FPS}, take trimmed around the windows, concat n=${joined.length}${timed.length ? `, ${captions.length} timed drawtext caption${captions.length === 1 ? "" : "s"}` : ""}`,
-    take.audio === "none" ? "audio: none (muted)" : take.audio === "copy" ? "audio: the take's AAC track, stream copied (untouched)" : `audio: the take's track encoded once to AAC ${AUDIO_BITRATE}`,
+    `recording ${total}f with ${placed.length} cutaway window${placed.length === 1 ? "" : "s"}${placed.length ? ` (${placed.map((window) => `beat ${window.beatIndex} ${seconds(window.startFrame)}-${seconds(window.endFrame)} s`).join(", ")})` : ""}`,
+    `video: scale to fit, ${EXPORT_WIDTH}x${EXPORT_HEIGHT}, setsar=1, fps=${EXPORT_FPS}, recording trimmed around the windows, concat n=${joined.length}${timed.length ? `, ${captions.length} timed drawtext caption${captions.length === 1 ? "" : "s"}` : ""}`,
+    take.audio === "none" ? "audio: none (muted)" : take.audio === "copy" ? "audio: the recording's AAC track, stream copied (untouched)" : `audio: the recording's track encoded once to AAC ${AUDIO_BITRATE}`,
     `encode: libx264 crf ${EXPORT_CRF} yuv420p +faststart`,
   ].join("; ");
   return { args, filterGraph, totalFrames: total, durationSeconds: total / EXPORT_FPS, parts, summary };

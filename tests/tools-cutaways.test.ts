@@ -9,7 +9,9 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { afterEach, describe, test } from "node:test";
-import { PlannedRecipeSchema } from "@creator-lab/core/catalog";
+import { PlannedRecipeSchema, RouterRecipeSchema } from "@creator-lab/core/catalog";
+import { buildRouterBody, lengthSubject } from "@creator-lab/executors/router-body";
+import { makesLength } from "@/server/tools/cutaways";
 import { addTakeCandidates } from "@creator-lab/core/domain/content";
 import type { GenerationProposal } from "@creator-lab/core/domain/job";
 import { CLOUD_WHISPER_ID, PLANNED_TRANSCRIPTION_RECIPES, ROUTER_WHISPER_ID } from "@creator-lab/recipes/transcription";
@@ -95,27 +97,97 @@ describe("take-then-cutaways tools", () => {
   test("transcribe_take and save_edl need an approved take and its transcript first", async () => {
     const context = setup();
     const ad = await plannedAd(context);
-    assert.match(await refused(context.tools, "transcribe_take", { contentId: ad.id }), /Approve a talking take/);
-    assert.match(await refused(context.tools, "save_edl", { contentId: ad.id }), /Approve a talking take/);
+    assert.match(await refused(context.tools, "transcribe_take", { contentId: ad.id }), /Approve a talking recording/);
+    assert.match(await refused(context.tools, "save_edl", { contentId: ad.id }), /Approve a talking recording/);
     assert.match(await refused(context.tools, "save_edl", { contentId: ad.id, windows: [] }), /no edit decision list yet/);
     const clip = await importClip(context.store, context.project.id, { color: "blue", width: 360, height: 640, rate: 24, seconds: 2, audio: true }, context.now());
     context.store.content.update(addTakeCandidates(context.store.content.getRequired(ad.id), [clip.id], context.now()));
     const approved = await ok<{ content: { take: { state: string } } }>(context.tools, "approve", { kind: "take", contentId: ad.id, assetId: clip.id });
     assert.equal(approved.content.take.state, "approved");
-    assert.match(await refused(context.tools, "save_edl", { contentId: ad.id }), /Transcribe the approved take first/);
+    assert.match(await refused(context.tools, "save_edl", { contentId: ad.id }), /Transcribe the approved recording first/);
     assert.match(await refused(context.tools, "save_edl", { contentId: ad.id, draft: true, windows: [] }), /not both/);
     const transcribe = await ok<GenerationProposal>(context.tools, "transcribe_take", { contentId: ad.id });
     assert.equal(transcribe.estimate.kind, "free");
     assert.equal(transcribe.prompt, "This fits my cup holder. Warm by noon, every day. Still cold a day later. Link below.", "the script's lines as Whisper's vocabulary");
     assert.match(await refused(context.tools, "assemble_ad", { contentId: ad.id, strategy: "take_cutaways" }), /Draft the edit decision list/);
     assert.match(await refused(context.tools, "archive_asset", { assetId: clip.id }), /approved/);
+
+    // Draft from the mock transcript, then approve another recording: edits to the old list are refused.
+    const submitted = await ok<{ results: { assetIds: string[] }[] }>(context.tools, "submit_proposal", { proposal: transcribe, wait: true });
+    assert.equal(submitted.results[0].assetIds.length, 1);
+    const drafted = await ok<{ edl: { windows: unknown[] }; version: number; estimated: number[] }>(context.tools, "save_edl", { contentId: ad.id });
+    assert.equal(drafted.version, 1);
+    assert.deepEqual(drafted.estimated, [], "every line was heard");
+    const other = await importClip(context.store, context.project.id, { color: "red", width: 360, height: 640, rate: 24, seconds: 2, audio: true }, context.now());
+    context.store.content.update(addTakeCandidates(context.store.content.getRequired(ad.id), [other.id], context.now()));
+    await ok(context.tools, "approve", { kind: "take", contentId: ad.id, assetId: other.id, archiveSiblings: false });
+    assert.match(await refused(context.tools, "save_edl", { contentId: ad.id, windows: [] }), /drafted for another recording\. Draft it again .*\(draft true\)/);
   });
 
-  test("a take-then-cutaways export without an approved take says to approve one first", async () => {
+  test("a recording-with-cutaways export without an approved recording says to approve one first", async () => {
     const context = setup();
     const ad = await plannedAd(context);
     const message = await refused(context.tools, "assemble_ad", { contentId: ad.id, strategy: "take_cutaways", exportId: randomUUID() });
-    assert.match(message, /Approve a talking take/);
+    assert.match(message, /Approve a talking recording/);
+  });
+
+  test("generate_take refuses a recipe that cannot make the recording's length and names the ones that can", async () => {
+    const context = setup();
+    const ad = await plannedAd(context);
+    const proposal = await ok<GenerationProposal>(context.tools, "compose_still", { contentId: ad.id, beatIndex: 1, count: 1 });
+    const submitted = await ok<{ results: { assetIds: string[] }[] }>(context.tools, "submit_proposal", { proposal, wait: true });
+    await ok(context.tools, "approve", { kind: "still", contentId: ad.id, beatIndex: 1, assetId: submitted.results[0].assetIds[0] });
+    // A stand-in hosted model that makes 5 s clips only, run by the mock executor and placed without backends.
+    const fiveSeconds = RouterRecipeSchema.parse({
+      id: "router-five-second-i2v",
+      kind: "router",
+      title: "Five-second clips",
+      capability: "image_to_video",
+      openWeights: false,
+      verified: "2026-11-10",
+      costHint: "Free stand-in.",
+      limits: { durations: [5], maxReferences: 1 },
+      defaults: { durationSeconds: 5 },
+      provider: "test",
+      model: "test/five-seconds",
+      fieldMap: { prompt: { path: "prompt" }, images: { path: "image", mode: "set", encoding: "base64", item: "{data}", min: 1, max: 1 }, duration: { path: "duration" } },
+    });
+    const generation = context.tools.generation!;
+    const mock = generation.executors.mock;
+    const tools: ToolContext = {
+      ...context.tools,
+      generation: {
+        ...generation,
+        routing: undefined,
+        recipes: async () => [...(await generation.recipes()), fiveSeconds],
+        executors: { ...generation.executors, forRecipe: (recipe) => ((recipe as { id?: string }).id === fiveSeconds.id || recipe.kind === "mock" ? mock : generation.executors.forRecipe(recipe)) },
+      },
+    };
+    const message = await refused(tools, "generate_take", { contentId: ad.id, recipeId: fiveSeconds.id });
+    assert.match(message, /^Five-second clips makes clips of 5 seconds; this recording is 8 s\. Recipes that make a 8 s clip here: .*mock-image-to-video/);
+    await ok(tools, "set_recipe_preference", { projectId: context.project.id, capability: "image_to_video", recipeId: fiveSeconds.id });
+    const picked = await ok<GenerationProposal>(tools, "generate_take", { contentId: ad.id });
+    assert.notEqual(picked.recipeId, fiveSeconds.id, "without a recipeId it moves to one that makes 8 s");
+    assert.equal(makesLength(fiveSeconds, 5), true);
+  });
+
+  test("a Router length refusal names the recording, not a beat", () => {
+    assert.equal(lengthSubject("take"), "this recording");
+    assert.equal(lengthSubject("clip"), "this beat");
+    const kling = RouterRecipeSchema.parse({
+      id: "router-length-check",
+      kind: "router",
+      title: "Length check",
+      capability: "image_to_video",
+      openWeights: false,
+      verified: null,
+      costHint: "",
+      limits: { durations: [5, 10] },
+      provider: "test",
+      model: "test/length",
+      fieldMap: { prompt: { path: "prompt" }, duration: { path: "duration" } },
+    });
+    assert.throws(() => buildRouterBody(kling, { prompt: "p", images: [], durationSeconds: 20 }, [], lengthSubject("take")), /Length check makes clips of 5, 10 seconds; this recording is 20 s\./);
   });
 });
 

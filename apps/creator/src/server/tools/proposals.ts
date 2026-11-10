@@ -272,7 +272,7 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
   const slots = recipe.kind === "workflow" ? Object.fromEntries(Object.entries(spec.slots ?? {}).filter(([name]) => name in recipe.sidecar.slots)) : {};
   const estimated = take
     ? await estimateTake(executor, { requestId: id, projectId: spec.projectId, recipe, take, base: { aspectRatio: spec.aspectRatio, seed: spec.seed, slots } })
-    : summarizeEstimate(await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, prompt, slots }, assets) }));
+    : summarizeEstimate(await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, prompt, slots }, assets), spec: shot }));
   // Where it runs comes first, so a fallback to Comfy Cloud is never silent.
   const estimate = placed.note ? { ...estimated, note: `${placed.note} ${estimated.note}`.trim().slice(0, 600) } : estimated;
   return GenerationProposalSchema.parse({

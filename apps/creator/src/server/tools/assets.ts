@@ -21,7 +21,7 @@ const ApproveInputSchema = z
   .object({
     kind: z
       .enum(["still", "clip", "voice", "sheet", "slot", "take"])
-      .describe("still, clip, or voice (a voice-over take) for a beat's shot; sheet for a project's character reference sheet; slot for a named slot of a plugin content piece (such as a 4:5 still); take for an Ad's full talking take (take-then-cutaways)."),
+      .describe("still, clip, or voice (a voice-over recording) for a beat's shot; sheet for a project's character reference sheet; slot for a named slot of a plugin content piece (such as a 4:5 still); take for an Ad's full talking recording (recording with cutaways)."),
     assetId: IdSchema,
     contentId: IdSchema.optional().describe("Required for still, clip, voice, slot, and take."),
     beatIndex: z.number().int().positive().optional().describe("Required for still, clip, and voice; beats start at 1."),
@@ -48,7 +48,7 @@ const ApproveInputSchema = z
 export const approve = defineTool({
   name: "approve",
   description:
-    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), a beat's voice-over take, a project's character reference sheet (needs a wardrobe), a named slot of a plugin content piece (kind slot, such as its 4:5 still), or an Ad's full talking take (kind take, for a take-then-cutaways export). The other candidates are archived with the reason 'not selected' unless archiveSiblings is false.",
+    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), a beat's voice-over recording, a project's character reference sheet (needs a wardrobe), a named slot of a plugin content piece (kind slot, such as its 4:5 still), or an Ad's full talking recording (kind take, for a recording-with-cutaways export). The other candidates are archived with the reason 'not selected' unless archiveSiblings is false.",
   input: ApproveInputSchema,
   output: z.object({
     content: ContentPieceSchema.nullable(),

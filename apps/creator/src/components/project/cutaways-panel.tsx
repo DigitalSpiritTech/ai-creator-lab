@@ -19,7 +19,7 @@ import type { ContentPiece } from "@creator-lab/core/domain/content";
 
 /** Whether the Ad can be exported take-then-cutaways: an approved take and an EDL drafted for it. */
 export function cutawaysReady(content: ContentPiece): boolean {
-  return content.take.state === "approved" && content.edl !== null && content.edl.take.assetId === content.take.assetId;
+  return content.take.state === "approved" && content.edl !== null && content.edl.take.assetId === content.take.assetId && content.edl.scriptVersion >= content.scriptVersion;
 }
 
 export function CutawaysPanel({ content }: { content: ContentPiece }) {
@@ -58,10 +58,10 @@ export function CutawaysPanel({ content }: { content: ContentPiece }) {
   async function draft() {
     setBusy(true);
     try {
-      const saved = await callTool<{ version: number | null; unplaced: number[] }>("save_edl", { contentId: content.id, draft: true }, projectId);
+      const saved = await callTool<{ version: number | null; unplaced: number[]; estimated: number[] }>("save_edl", { contentId: content.id, draft: true }, projectId);
       notify(
-        saved.unplaced.length ? "warn" : "ok",
-        `${saved.version ? `Edit decision list saved as version ${saved.version}` : "The edit decision list is already this draft"}.${saved.unplaced.length ? ` Beat${saved.unplaced.length === 1 ? "" : "s"} ${saved.unplaced.join(", ")} got no window: no line, or a line the take never says.` : ""} Edit it in the Documents tab.`,
+        saved.unplaced.length || saved.estimated.length ? "warn" : "ok",
+        `${saved.version ? `Edit decision list saved as version ${saved.version}` : "The edit decision list is already this draft"}.${saved.unplaced.length ? ` Beat${saved.unplaced.length === 1 ? "" : "s"} ${saved.unplaced.join(", ")} got no window: no line, or a line the recording never says.` : ""}${saved.estimated.length ? ` ${saved.estimated.length} beat${saved.estimated.length === 1 ? " was" : "s were"} placed by estimate (no word heard): beat${saved.estimated.length === 1 ? "" : "s"} ${saved.estimated.join(", ")}.` : ""} Edit it in the Documents tab.`,
       );
       await refresh();
     } catch (cause) {
@@ -72,18 +72,18 @@ export function CutawaysPanel({ content }: { content: ContentPiece }) {
   }
 
   return (
-    <section className="space-y-3 rounded-xl border p-3 text-sm" aria-label="Take then cutaways">
+    <section className="space-y-3 rounded-xl border p-3 text-sm" aria-label="Recording with cutaways">
       <p className="text-xs text-muted-foreground">
-        The creator says the whole script in one continuous take. B-roll replaces the picture in the edit decision list&apos;s windows, the take&apos;s sound is kept as it is, and captions follow the words&apos; times.
+        The creator says the whole script in one continuous talking recording. B-roll replaces the picture in the edit decision list&apos;s windows, the recording&apos;s sound is kept as it is, and captions follow the words&apos; times.
       </p>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant={!takes.length && !takePending.length ? "default" : "outline"} disabled={busy} onClick={() => void ask("generate_take")}>
-          <Clapperboard /> {takes.length || takePending.length ? "Another take" : "Make the talking take"}
+          <Clapperboard /> {takes.length || takePending.length ? "Another recording" : "Make the talking recording"}
         </Button>
-        <Button size="sm" variant={approved && !transcribed && !transcribing.length ? "default" : "outline"} disabled={busy || !approved} onClick={() => void ask("transcribe_take")} title={approved ? undefined : "Approve a take first"}>
-          <AudioLines /> Transcribe the take
+        <Button size="sm" variant={approved && !transcribed && !transcribing.length ? "default" : "outline"} disabled={busy || !approved} onClick={() => void ask("transcribe_take")} title={approved ? undefined : "Approve a recording first"}>
+          <AudioLines /> Transcribe the recording
         </Button>
-        <Button size="sm" variant={transcribed && (!edl || stale) ? "default" : "outline"} disabled={busy || !transcribed} onClick={() => void draft()} title={transcribed ? undefined : "Transcribe the approved take first"}>
+        <Button size="sm" variant={transcribed && (!edl || stale) ? "default" : "outline"} disabled={busy || !transcribed} onClick={() => void draft()} title={transcribed ? undefined : "Transcribe the approved recording first"}>
           <ListVideo /> {edl && !stale ? "Draft the list again" : "Draft the edit decision list"}
         </Button>
       </div>
@@ -99,8 +99,8 @@ export function CutawaysPanel({ content }: { content: ContentPiece }) {
           className="lg:grid-cols-3"
         />
       ) : null}
-      {transcribing.length ? <Notice tone="muted">Transcribing the take…</Notice> : null}
-      {stale ? <Notice tone="warn">The edit decision list was drafted for another take. Transcribe the approved take and draft it again.</Notice> : null}
+      {transcribing.length ? <Notice tone="muted">Transcribing the recording…</Notice> : null}
+      {stale ? <Notice tone="warn">The edit decision list was drafted for another recording. Transcribe the approved recording and draft it again.</Notice> : null}
       {edl && !stale ? (
         <ul className="space-y-0.5 text-xs" aria-label="Cutaway windows">
           {edl.windows.length ? (
@@ -110,7 +110,7 @@ export function CutawaysPanel({ content }: { content: ContentPiece }) {
               </li>
             ))
           ) : (
-            <li className="text-muted-foreground">No windows: the take plays through.</li>
+            <li className="text-muted-foreground">No windows: the recording plays through.</li>
           )}
         </ul>
       ) : null}

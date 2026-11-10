@@ -66,7 +66,7 @@ const TITLES: Record<string, (input: Dict, output: Dict) => string> = {
   refine_still: () => "Proposed a refined still",
   generate_clip: (input) => join([input.mode === "speech" ? "Proposed a lip-synced clip" : input.mode === "first_last" ? "Proposed a first-and-last clip" : "Proposed a clip", beat(input)]).replace(" · ", " for "),
   extract_voice_sample: () => "Took the voice sample from the clip",
-  generate_voice_over: (input) => join(["Proposed a voice take", beat(input)]).replace(" · ", " for "),
+  generate_voice_over: (input) => join(["Proposed a voice recording", beat(input)]).replace(" · ", " for "),
   approve: (input) => join([`Approved the ${str(input.kind) ?? "candidate"}`, beat(input)]).replace(" · ", " for "),
   archive_asset: () => "Archived an asset",
   delete_asset_everywhere: () => "Deleted an asset everywhere",
@@ -84,8 +84,8 @@ const TITLES: Record<string, (input: Dict, output: Dict) => string> = {
       ? `Set ${str(output.recipeTitle)} for ${str(input.capability)?.replaceAll("_", " ") ?? "this step"} in this project`
       : `Cleared this project's ${str(input.capability)?.replaceAll("_", " ") ?? ""} preference`.replace("  ", " "),
   regenerate_with: () => "Proposed the same shot with another model",
-  generate_take: () => "Proposed the full talking take",
-  transcribe_take: () => "Proposed a transcription of the take",
+  generate_take: () => "Proposed the full talking recording",
+  transcribe_take: () => "Proposed a transcription of the recording",
   save_edl: (input, output) => {
     const version = num(output.version);
     const windows = Array.isArray(dict(output.edl).windows) ? (dict(output.edl).windows as unknown[]).length : undefined;

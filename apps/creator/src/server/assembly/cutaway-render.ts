@@ -38,22 +38,27 @@ export async function renderCutawayExport(
   record: ExportRecord,
   context: { now: number; newId: () => string; fontPath?: string },
 ): Promise<RenderedExport> {
-  if (record.strategy !== "take_cutaways" || !record.take) fail("invalid", "This export is not a take-then-cutaways export.");
+  if (record.strategy !== "take_cutaways" || !record.take) fail("invalid", "This export is not a recording-with-cutaways export.");
   const root = join(store.dataDir, WORK_DIRECTORY);
   await mkdir(root, { recursive: true });
   const work = await mkdtemp(join(root, `${record.id}-`));
   const written: string[] = [];
   try {
     const takeAsset = store.assets.get(record.take.assetId);
-    if (!takeAsset || takeAsset.state.state === "deleted") fail("invalid", "The approved take was deleted.");
-    if (takeAsset.sha256 !== record.take.sha256) fail("conflict", "The take changed after this export started.");
+    if (!takeAsset || takeAsset.state.state === "deleted") fail("invalid", "The approved recording was deleted.");
+    if (takeAsset.sha256 !== record.take.sha256) fail("conflict", "The recording changed after this export started.");
     const takePath = join(work, "take.mp4");
     await writeFile(takePath, await readAssetBytes(store.dataDir, takeAsset), { flag: "wx" });
-    const probe = await probeVideo(takePath).catch(() => fail("invalid", "The take could not be decoded."));
+    const probe = await probeVideo(takePath).catch(() => fail("invalid", "The recording could not be decoded."));
     const video = probe.streams.find((stream) => stream.codec_type === "video");
     const sound = probe.streams.find((stream) => stream.codec_type === "audio");
-    if (!video) fail("invalid", "The take has no picture.");
-    if (!sound && !record.options.mute) fail("invalid", "The take has no sound; a take-then-cutaways export keeps the take's audio.");
+    if (!video) fail("invalid", "The recording has no picture.");
+    // The frame count comes from the recorded length, so the file must still be that long.
+    const fileSeconds = Number(video.duration ?? probe.format.duration);
+    if (!(Math.abs(fileSeconds - record.take.durationSeconds) <= 0.1)) {
+      fail("conflict", `The recording file is ${Number.isFinite(fileSeconds) ? fileSeconds.toFixed(2) : "of unknown length"} s, but this export was made for ${record.take.durationSeconds.toFixed(2)} s. Draft the edit decision list again.`);
+    }
+    if (!sound && !record.options.mute) fail("invalid", "The recording has no sound; a recording-with-cutaways export keeps its audio.");
     // AAC is copied as it is, so the export's sound is the take's packet for packet.
     const audio: TakeAudio = record.options.mute ? "none" : sound!.codec_name === "aac" ? "copy" : "encode";
 

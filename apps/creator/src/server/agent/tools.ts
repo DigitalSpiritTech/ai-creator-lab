@@ -79,7 +79,7 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: "the bottle label is blurry" on a still the user otherwise likes.',
   ].join(" "),
   generate_clip: [
-    `Propose a clip for one beat from its approved still, at the beat's length; talking beats carry the spoken line for synchronized audio, b-roll is ambient sound only (its voice-over is a separate step). Mode speech lip-syncs a talking beat to its approved voice take instead (one cloned voice across the ad, 4.8 s at most). ${PROPOSAL_NOTE}`,
+    `Propose a clip for one beat from its approved still, at the beat's length; talking beats carry the spoken line for synchronized audio, b-roll is ambient sound only (its voice-over is a separate step). Mode speech lip-syncs a talking beat to its approved voice recording instead (one cloned voice across the ad, 4.8 s at most). ${PROPOSAL_NOTE}`,
     "Example: beat 2's still was just approved.",
   ].join(" "),
   extract_voice_sample: [
@@ -87,12 +87,12 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: "use the voice from beat 3\'s clip instead".',
   ].join(" "),
   generate_voice_over: [
-    `Propose a voice take for one beat: its line read in the creator's cloned voice. One take by default. On b-roll and text cards the approved take is mixed over the clip at export; on a talking beat it is the speech for a lip-synced clip (generate_clip, mode speech). ${PROPOSAL_NOTE}`,
+    `Propose a voice recording for one beat: its line read in the creator's cloned voice. One recording by default. On b-roll and text cards the approved recording is mixed over the clip at export; on a talking beat it is the speech for a lip-synced clip (generate_clip, mode speech). ${PROPOSAL_NOTE}`,
     "Call it once per b-roll or text card beat with a line, after a talking clip is approved (its voice is the sample) or the user uploaded a recording; on talking beats only when the user wants one voice across the ad.",
     "Example: beat 1's talking clip is approved and beat 2 is b-roll with a line.",
   ].join(" "),
   approve: [
-    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), a beat's voice-over take, or this project's reference sheet. The other candidates are archived. Only when the user chose that candidate.",
+    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), a beat's voice-over recording, or this project's reference sheet. The other candidates are archived. Only when the user chose that candidate.",
     'Example: "approve the first sheet" gives kind sheet, the asset id, projectId, and characterId.',
   ].join(" "),
   archive_asset: [
@@ -105,7 +105,7 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
   ].join(" "),
   assemble_ad: [
     "Join the approved clips in order into the final 1080 x 1920 MP4 with the on-screen text burned in (captions false to skip, mute true to drop audio) and approved voice-overs mixed over their clips, and save it as an export. Every beat needs an approved clip first; a beat with a line and no approved voice-over exports with ambient sound only.",
-    "strategy take_cutaways instead keeps the approved talking take whole with its own sound and cuts the b-roll clips in at the edit decision list's windows; exporting again after an EDL edit regenerates nothing.",
+    "strategy take_cutaways instead keeps the approved talking recording whole with its own sound and cuts the b-roll clips in at the edit decision list's windows; exporting again after an EDL edit regenerates nothing.",
     "Example: all clips are approved and the user asks for the final ad.",
   ].join(" "),
   list_assets: ["List assets, newest first, filtered by project, kind, state, or recipe.", 'Example: the user asks "what did I archive?"'].join(" "),
@@ -160,15 +160,15 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: "quick ad: Ridgeline 32 oz bottle keeps drinks cold 24 hours, for commuters on TikTok" gives productSummary "Ridgeline 32 oz bottle keeps drinks cold 24 hours" and audience "Commuters, on TikTok".',
   ].join(" "),
   generate_take: [
-    `Propose the Ad's full talking take for a take-then-cutaways export: one continuous clip from the first talking beat's approved still in which the creator says every beat's line in order. Approve one with approve kind take. ${PROPOSAL_NOTE}`,
+    `Propose the Ad's full talking recording for a recording-with-cutaways export: one continuous clip from the first talking beat's approved still in which the creator says every beat's line in order. Approve one with approve kind take. ${PROPOSAL_NOTE}`,
     'Example: the user wants one natural continuous delivery with b-roll cut over it instead of separate clips per beat.',
   ].join(" "),
   transcribe_take: [
-    `Propose a transcription of the approved take with word timestamps, so the beats can be placed on it; then save_edl drafts the edit decision list. ${PROPOSAL_NOTE}`,
-    "Example: the take is approved and the user asks to line the b-roll up with what was said.",
+    `Propose a transcription of the approved talking recording with word timestamps, so the beats can be placed on it; then save_edl drafts the edit decision list. ${PROPOSAL_NOTE}`,
+    "Example: the recording is approved and the user asks to line the b-roll up with what was said.",
   ].join(" "),
   save_edl: [
-    "Draft the Ad's edit decision list from the take's transcript (draft true, or the first save), or save edited windows ({ beatIndex, start, end } in seconds on the take, b-roll and text card beats only) and captions ({ start, end, text }). Each save is a new version; nothing is generated. Then assemble_ad with strategy take_cutaways.",
+    "Draft the Ad's edit decision list from the recording's transcript (draft true, or the first save), or save edited windows ({ beatIndex, start, end } in seconds on the recording, b-roll and text card beats only) and captions ({ start, end, text }). Each save is a new version; nothing is generated. Then assemble_ad with strategy take_cutaways.",
     'Example: the user says "start the dishwasher shot two seconds later", so save the windows with that window moved by 2 s and export again.',
   ].join(" "),
 };

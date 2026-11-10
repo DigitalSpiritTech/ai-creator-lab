@@ -42,16 +42,16 @@ export function latestTranscriptFor(store: Store, take: Asset): Asset | undefine
 
 /** The approved take of an Ad, active and a video with sound. */
 export function approvedTake(store: Store, content: ContentPiece): Asset {
-  if (content.take.state !== "approved") fail("invalid", "Approve a talking take for this Ad first (generate_take, then approve with kind take).");
+  if (content.take.state !== "approved") fail("invalid", "Approve a talking recording for this Ad first (generate_take, then approve with kind take).");
   const take = store.assets.get(content.take.assetId);
-  if (!take || take.state.state !== "active" || take.kind !== "video" || !take.video) fail("invalid", "The approved take is missing or archived.");
+  if (!take || take.state.state !== "active" || take.kind !== "video" || !take.video) fail("invalid", "The approved recording is missing or archived.");
   return take;
 }
 
 /** Drafts the EDL from the newest transcript of the approved take; `unplaced` lists the b-roll beats that got no window. */
 export async function draftEdlFor(store: Store, content: ContentPiece): Promise<{ edl: Edl; unplaced: number[]; transcript: Asset }> {
   const take = approvedTake(store, content);
-  const transcript = latestTranscriptFor(store, take) ?? fail("invalid", "Transcribe the approved take first (transcribe_take), then draft the edit decision list.");
+  const transcript = latestTranscriptFor(store, take) ?? fail("invalid", "Transcribe the approved recording first (transcribe_take), then draft the edit decision list.");
   const script = store.scripts.get(content.scriptId, content.scriptVersion) ?? fail("storage", "This Ad's script version is missing.");
   const words = await readTranscript(store, transcript);
   const drafted = draftEdl({

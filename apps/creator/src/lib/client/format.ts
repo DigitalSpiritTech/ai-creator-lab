@@ -89,7 +89,7 @@ export function describeTarget(target: GenerationTarget): string {
     case "piece":
       return `${target.slot} still`;
     case "take":
-      return target.slot === "clip" ? "Talking take" : "Take transcript";
+      return target.slot === "clip" ? "Talking recording" : "Recording transcript";
     case "loose":
       return "Loose generation";
   }

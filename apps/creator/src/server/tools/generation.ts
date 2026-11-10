@@ -523,7 +523,7 @@ export const submitProposal = defineTool({
     const executor = deps.executors.forRecipe(request.recipe);
     const before = spendPolicy(deps);
     if (executor && fresh.length && before.ceilingUsd > 0) {
-      const estimate = await executor.estimate({ requestId: fresh[0], projectId: proposal.projectId, recipe: request.recipe, input: request.input });
+      const estimate = await executor.estimate({ requestId: fresh[0], projectId: proposal.projectId, recipe: request.recipe, input: request.input, spec: request.spec });
       const unitUsd = reservationUsd(estimate, request.recipe);
       const crossing = unitUsd === undefined ? null : budgetCrossing(before, unitUsd * fresh.length);
       if (crossing) {
@@ -714,14 +714,14 @@ async function submitChained(
 export const assembleAd = defineTool({
   name: "assemble_ad",
   description:
-    "Assemble the Ad into one 1080 x 1920, 24 fps MP4. strategy component (the default) joins the approved clips in cut order with the beats' on-screen text burned in; every beat needs an approved clip. strategy take_cutaways keeps the approved talking take whole, its sound untouched, replaces the picture with each b-roll window's approved clip, and burns the captions at the edit decision list's times (generate_take, transcribe_take, and save_edl first); editing the list and exporting again re-renders from the same media, nothing is generated. captions false skips captions; mute true drops the sound. Returns the saved export record (strategy, sources, hashes, script version, options, output hash, duration) and the export asset. Passing the same exportId again returns the same export instead of rendering twice.",
+    "Assemble the Ad into one 1080 x 1920, 24 fps MP4. strategy component (the default) joins the approved clips in cut order with the beats' on-screen text burned in; every beat needs an approved clip. strategy take_cutaways keeps the approved talking recording whole, its sound untouched, replaces the picture with each b-roll window's approved clip, and burns the captions at the edit decision list's times (generate_take, transcribe_take, and save_edl first); editing the list and exporting again re-renders from the same media, nothing is generated. captions false skips captions; mute true drops the sound. Returns the saved export record (strategy, sources, hashes, script version, options, output hash, duration) and the export asset. Passing the same exportId again returns the same export instead of rendering twice.",
   input: z
     .object({
       contentId: IdSchema,
       exportId: IdSchema.optional().describe("Optional id that makes retries safe; reuse it to get the same export back."),
       mute: z.boolean().optional(),
       captions: z.boolean().optional(),
-      strategy: AssemblyStrategySchema.default("component").describe("component joins one clip per beat; take_cutaways cuts b-roll into the approved take at the edit decision list's windows."),
+      strategy: AssemblyStrategySchema.optional().describe("component (the default for a new export) joins one clip per beat; take_cutaways cuts b-roll into the approved talking recording at the edit decision list's windows. Omit it to reuse an exportId as it was."),
     })
     .strict(),
   output: z.object({ export: ExportRecordSchema, asset: AssetSchema.nullable() }),

@@ -70,9 +70,16 @@ const RawWhisperSchema = z
  * `timestamp_granularities: ["word"]` (top-level `words` of `{ word, start, end }`), or the
  * open-weights Whisper shape (`segments[].words` of `{ word, start, end, probability }`).
  * `durationSeconds` is the recording's length when the result does not state it. Throws a readable
- * error for anything else, or for a result with no word timestamps.
+ * error for anything else, for a result with no word timestamps, and for one with no words at all
+ * (silence, or noise the model could not read): an EDL drafted from it would be all guesses.
  */
 export function parseTranscript(raw: unknown, durationSeconds?: number): Transcript {
+  const transcript = readTranscript(raw, durationSeconds);
+  if (transcript.words.length === 0) throw new Error("The transcription found no words in the recording. Check that it has speech, then transcribe it again.");
+  return transcript;
+}
+
+function readTranscript(raw: unknown, durationSeconds?: number): Transcript {
   const own = TranscriptSchema.safeParse(raw);
   if (own.success) return own.data;
   const parsed = RawWhisperSchema.safeParse(raw);

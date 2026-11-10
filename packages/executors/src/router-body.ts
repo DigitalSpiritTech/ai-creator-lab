@@ -100,6 +100,13 @@ function placeImages(body: Record<string, unknown>, field: ImageField, images: P
   setPath(body, field.path, [...(Array.isArray(existing) ? existing : []), ...items]);
 }
 
+/** What a length refusal calls the clip, by the shot spec it was rendered from. */
+export function lengthSubject(kind: string | undefined): string {
+  if (kind === "take") return "this recording";
+  if (kind === "clip") return "this beat";
+  return "the requested clip";
+}
+
 /** "whole seconds from 3 to 15" for a consecutive list, otherwise the list itself. */
 export function describeDurations(durations: number[]): string {
   const sorted = [...durations].sort((a, b) => a - b);
@@ -108,8 +115,11 @@ export function describeDurations(durations: number[]): string {
   return `${sorted.join(", ")} seconds`;
 }
 
-/** Builds the native body for one request. Images must already be read and encoded. */
-export function buildRouterBody(recipe: RouterRecipe, input: GenerationInput, images: PreparedImage[]): Record<string, unknown> {
+/**
+ * Builds the native body for one request. Images must already be read and encoded. `subject` names
+ * what the length belongs to in a refusal ("this beat", "this recording"); see `lengthSubject`.
+ */
+export function buildRouterBody(recipe: RouterRecipe, input: GenerationInput, images: PreparedImage[], subject = "this beat"): Record<string, unknown> {
   const map = recipe.fieldMap;
   const body = structuredClone(map.template) as Record<string, unknown>;
   const aspectRatio = input.aspectRatio ?? recipe.defaults.aspectRatio;
@@ -118,7 +128,7 @@ export function buildRouterBody(recipe: RouterRecipe, input: GenerationInput, im
   }
   const duration = input.durationSeconds ?? recipe.defaults.durationSeconds;
   if (duration !== undefined && recipe.limits.durations && !recipe.limits.durations.includes(duration)) {
-    throw invalid(`${recipe.title} makes clips of ${describeDurations(recipe.limits.durations)}; this beat is ${duration} s.`);
+    throw invalid(`${recipe.title} makes clips of ${describeDurations(recipe.limits.durations)}; ${subject} is ${duration} s.`);
   }
   if (!map.images && images.length) throw invalid(`${recipe.title} does not take reference images.`);
   assign(body, map.prompt, input.prompt, "prompt");

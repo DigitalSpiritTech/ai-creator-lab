@@ -1,6 +1,6 @@
 /**
- * Export tab: the build (one clip per beat, or take then cutaways), clip order (`set_cut_order`),
- * the take-then-cutaways steps, mute and captions toggles, Export (`assemble_ad`), and a player with
+ * Export tab: the build (one clip per beat, or a recording with cutaways), clip order (`set_cut_order`),
+ * the recording-with-cutaways steps, mute and captions toggles, Export (`assemble_ad`), and a player with
  * download and source record for finished exports.
  * @packageDocumentation
  */
@@ -70,7 +70,7 @@ export function ExportTab() {
           ? { tone: "ok", text: "Export finished." }
           : record.status === "failed"
             ? { tone: "error", text: record.error }
-            : { tone: "ok", text: cutaways ? `Cutting ${record.sources.length} b-roll windows into the take.` : `Rendering ${record.sources.length} clips in order.` },
+            : { tone: "ok", text: cutaways ? `Cutting ${record.sources.length} b-roll windows into the recording.` : `Rendering ${record.sources.length} clips in order.` },
       );
       await refresh();
     } catch (cause) {
@@ -91,7 +91,7 @@ export function ExportTab() {
         <span className="font-semibold">Build</span>
         <NativeSelect value={build} onChange={(event) => setStrategy(event.target.value as AssemblyStrategy)} aria-label="Build">
           <NativeSelectOption value="component">One clip per beat</NativeSelectOption>
-          <NativeSelectOption value="take_cutaways">Take then cutaways</NativeSelectOption>
+          <NativeSelectOption value="take_cutaways">Recording with cutaways</NativeSelectOption>
         </NativeSelect>
       </section>
       {cutaways ? <CutawaysPanel content={content} /> : null}
@@ -121,13 +121,13 @@ export function ExportTab() {
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={captionsValue} onChange={(event) => setCaptions(event.target.checked)} /> Burn on-screen text
         </label>
-        <Button onClick={() => void exportAd()} disabled={busy || !ready} title={ready ? undefined : cutaways ? "Approve a take and draft its edit decision list" : "Every beat needs an approved clip"}>
+        <Button onClick={() => void exportAd()} disabled={busy || !ready} title={ready ? undefined : cutaways ? "Approve a talking recording and draft its edit decision list" : "Every beat needs an approved clip"}>
           <Film /> Export 1080 x 1920
         </Button>
       </section>
       {!ready ? (
         <Notice tone="muted">
-          {cutaways ? "Approve a talking take, transcribe it, and draft its edit decision list before export. Every b-roll beat with a window needs an approved clip." : "Every beat needs an approved clip before export."}
+          {cutaways ? "Approve a talking recording, transcribe it, and draft its edit decision list before export. Every b-roll beat with a window needs an approved clip." : "Every beat needs an approved clip before export."}
         </Notice>
       ) : null}
       {result ? <Notice tone={result.tone}>{result.text}</Notice> : null}
@@ -150,7 +150,7 @@ export function ExportTab() {
             {exports.map((record) => (
               <li key={record.id} className="flex gap-2">
                 <Badge variant={record.status === "failed" ? "destructive" : "secondary"}>{record.status}</Badge>
-                {formatDate(record.createdAt)} · {record.strategy === "take_cutaways" ? `take with ${record.sources.length} cutaways (list v${record.edlVersion})` : `${record.sources.length} clips`} · {record.options.mute ? "muted" : "with audio"} · {record.options.captions ? "captions" : "no captions"}
+                {formatDate(record.createdAt)} · {record.strategy === "take_cutaways" ? `recording with ${record.sources.length} cutaways (list v${record.edlVersion})` : `${record.sources.length} clips`} · {record.options.mute ? "muted" : "with audio"} · {record.options.captions ? "captions" : "no captions"}
                 {record.brokenAssetIds.length ? <span className="text-destructive">source deleted</span> : null}
               </li>
             ))}
@@ -166,7 +166,7 @@ function SourceRecord({ record }: { record: ExportRecord }) {
     <details className="text-xs">
       <summary className="cursor-pointer text-muted-foreground">Source record</summary>
       <ul className="mt-1 space-y-0.5 font-mono text-[11px]">
-        {record.take ? <li>take {record.take.assetId.slice(0, 8)} · sha256 {record.take.sha256.slice(0, 12)} · {record.take.durationSeconds.toFixed(2)} s · edit decision list v{record.edlVersion}</li> : null}
+        {record.take ? <li>recording {record.take.assetId.slice(0, 8)} · sha256 {record.take.sha256.slice(0, 12)} · {record.take.durationSeconds.toFixed(2)} s · edit decision list v{record.edlVersion}</li> : null}
         {record.sources.map((source) => (
           <li key={source.shotId}>
             beat {source.beatIndex} · clip {source.assetId.slice(0, 8)} · sha256 {source.sha256.slice(0, 12)}

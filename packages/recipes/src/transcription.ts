@@ -20,7 +20,7 @@ export const PLANNED_TRANSCRIPTION_RECIPES: readonly PlannedRecipe[] = [
     kind: "router",
     openWeights: false,
     verified: null,
-    costHint: "Not measured. Hosted Whisper is priced per minute of audio; a 30 s take should cost well under a credit.",
+    costHint: "Not measured. Hosted Whisper is priced per minute of audio; a 30 s recording should cost well under a credit.",
     ceilingUsd: 0.05,
     candidate: "openai/whisper-1 (word timestamps need verbose_json with word granularity)",
     pending:
@@ -33,11 +33,11 @@ export const PLANNED_TRANSCRIPTION_RECIPES: readonly PlannedRecipe[] = [
     kind: "workflow",
     openWeights: true,
     verified: null,
-    costHint: "Not measured. Expected a few credits for a 30 s take on Whisper large-v3.",
+    costHint: "Not measured. Expected a few credits for a 30 s recording on Whisper large-v3.",
     ceilingUsd: 0.05,
     candidate: "a Whisper large-v3 transcription node with word timestamps, to be chosen from Cloud's object_info",
     pending:
-      "The node choice is pending verification: the repository records no Comfy Cloud node that transcribes with word timestamps. To finish: confirm a node in Cloud's object_info (the backend probe lists missing node classes), write the API-format workflow and its slot sidecar (the take on a LoadAudio audio slot, the script as the vocabulary prompt), let the workflow executor retrieve a text output, then one maintainer run logged in docs/VERIFICATION.md.",
+      "The node choice is pending verification: the repository records no Comfy Cloud node that transcribes with word timestamps. To finish: confirm a node in Cloud's object_info (the backend probe lists missing node classes), write the API-format workflow and its slot sidecar (the recording on a LoadAudio audio slot, the script as the vocabulary prompt), let the workflow executor retrieve a text output, then one maintainer run logged in docs/VERIFICATION.md.",
   }),
 ];
 
