@@ -122,8 +122,8 @@ export async function startGeneration(
   request: RunRequest,
   options: {
     confirmUnquoted?: boolean;
-    /** USD already held for this run (a chain's next segment); the check leaves it out so it is not counted twice. */
-    heldUsd?: number;
+    /** This run's request id when money is already held for it (a chain's next segment); the check leaves that hold out so it is not counted twice. */
+    heldFor?: string;
   } = {},
 ): Promise<StartOutcome> {
   const jobRequest = {
@@ -145,7 +145,7 @@ export async function startGeneration(
     return { kind: "blocked", error: jobError("invalid", `${request.recipe.title} needs a Comfy API key in .env.local before it can run.`) };
   }
   const estimate = await executor.estimate({ requestId: request.requestId, projectId: request.projectId, recipe: request.recipe, input: request.input });
-  const decision = checkSpend(currentSpendPolicy(deps, { releaseUsd: options.heldUsd }), estimate, request.recipe);
+  const decision = checkSpend(currentSpendPolicy(deps, { heldFor: options.heldFor }), estimate, request.recipe);
   if (decision.kind === "blocked") return decision.budget ? { kind: "blocked", error: decision.error, budget: decision.budget } : { kind: "blocked", error: decision.error };
   if (decision.kind === "confirm" && !options.confirmUnquoted) {
     return { kind: "needs_confirmation", reserveUsd: decision.reserveUsd, reason: decision.reason };

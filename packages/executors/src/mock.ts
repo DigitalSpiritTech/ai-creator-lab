@@ -6,13 +6,13 @@
  * MP4 clips with ffmpeg instead: the first input image scrolling slowly sideways (so frame 0 is the
  * input exactly and a clip started from another clip's frame carries on its motion), or `testsrc2`
  * when there is none, with a steady 220 Hz tone, or the input voice recording for speech to video.
- * Chained takes need these, since a storyboard has no frames to hand over or stitch.
+ * Chained recordings need these, since a storyboard has no frames to hand over or stitch.
  * @packageDocumentation
  */
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { dirname, isAbsolute, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import sharp from "sharp";
 import { capabilityMedia, ratioValue, type AspectRatio } from "@creator-lab/core/catalog";
@@ -171,9 +171,13 @@ export function mockSeconds(input: GenerationInput): number {
   return Math.round(Math.min(60, Math.max(0.5, seconds)) * 1000) / 1000;
 }
 
+/** An input file: absolute as given, or relative to the data directory and refused if it leaves it. */
 function inputPath(root: string, path: string | undefined): string | undefined {
   if (!path) return undefined;
-  const absolute = isAbsolute(path) ? path : resolve(root, path);
+  if (isAbsolute(path)) return existsSync(path) ? path : undefined;
+  const base = resolve(root);
+  const absolute = resolve(base, path);
+  if (!absolute.startsWith(base + sep)) return undefined;
   return existsSync(absolute) ? absolute : undefined;
 }
 
@@ -228,7 +232,7 @@ export class MockExecutor implements Executor {
   private readonly failure: MockExecutorOptions["failure"];
   private readonly price: MockExecutorOptions["price"];
   private readonly now: () => number;
-  /** Whether video jobs make real MP4 clips (chained takes need them). */
+  /** Whether video jobs make real MP4 clips (chained recordings need them). */
   readonly video: MockVideo;
 
   constructor(options: MockExecutorOptions) {

@@ -42,7 +42,7 @@ export interface ExecutorConfig {
   mockVideo?: MockVideo;
 }
 
-/** The mock's video mode from the environment: `MOCK_VIDEO=mp4` makes real clips (chained takes need them). */
+/** The mock's video mode from the environment: `MOCK_VIDEO=mp4` makes real clips (chained recordings need them). */
 export function mockVideoFromEnv(env: Record<string, string | undefined> = process.env): MockVideo {
   return env.MOCK_VIDEO?.trim() === "mp4" ? "mp4" : "storyboard";
 }

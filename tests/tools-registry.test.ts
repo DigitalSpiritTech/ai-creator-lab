@@ -420,7 +420,7 @@ describe("store-backed tools", () => {
     const stills = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: stillProposal, wait: true });
     await ok(tools, "approve", { kind: "still", contentId: content.id, beatIndex: 1, assetId: stills.results[0].assetIds[0] });
     const noTake = await callTool(tools, "generate_clip", { contentId: content.id, beatIndex: 1, mode: "speech" });
-    assert.ok(!noTake.ok && /Approve a voice take/.test(noTake.failure.message));
+    assert.ok(!noTake.ok && /Approve a voice recording/.test(noTake.failure.message));
     const talkingTake = await ok<{ capability: string; prompt: string }>(tools, "generate_voice_over", { projectId: project.id, beatIndex: 1 });
     assert.equal(talkingTake.capability, "text_to_speech");
     const takes1 = await ok<{ results: { assetIds: string[] }[] }>(tools, "submit_proposal", { proposal: talkingTake, wait: true });

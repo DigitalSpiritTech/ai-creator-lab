@@ -13,6 +13,7 @@ import {
   MIN_OVERLAP_SECONDS,
   backendAllowsCustomGraphs,
   hardMaxSeconds,
+  minOverlapSeconds,
   nativeMaxSeconds,
   planChain,
   resolveLengthStrategy,
@@ -25,6 +26,13 @@ import { defaultRecipes } from "@creator-lab/recipes/defaults";
 
 const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));
 
+/** A plan the test expects to exist. */
+function planned(...args: Parameters<typeof planChain>): NonNullable<ReturnType<typeof planChain>> {
+  const plan = planChain(...args);
+  assert.ok(plan, `a plan for ${args[0]} s on ${args[1]} s segments`);
+  return plan;
+}
+
 function describeStrategy(recipe: Recipe, seconds: number): string {
   const strategy = resolveLengthStrategy(recipe, seconds);
   if (strategy.kind === "native") return `native ${LENGTH_LABELS[strategy.mechanism]}`;
@@ -34,7 +42,7 @@ function describeStrategy(recipe: Recipe, seconds: number): string {
 
 describe("chain planning", () => {
   test("20 s on a 5 s model is four segments; with no spare length the crossfade is two frames and the take 0.25 s short", () => {
-    const plan = planChain(20, 5);
+    const plan = planned(20, 5);
     assert.equal(plan.segments.length, 4);
     assert.equal(plan.overlapSeconds, Math.round(MIN_OVERLAP_SECONDS * 1000) / 1000);
     assert.deepEqual(plan.segments.map((segment) => segment.durationSeconds), [5, 5, 5, 5]);
@@ -44,21 +52,42 @@ describe("chain planning", () => {
   });
 
   test("spare length becomes the crossfade, up to 0.25 s, and the take comes out at the length asked", () => {
-    const h3 = planChain(20, 124 / 24);
+    const h3 = planned(20, 124 / 24);
     assert.equal(h3.segments.length, 4);
     assert.ok(h3.overlapSeconds > 0.2 && h3.overlapSeconds < 0.25, String(h3.overlapSeconds));
     assert.ok(Math.abs(h3.totalSeconds - 20) < 0.01);
-    const roomy = planChain(18, 5);
+    const roomy = planned(18, 5);
     assert.equal(roomy.overlapSeconds, 0.25);
     assert.equal(roomy.totalSeconds, 18);
-    assert.equal(planChain(10, 121 / 24).segments.length, 2);
+    assert.equal(planned(10, 121 / 24).segments.length, 2);
   });
 
   test("another segment is added only when the take would fall more than half a second short, and thirteen is the most", () => {
-    assert.equal(planChain(20.4, 5).segments.length, 5);
-    assert.equal(planChain(19.9, 5).segments.length, 4);
-    assert.equal(planChain(60, 5).segments.length, 13);
-    assert.throws(() => planChain(60, 4.5), /more than 13 segments/);
+    assert.equal(planned(20.4, 5).segments.length, 5);
+    assert.equal(planned(19.9, 5).segments.length, 4);
+    assert.equal(planned(60, 5).segments.length, 13);
+    assert.equal(planChain(60, 4.5), null, "past thirteen segments there is no plan");
+  });
+
+  test("the shortest crossfade is two frames at the recipe's rate", () => {
+    assert.equal(minOverlapSeconds(24), 0.083);
+    assert.equal(minOverlapSeconds(16), 0.125);
+    assert.equal(planned(20, 81 / 16, { fps: 16 }).overlapSeconds >= 0.125, true);
+    assert.equal(planned(20, 5, { fps: 16 }).overlapSeconds, 0.125);
+  });
+
+  test("Router models with fixed lengths: every segment is a length the model accepts", () => {
+    const kling = planned(20, 15, { durations: Array.from({ length: 13 }, (_, i) => i + 3) });
+    assert.deepEqual(kling.segments.map((segment) => segment.durationSeconds), [10, 10], "Kling at 20 s is two 10 s runs, not 10.125 s");
+    assert.equal(kling.overlapSeconds, 0.25);
+    assert.equal(kling.totalSeconds, 19.75);
+    const wan = planned(8, 5, { durations: [5] });
+    assert.deepEqual(wan.segments.map((segment) => segment.durationSeconds), [5, 5], "Wan 3 at 8 s is two 5 s runs, not 4.125 s");
+    assert.equal(wan.overlapSeconds, 0.25);
+    assert.ok(wan.totalSeconds >= 8, "a fixed length can run a little longer than asked, never short");
+    const long = planned(40, 15, { durations: Array.from({ length: 13 }, (_, i) => i + 3) });
+    assert.ok(long.segments.every((segment) => Number.isInteger(segment.durationSeconds) && segment.durationSeconds >= 3 && segment.durationSeconds <= 15));
+    assert.ok(long.totalSeconds >= 39.5);
   });
 });
 
@@ -120,6 +149,17 @@ describe("strategy per recipe", async () => {
     assert.ok(backendAllowsCustomGraphs("cloud") && backendAllowsCustomGraphs("comfyui") && backendAllowsCustomGraphs(undefined));
     assert.ok(!backendAllowsCustomGraphs("deployment") && !backendAllowsCustomGraphs("router"));
     assert.equal(resolveLengthStrategy(base, 61).kind, "unsupported");
+    const many = resolveLengthStrategy({ ...base, length: { nativeMaxSeconds: 4 } } as Recipe, 60);
+    assert.ok(many.kind === "unsupported" && /more than 13 segments/.test(many.reason), "too many segments is refused with the reason, not thrown");
+  });
+
+  test("the strategy hands a Router model's durations to the plan", () => {
+    const kling = resolveLengthStrategy(byId("router-kling-3-omni-i2v"), 20);
+    assert.ok(kling.kind === "chained");
+    assert.deepEqual(kling.plan.segments.map((segment) => segment.durationSeconds), [10, 10]);
+    const wan = resolveLengthStrategy(byId("router-wan-3-i2v"), 8);
+    assert.ok(wan.kind === "chained");
+    assert.deepEqual(wan.plan.segments.map((segment) => segment.durationSeconds), [5, 5]);
   });
 });
 
@@ -151,7 +191,7 @@ describe("segment prompts", async () => {
   const h3 = recipes.find((recipe) => recipe.id === "minimax-h3-i2v")!;
 
   test("the line is shared out by time, cut at punctuation, word for word", () => {
-    const plan = planChain(15, 5);
+    const plan = planned(15, 5);
     const parts = splitLine("I stopped buying bottled water the day this fit my cup holder. It stays cold all day, and I never think about it.", plan);
     assert.equal(parts.length, 3);
     assert.equal(parts.join(" "), "I stopped buying bottled water the day this fit my cup holder. It stays cold all day, and I never think about it.");
@@ -160,7 +200,7 @@ describe("segment prompts", async () => {
   });
 
   test("LTX: each segment is the house clip prompt for its share of the line, carrying on from the start image and setting up the next", () => {
-    const plan = planChain(15, 5);
+    const plan = planned(15, 5);
     const rendered = renderChain(clipSpec(), plan, ltx);
     assert.ok(rendered.ok);
     const [first, second, third] = rendered.segments;
@@ -176,21 +216,21 @@ describe("segment prompts", async () => {
   });
 
   test("MiniMax H3: segments go through the H3 chain renderer (continues from <Picture 1>, sets up the next moment)", () => {
-    const rendered = renderChain(clipSpec(), planChain(15, 124 / 24), h3);
+    const rendered = renderChain(clipSpec(), planned(15, 124 / 24), h3);
     assert.ok(rendered.ok, rendered.ok ? "" : rendered.error);
     assert.match(rendered.segments[0].prompt, /begins from <Picture 1>/);
     assert.match(rendered.segments[0].prompt, /setting up the next moment/);
     assert.match(rendered.segments[1].prompt, /continues from <Picture 1>, the last frame of the previous segment/);
     assert.doesNotMatch(rendered.segments[2].prompt, /setting up the next moment/);
     assert.ok(rendered.segments.every((segment) => segment.prompt.includes("<d>")), "every segment speaks its words in H3's dialogue tag");
-    const speech = renderChain(clipSpec({ mode: "speech" }), planChain(15, 5), h3);
+    const speech = renderChain(clipSpec({ mode: "speech" }), planned(15, 5), h3);
     assert.ok(!speech.ok && /does not lip-sync/.test(speech.error));
   });
 
   test("a line too short or too dense for the take is refused with the reason", () => {
-    const sparse = renderChain(clipSpec({ line: "Cold all day." }), planChain(20, 5), ltx);
-    assert.ok(!sparse.ok && /too few for a 19.75 s take in 4 segments/.test(sparse.error));
-    const broll = renderChain(clipSpec({ type: "broll" }), planChain(10, 5), ltx);
+    const sparse = renderChain(clipSpec({ line: "Cold all day." }), planned(20, 5), ltx);
+    assert.ok(!sparse.ok && /too few for a 19.75 s clip in 4 segments/.test(sparse.error));
+    const broll = renderChain(clipSpec({ type: "broll" }), planned(10, 5), ltx);
     assert.ok(broll.ok && broll.segments.every((segment) => segment.line === "") && broll.segments[0].prompt.endsWith(SETS_UP.broll));
   });
 });

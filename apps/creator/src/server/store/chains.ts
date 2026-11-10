@@ -1,5 +1,5 @@
 /**
- * Chained takes: one row per proposal candidate made as segments (`ChainSchema`). Admission is
+ * Chained recordings: one row per proposal candidate made as segments (`ChainSchema`). Admission is
  * idempotent by request id; updates are optimistic by revision. The holds a running chain keeps for
  * segments not yet admitted are read by the spend policy through `outstandingUsd`.
  * @packageDocumentation
@@ -16,7 +16,7 @@ export function chainRepository(database: DatabaseSync) {
   }
 
   function getRequired(id: string): Chain {
-    return get(id) ?? fail("not_found", "This chained take could not be found.");
+    return get(id) ?? fail("not_found", "This chained recording could not be found.");
   }
 
   function getByRequest(requestId: string): Chain | undefined {
@@ -30,7 +30,7 @@ export function chainRepository(database: DatabaseSync) {
     return transaction(database, () => {
       const existing = getByRequest(record.requestId);
       if (existing) {
-        if (existing.projectId !== record.projectId) fail("conflict", "This request id was already used for a different take.");
+        if (existing.projectId !== record.projectId) fail("conflict", "This request id was already used for a different recording.");
         return { chain: existing, created: false };
       }
       database
@@ -61,6 +61,14 @@ export function chainRepository(database: DatabaseSync) {
     );
   }
 
+  /** Every chain not completed or failed (running, stitching, or paused), oldest first. */
+  function listOpen(): Chain[] {
+    return decodeAll(
+      database.prepare("SELECT data FROM chains WHERE status IN ('running', 'stitching', 'paused') ORDER BY json_extract(data, '$.createdAt'), rowid").all(),
+      ChainSchema,
+    );
+  }
+
   /** The chain a job is a segment of (its own request or the segment's automatic retry), if any. */
   function forJob(job: { projectId: string; requestId: string }): { chain: Chain; index: number } | undefined {
     for (const chain of listByProject(job.projectId)) {
@@ -72,15 +80,15 @@ export function chainRepository(database: DatabaseSync) {
 
   const admitted = database.prepare("SELECT 1 FROM jobs WHERE request_id = ?");
 
-  /** USD every running chain holds for segments whose job is not admitted yet. */
-  function outstandingUsd(): number {
+  /** USD every running chain holds for segments whose job is not admitted yet, less the one segment `except` names. */
+  function outstandingUsd(except?: string): number {
     let total = 0;
     for (const chain of decodeAll(database.prepare("SELECT data FROM chains WHERE status = 'running'").all(), ChainSchema)) {
-      total += chainHoldUsd(chain, (requestId) => admitted.get(requestId) !== undefined);
+      total += chainHoldUsd(chain, (requestId) => requestId === except || admitted.get(requestId) !== undefined);
     }
     return Math.round(total * 1e6) / 1e6;
   }
 
-  return { get, getRequired, getByRequest, add, update, listByProject, listActive, forJob, outstandingUsd };
+  return { get, getRequired, getByRequest, add, update, listByProject, listActive, listOpen, forJob, outstandingUsd };
 }
 export type ChainRepository = ReturnType<typeof chainRepository>;

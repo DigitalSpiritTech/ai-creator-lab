@@ -33,10 +33,11 @@ export interface SpendStore {
   workspace: { get(): WorkspaceSettings };
   jobs: { listAll(): Job[] };
   /**
-   * Money held for runs not admitted as jobs yet: the later segments of a chained take, reserved up
-   * front when the chain is admitted. Counted as reserved in every period, like an unfinished job.
+   * Money held for runs not admitted as jobs yet: the later segments of a chained recording,
+   * reserved up front when the chain is admitted. Counted as reserved in every period, like an
+   * unfinished job. `except` leaves out the hold of one run (by its request id).
    */
-  holds?: { outstandingUsd(): number };
+  holds?: { outstandingUsd(except?: string): number };
   budget: {
     get(id: string): BudgetExtension | undefined;
     listForPeriod(periodKey: string): BudgetExtension[];
@@ -101,22 +102,23 @@ export function windowTotals(jobs: readonly Job[], window: Pick<BudgetPeriod, "s
   return { spentUsd, reservedUsd };
 }
 
-/** Adds outstanding holds to a window's reservations, less a hold being turned into a job right now. */
+/** Adds outstanding holds to a window's reservations. */
 function withHolds(totals: SpendTotals, holdsUsd: number): SpendTotals {
   return { spentUsd: totals.spentUsd, reservedUsd: Math.max(0, totals.reservedUsd + holdsUsd) };
 }
 
 /**
  * The policy in force now: this period's budget, extension, spend, and the operator ceiling.
- * `releaseUsd` is a hold about to become a job's own reservation (a chain admitting its next
- * segment): it is left out, so the admission checks that segment's cost once, not twice.
+ * `heldFor` is the request id of a run whose hold is about to become its job's own reservation (a
+ * chain admitting its next segment): only that run's hold is left out, so the admission checks its
+ * cost once, not twice, and every other hold still counts.
  */
-export function currentSpendPolicy(deps: SpendDeps, options: { releaseUsd?: number } = {}): SpendPolicy {
+export function currentSpendPolicy(deps: SpendDeps, options: { heldFor?: string } = {}): SpendPolicy {
   const now = (deps.now ?? Date.now)();
   const settings = deps.store.workspace.get();
   const period = budgetPeriod(now, settings.budgetResetDay);
   const jobs = deps.store.jobs.listAll();
-  const holds = Math.max(0, (deps.store.holds?.outstandingUsd() ?? 0) - Math.max(0, options.releaseUsd ?? 0));
+  const holds = Math.max(0, deps.store.holds?.outstandingUsd(options.heldFor) ?? 0);
   const totals = withHolds(windowTotals(jobs, period, now), holds);
   if (deps.allowanceUsd) {
     const cap = deps.allowanceUsd();

@@ -1,11 +1,13 @@
 /**
- * Chained takes end to end (v0.2 F4) through the real tools, store, run orchestration, and ffmpeg,
- * on a mock executor that makes real MP4 segments. The acceptance case: a 20 s talking take on a
- * 5 s model completes as four chained segments with one continuous audio track and no cut in the
- * voice (checked with ffprobe and silencedetect around every seam). Also: a restart in the middle
- * resumes without resubmitting, an uncertain segment past the collection window ends the take and
- * releases its hold, and the whole take is reserved up front (a take that does not fit starts
- * nothing; a held take blocks other spending; a lowered ceiling pauses it, resubmitting resumes it).
+ * Chained recordings end to end (v0.2 F4) through the real tools, store, run orchestration, and
+ * ffmpeg, on a mock executor that makes real MP4 segments. The acceptance case: a 20 s talking clip
+ * on a 5 s model completes as four chained segments with one continuous audio track and no cut in
+ * the voice (checked with ffprobe and silencedetect around every seam). Also: a restart in the
+ * middle resumes without resubmitting, an uncertain segment past the collection window ends the
+ * chain and releases its hold, the whole recording is reserved up front (one that does not fit
+ * starts nothing; a held one blocks other spending; a lowered ceiling pauses it, resubmitting
+ * resumes it), and a chain never holds money it cannot use (deletion refused while it runs, a
+ * deleted or broken input ends it, cancel releases it).
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -20,7 +22,9 @@ import { ffmpegPath, ffprobePath } from "@creator-lab/executors/media";
 import { renderMockWav } from "@creator-lab/executors/mock";
 import { currentSpendPolicy, COLLECTION_WINDOW_MS } from "@creator-lab/executors/spend";
 import { MOCK_RECIPES } from "@creator-lab/recipes/defaults";
-import { recoverChains } from "@/server/generation/chain";
+import { markAssetDeleted } from "@creator-lab/core/domain/asset";
+import { advanceChain, chainLoopRunning, recoverChains, seamNotice } from "@/server/generation/chain";
+import { chainUses, describeChainUse } from "@/server/media/lifecycle";
 import { recoverAndDrain } from "@/server/generation/run";
 import { importAudio } from "@/server/media/audio";
 import { resolveMediaPath } from "@/server/media/paths";
@@ -89,6 +93,7 @@ function gatedExecutor(store: Store, inner: MockExecutor, harness: Pick<Harness,
       return inner.poll(jobId);
     },
     retrieve: (jobId, destination) => inner.retrieve(jobId, destination),
+    cancel: (jobId) => inner.cancel(jobId),
   };
 }
 
@@ -105,6 +110,7 @@ function open(dir: string, shared?: Partial<Pick<Harness, "holdPoll" | "uncertai
     ceiling: shared?.ceiling ?? { usd: 0 },
   } as Harness;
   const now = () => (clock.now += 1000);
+  const sleepers: (() => void)[] = [];
   // One simulated dollar per video segment, nothing for stills and voices: the spend gate runs for real.
   const mock = new MockExecutor({ jobs: store.jobs, video: "mp4", now, price: (input) => (harness.ceiling.usd > 0 && input.durationSeconds && input.images.length ? 1 : undefined) });
   const gate = gatedExecutor(store, mock, harness);
@@ -113,11 +119,14 @@ function open(dir: string, shared?: Partial<Pick<Harness, "holdPoll" | "uncertai
     executors,
     recipes: async () => MOCK_RECIPES as Recipe[],
     operatorCeilingUsd: () => harness.ceiling.usd,
-    // Never wakes: a chain that has to wait stops there, as if the process ended.
-    sleep: () => new Promise(() => undefined),
+    // Never wakes on its own: a chain that has to wait stops there until the harness closes, as if
+    // the process ended.
+    sleep: () => new Promise((_, reject) => sleepers.push(() => reject(new Error("The process stopped.")))),
   };
   harness.tools = { store, now, newId: randomUUID, generation };
   harness.close = () => {
+    // A loop asleep in this "process" ends with it, as it would when the app stops.
+    for (const stop of sleepers.splice(0)) stop();
     try {
       store.close();
     } catch {
@@ -200,8 +209,9 @@ describe("a chained talking take on the mock", () => {
     const proposal = await ok<GenerationProposal>(tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 20 });
     assert.equal(proposal.durationSeconds, 20);
     assert.equal(proposal.spec?.kind === "clip" && proposal.spec.durationSeconds, 15, "the spec keeps one run's length; the take is on the proposal");
-    assert.match(proposal.estimate.note, /Chained take: 4 segments of 5\.00 s/);
-    assert.match(proposal.estimate.note, /approved voice take as the one audio track/);
+    assert.match(proposal.estimate.note, /Chained recording: 4 segments of 5\.00 s/);
+    assert.match(proposal.estimate.note, /approved voice recording as the one audio track/);
+    assert.match(proposal.estimate.note, /The voice recording runs 15\.6 s, so the last 4\.\d s have no voice/, "a voice shorter than the clip is said on the card");
     assert.equal((proposal.prompt.match(/\[Segment \d of 4/g) ?? []).length, 4, "the card shows every segment's prompt");
 
     const submitted = await ok<Submitted>(tools, "submit_proposal", { proposal, wait: true });
@@ -261,10 +271,19 @@ describe("a chained talking take on the mock", () => {
     assert.deepEqual(again.results[0].assetIds, [takeId]);
     assert.equal(store.jobs.listByProject(proposal.projectId).filter((job) => job.capability === "image_to_video").length, 4);
 
-    // "Regenerate with..." on the take proposes the whole take again, not one segment.
+    // The project state shows the chain and its result; the clip's record carries the chain's summary.
+    const state = await ok<{ chains: { id: string; status: string; segmentCount: number; segmentsMade: number; outputAssetId: string | null; summary: string }[] }>(tools, "get_project_state", { projectId: proposal.projectId });
+    assert.deepEqual(
+      { status: state.chains[0].status, segments: state.chains[0].segmentCount, made: state.chains[0].segmentsMade, output: state.chains[0].outputAssetId },
+      { status: "completed", segments: 4, made: 4, output: takeId },
+    );
+    assert.match(state.chains[0].summary, /Chained recording: 4 segments stitched/);
+    assert.ok(take.provenance.source === "generated" && take.provenance.prompt.startsWith("Chained recording: 4 segments"), "a clean recording's record starts with its summary");
+
+    // "Regenerate with..." on the recording proposes the whole recording again, not one segment.
     const redo = await ok<GenerationProposal>(tools, "regenerate_with", { assetId: takeId, recipeId: "mock-image-to-video" });
     assert.equal(redo.durationSeconds, chain.totalSeconds);
-    assert.match(redo.estimate.note, /Chained take: 4 segments/);
+    assert.match(redo.estimate.note, /Chained recording: 4 segments/);
   });
 
   test("a take the recipe makes in one run stays a single job", async () => {
@@ -342,7 +361,7 @@ describe("a chained take and the budget", () => {
     assert.equal(proposal.estimate.usd, 4, "four segments at $1 each");
     const submitted = await ok<Submitted>(harness.tools, "submit_proposal", { proposal, wait: true });
     assert.equal(submitted.results[0].outcome, "blocked");
-    assert.match(submitted.results[0].message!, /whole take is reserved before segment 1 runs/);
+    assert.match(submitted.results[0].message!, /whole recording is reserved before segment 1 runs/);
     assert.ok(submitted.results[0].budget, "the extend dialog gets the crossing");
     assert.equal(harness.store.chains.listByProject(proposal.projectId).length, 0);
     assert.equal(harness.store.jobs.listByProject(proposal.projectId).filter((job) => job.capability === "image_to_video").length, 0);
@@ -408,5 +427,149 @@ describe("a chained take and the budget", () => {
     const policy = currentSpendPolicy(deps);
     assert.equal(policy.reservedUsd, 0, "nothing stays held");
     assert.equal(policy.spentUsd, 2, "the two segments that ran are spent");
+  });
+
+  test("deleting an input of a running chain is refused and its usage names the chain; cancel releases the hold", async () => {
+    const { harness, contentId } = await priced(10);
+    const { tools, store } = harness;
+    const proposal = await ok<GenerationProposal>(tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 20 });
+    harness.holdPoll.has = (requestId: string) => requestId === store.chains.listByProject(proposal.projectId)[0]?.segments[0].requestId;
+    await ok<Submitted>(tools, "submit_proposal", { proposal });
+    const chain = store.chains.listByProject(proposal.projectId)[0];
+    const stillId = chain.inputs[0].assetId;
+    const uses = chainUses(store, stillId);
+    assert.equal(uses.length, 1);
+    assert.match(describeChainUse(uses[0]), /A chained recording in progress \(0 of 4 segments made\) uses this as the starting still/);
+    const refused = await callTool(tools, "delete_asset_everywhere", { assetId: stillId, confirm: true, force: true });
+    assert.ok(!refused.ok && /cancel it, before deleting/.test(refused.failure.message), "deleting the still under a running chain is refused");
+    const state = await ok<{ chains: { status: string; currentSegment: number | null; summary: string }[] }>(tools, "get_project_state", { projectId: proposal.projectId });
+    assert.equal(state.chains[0].currentSegment, 1);
+    assert.match(state.chains[0].summary, /segment 1 of 4 in progress, \$4\.00 reserved for the whole recording/);
+    assert.equal(currentSpendPolicy(runDeps(tools)).reservedUsd, 4);
+
+    const canceled = await ok<Submitted>(tools, "submit_proposal", { proposal, cancel: true });
+    assert.equal(canceled.results[0].outcome, "failed");
+    assert.match(canceled.results[0].message!, /Canceled after 0 of 4 segments/);
+    assert.equal(store.chains.getRequired(chain.id).status, "failed");
+    assert.equal(currentSpendPolicy(runDeps(tools)).reservedUsd, 0, "cancel releases the hold, and the segment in flight was canceled before it was sent");
+    await ok(tools, "delete_asset_everywhere", { assetId: stillId, confirm: true, force: true });
+    const plain = await ok<GenerationProposal>(tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 5 }).catch(() => undefined);
+    if (plain) {
+      const notChained = await callTool(tools, "submit_proposal", { proposal: plain, cancel: true });
+      assert.ok(!notChained.ok && /Only a chained recording can be canceled/.test(notChained.failure.message));
+    }
+  });
+
+  test("a paused chain whose segment was deleted fails when resumed and holds nothing", async () => {
+    const { harness, contentId } = await priced(10);
+    const { tools, store } = harness;
+    const proposal = await ok<GenerationProposal>(tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 15 });
+    const segments = () => store.chains.listByProject(proposal.projectId)[0]?.segments;
+    harness.holdPoll.has = (requestId: string) => requestId === segments()?.[0].requestId;
+    await ok<Submitted>(tools, "submit_proposal", { proposal });
+    const chainId = store.chains.listByProject(proposal.projectId)[0].id;
+    harness.ceiling.usd = 1.5;
+    harness.holdPoll.has = () => false;
+    const deps = runDeps(tools);
+    assert.equal((await advanceChain(deps, chainId)).kind, "paused");
+    const made = store.chains.getRequired(chainId).segments[0].assetId!;
+    await ok(tools, "delete_asset_everywhere", { assetId: made, confirm: true, force: true });
+    harness.ceiling.usd = 50;
+    const resumed = await ok<Submitted>(tools, "submit_proposal", { proposal, wait: true });
+    assert.equal(resumed.results[0].outcome, "failed");
+    assert.match(resumed.results[0].message!, /failed because a file it needs was deleted/);
+    assert.equal(currentSpendPolicy(deps).reservedUsd, 0);
+    assert.equal(currentSpendPolicy(deps).spentUsd, 1, "only the segment that ran is spent");
+  });
+
+  test("a segment output deleted outside the app ends a running chain", async () => {
+    const { harness, contentId } = await priced(10);
+    const { tools, store } = harness;
+    const proposal = await ok<GenerationProposal>(tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 15 });
+    const second = () => store.chains.listByProject(proposal.projectId)[0]?.segments[1].requestId;
+    harness.holdPoll.has = (requestId: string) => requestId === second();
+    await ok<Submitted>(tools, "submit_proposal", { proposal });
+    for (let tries = 0; tries < 100 && !harness.submits.includes(second() ?? ""); tries++) await new Promise((wait) => setTimeout(wait, 50));
+    const chain = store.chains.listByProject(proposal.projectId)[0];
+    const job = store.jobs.getRequired(chain.segments[1].jobId!);
+    harness.holdPoll.has = () => false;
+    // Segment 2 finishes; then segment 1's file is tombstoned behind the app's back before the stitch reads it.
+    const deps = runDeps(tools);
+    const { advanceGeneration } = await import("@/server/generation/run");
+    await advanceGeneration(deps, job.id);
+    await advanceGeneration(deps, job.id);
+    const first = store.assets.getRequired(chain.segments[0].assetId!);
+    store.assets.update(markAssetDeleted(first, tools.now()));
+    const step = await recoverChains({ ...deps, sleep: async () => undefined });
+    assert.equal(step.find((entry) => entry.chain.id === chain.id)?.kind, "failed");
+    assert.match(store.chains.getRequired(chain.id).notice!, /was deleted/);
+    assert.equal(currentSpendPolicy(deps).reservedUsd, 0);
+  });
+
+  test("five local failures in a row end the chain and release its hold", async () => {
+    const { harness, contentId } = await priced(10);
+    const { tools, store } = harness;
+    const proposal = await ok<GenerationProposal>(tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 15 });
+    const segments = () => store.chains.listByProject(proposal.projectId)[0]?.segments;
+    harness.holdPoll.has = (requestId: string) => requestId === segments()?.[0].requestId;
+    await ok<Submitted>(tools, "submit_proposal", { proposal });
+    const chainId = store.chains.listByProject(proposal.projectId)[0].id;
+    harness.holdPoll.has = () => false;
+    // Segment 1 finishes, then its file turns unreadable (not missing) before its handover frame is taken.
+    const deps = runDeps(tools);
+    const { advanceGeneration } = await import("@/server/generation/run");
+    const first = store.jobs.getRequired(segments()![0].jobId!);
+    await advanceGeneration(deps, first.id);
+    const done = await advanceGeneration(deps, first.id);
+    assert.equal(done.kind, "completed");
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(resolveMediaPath(store.dataDir, store.assets.getRequired(done.job.status === "completed" ? done.job.outputs[0] : "").relativePath), "not a video");
+    const once = await advanceChain(deps, chainId);
+    assert.equal(once.kind, "waiting", "the first failure waits to try again");
+    assert.equal(store.chains.getRequired(chainId).localFailures, 1);
+    assert.equal(currentSpendPolicy(deps).reservedUsd, 2, "while it may still recover, segments 2 and 3 stay held");
+    const [step] = await recoverChains({ ...deps, sleep: async () => undefined });
+    assert.equal(step.kind, "failed");
+    assert.match(step.chain.notice!, /failed 5 times in a row/);
+    assert.equal(currentSpendPolicy(deps).reservedUsd, 0);
+    assert.equal(currentSpendPolicy(deps).spentUsd, 1, "nothing past segment 1 was spent");
+  });
+
+  test("a resubmit starts a loop for a running chain nothing is driving (after a restart)", async () => {
+    const harness = setup();
+    const { tools, store } = harness;
+    const { contentId } = await talkingBeat(harness, { line: SHORT_LINE });
+    const proposal = await ok<GenerationProposal>(tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 10 });
+    const second = () => store.chains.listByProject(proposal.projectId)[0]?.segments[1].requestId;
+    harness.holdPoll.has = (requestId: string) => requestId === second();
+    await ok<Submitted>(tools, "submit_proposal", { proposal });
+    for (let tries = 0; tries < 100 && !harness.submits.includes(second() ?? ""); tries++) await new Promise((wait) => setTimeout(wait, 50));
+    const chainId = store.chains.listByProject(proposal.projectId)[0].id;
+    harness.close();
+    await new Promise((wait) => setTimeout(wait, 20));
+    assert.equal(chainLoopRunning(chainId), false, "the loop ended with the process");
+    const reopened = open(harness.dir, { clock: harness.clock, submits: harness.submits, ceiling: harness.ceiling });
+    cleanups.push(() => reopened.close());
+    const again = await ok<Submitted>(reopened.tools, "submit_proposal", { proposal });
+    assert.equal(again.results[0].outcome, "existing");
+    for (let tries = 0; tries < 200 && reopened.store.chains.getRequired(chainId).status !== "completed"; tries++) await new Promise((wait) => setTimeout(wait, 50));
+    assert.equal(reopened.store.chains.getRequired(chainId).status, "completed", "the resubmit started a loop that finished it");
+  });
+
+  test("propose_candidates cannot ask a video recipe for more than one run; generate_clip chains it", async () => {
+    const harness = setup();
+    const project = seedProject(harness.store, harness.tools.now);
+    const refused = await callTool(harness.tools, "propose_candidates", { projectId: project.id, capability: "image_to_video", recipeId: "mock-image-to-video", prompt: "A bottle on a counter.", durationSeconds: 12, count: 1 });
+    assert.ok(!refused.ok && /use generate_clip with durationSeconds/.test(refused.failure.message), refused.ok ? "" : refused.failure.message);
+    const fits = await callTool(harness.tools, "propose_candidates", { projectId: project.id, capability: "image_to_video", recipeId: "mock-image-to-video", prompt: "A bottle on a counter.", durationSeconds: 5, count: 1 });
+    assert.ok(fits.ok);
+  });
+
+  test("the seam check's finding is written in words", () => {
+    assert.equal(seamNotice([{ seconds: 4.9, issues: [], videoDifference: 1, videoBaseline: 1, quietestDb: -20, clickRatio: 1 }]), null);
+    assert.equal(
+      seamNotice([{ seconds: 9.87, issues: ["jump", "audio_click"], videoDifference: 30, videoBaseline: 1, quietestDb: -20, clickRatio: 9 }]),
+      "Seam check: a visible jump and a click in the audio at 9.9 s. Look at those moments before approving; generating again makes every segment anew.",
+    );
   });
 });

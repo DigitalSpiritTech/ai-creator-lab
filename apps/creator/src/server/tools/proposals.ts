@@ -25,7 +25,7 @@ import { renderPrompt } from "@creator-lab/recipes/render";
 import { serverPlugins } from "@/plugins/server";
 import type { ToolContext } from "@/server/tools/registry";
 import { requireGeneration } from "@/server/tools/registry";
-import { type ChainedTake, chainedTake, combineEstimates, pricingInput } from "@/server/tools/chain";
+import { type ChainedTake, assertOneRunLength, chainedTake, combineEstimates, pricingInput } from "@/server/tools/chain";
 import { linkedReferenceIds, referenceableIn } from "@/server/tools/shared";
 
 export interface ProposalSpec {
@@ -256,7 +256,9 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
   const placed = placeForProposal(context, picked);
   const recipe = placed.recipe;
   const shot = shotOf(spec);
-  // A clip longer than the recipe makes in one run is a chained take: one prompt per segment, priced as a whole.
+  // A clip longer than the recipe makes in one run is a chained recording: one prompt per segment,
+  // priced as a whole. Any other video proposal must fit one run.
+  assertOneRunLength(context, recipe, shot, spec.durationSeconds);
   const take = chainedTake(context, { projectId: spec.projectId, recipe, shot, durationSeconds: spec.durationSeconds, target: spec.target, assets });
   const { prompt, style } = take ? { prompt: chainPromptSummary(take.plan, take.prompts), style: inferPromptStyle(recipe) } : renderFor(recipe, shot);
   const id = context.newId();
@@ -288,7 +290,7 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
   });
 }
 
-/** Every segment of a chained take priced by the executor, as one estimate for the card. */
+/** Every segment of a chained recording priced by the executor, as one estimate for the card. */
 export async function estimateTake(
   executor: Pick<NonNullable<ReturnType<ExecutorSet["forRecipe"]>>, "estimate">,
   args: { requestId: string; projectId: string; recipe: Recipe; take: ChainedTake; base: Pick<GenerationInput, "aspectRatio" | "seed" | "slots"> },
@@ -301,7 +303,7 @@ export async function estimateTake(
 }
 
 /**
- * The chained take a proposal runs, or undefined when it runs as one job per candidate. Decided
+ * The chained recording a proposal runs, or undefined when it runs as one job per candidate. Decided
  * the same way as when the proposal was built, for the recipe bound at submit.
  */
 export async function proposalChain(context: ToolContext, proposal: GenerationProposal): Promise<{ recipe: Recipe; take: ChainedTake } | undefined> {

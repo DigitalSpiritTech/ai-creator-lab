@@ -5,6 +5,8 @@
  * @packageDocumentation
  */
 import { isTerminal } from "@creator-lab/core/domain/job";
+import { isChainActive } from "@creator-lab/executors/chain";
+import { chainView, ensureChainLoop } from "@/server/generation/chain";
 import { advanceGeneration } from "@/server/generation/run";
 import { runDeps } from "@/server/tools/proposals";
 import { parseId, route, toolContextFor, withStore } from "@/app/api/_lib/server";
@@ -33,10 +35,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           .catch(() => undefined)
           .finally(() => nudging.delete(job.id));
       }
+      // A chained recording keeps going between its segment jobs; one with no loop driving it (its
+      // loop reached its deadline, or the process restarted before recovery got to it) gets one.
+      const chains = store.chains.listByProject(projectId);
+      for (const chain of chains) if (isChainActive(chain) && now - chain.updatedAt >= STALLED_MS) ensureChainLoop(deps, chain);
       const jobs = store.jobs.listByProject(projectId);
       return Response.json({
         unfinished: jobs.filter((job) => !isTerminal(job)),
         recent: jobs.filter((job) => isTerminal(job) && now - job.updatedAt < RECENT_MS),
+        // Chained recordings in progress, paused, or finished recently: segment X of N, and any notice.
+        chains: chains.filter((chain) => chain.status === "running" || chain.status === "stitching" || chain.status === "paused" || now - chain.updatedAt < RECENT_MS).map(chainView),
       });
     });
   });

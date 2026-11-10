@@ -1,8 +1,8 @@
 /**
  * The Chain step in the tools layer: whether a clip proposal is made in one run or as a chained
- * take, decided per recipe by `resolveLengthStrategy` (native, a whole-take workflow, or chained
+ * recording, decided per recipe by `resolveLengthStrategy` (native, a whole-recording workflow, or chained
  * segments), and what a chained candidate needs (segment prompts with continuity, the starting
- * still, an identity reference where the recipe takes one, and the voice take as the audio spine).
+ * still, an identity reference where the recipe takes one, and the voice recording as the audio spine).
  * `buildProposal` and `submit_proposal` both ask here, so the card, the price, and what runs agree.
  * @packageDocumentation
  */
@@ -25,7 +25,7 @@ import { serverPlugins } from "@/plugins/server";
 import type { ToolContext } from "@/server/tools/registry";
 import { requireGeneration } from "@/server/tools/registry";
 
-/** A clip proposal made as a chained take. */
+/** A clip proposal made as a chained recording. */
 export interface ChainedTake {
   strategy: Extract<LengthStrategy, { kind: "chained" }>;
   plan: ChainPlan;
@@ -34,7 +34,7 @@ export interface ChainedTake {
   still: Asset;
   /** An identity reference passed beside each segment's start frame, when the recipe takes two images. */
   identity: Asset | null;
-  /** The voice take that is the take's one audio track (and what speech-driven segments follow). */
+  /** The voice recording that is the clip's one audio track (and what speech-driven segments follow). */
   spine: Asset | null;
 }
 
@@ -52,7 +52,7 @@ function customGraphs(context: ToolContext, recipe: Recipe): boolean {
   return backendAllowsCustomGraphs(backend?.kind);
 }
 
-/** The approved voice take of a shot's beat, when the target is a shot and one is approved. */
+/** The approved voice recording of a shot's beat, when the target is a shot and one is approved. */
 function approvedVoice(context: ToolContext, target: GenerationTarget): Asset | null {
   if (target.kind !== "shot") return null;
   const shot = context.store.content.get(target.contentId)?.shots.find((entry) => entry.beatIndex === target.beatIndex);
@@ -75,8 +75,21 @@ function identityReference(context: ToolContext, projectId: string): Asset | nul
 }
 
 /**
- * The chained take for a clip proposal, or undefined when one run makes it (native, or a whole-take
- * workflow). Refuses, with the reason, a length the recipe cannot reach.
+ * Refuses a video proposal longer than one run of its recipe that is not a clip spec (a hand-written
+ * prompt through propose_candidates): only generate_clip knows the beat to split into segments.
+ */
+export function assertOneRunLength(context: ToolContext, recipe: Recipe, shot: ShotSpec, durationSeconds: number | undefined): void {
+  if (shot.kind === "clip" || durationSeconds === undefined || !recipe.capability.endsWith("_to_video")) return;
+  const strategy = resolveLengthStrategy(recipe, durationSeconds, { customGraphs: customGraphs(context, recipe) });
+  if (strategy.kind === "unsupported") fail("invalid", strategy.reason);
+  if (strategy.kind === "chained") {
+    fail("invalid", `${recipe.title} makes at most ${strategy.segmentMaxSeconds} s in one run. For a longer clip of a beat, use generate_clip with durationSeconds: it is made as a chained recording.`);
+  }
+}
+
+/**
+ * The chained recording for a clip proposal, or undefined when one run makes it (native, or a
+ * whole-recording workflow). Refuses, with the reason, a length the recipe cannot reach.
  */
 export function chainedTake(
   context: ToolContext,
@@ -89,15 +102,15 @@ export function chainedTake(
   if (strategy.kind === "unsupported") fail("invalid", strategy.reason);
   if (strategy.kind !== "chained") return undefined;
   if (args.recipe.kind === "mock" && requireGeneration(context).executors.mock.video !== "mp4") {
-    fail("invalid", "A chained take hands frames from one segment to the next, and the mock makes storyboards. Start the app with MOCK_VIDEO=mp4 for real mock clips, or shorten the take.");
+    fail("invalid", "A chained recording hands frames from one segment to the next, and the mock makes storyboards. Start the app with MOCK_VIDEO=mp4 for real mock clips, or shorten the clip.");
   }
-  const still = args.assets.find((asset) => asset.kind !== "audio") ?? fail("invalid", "A chained take starts from the beat's approved still.");
+  const still = args.assets.find((asset) => asset.kind !== "audio") ?? fail("invalid", "A chained recording starts from the beat's approved still.");
   const voiceReference = args.assets.find((asset) => asset.kind === "audio") ?? null;
-  // Speech to video follows the take it was given; image to video takes the beat's approved voice-over as its audio.
+  // Speech to video follows the recording it was given; image to video uses the beat's approved voice-over as its audio.
   const spine = spec.mode === "speech" ? voiceReference : spec.beat.type === "talking" ? approvedVoice(context, args.target) : null;
-  if (strategy.drive === "audio" && !spine) fail("invalid", "A speech to video take follows a voice take; approve one for this beat first.");
+  if (strategy.drive === "audio" && !spine) fail("invalid", "A speech to video clip follows a voice recording; approve one for this beat first.");
   if (spine?.audio && spine.audio.durationSeconds > strategy.plan.totalSeconds + 0.05) {
-    fail("invalid", `The beat's voice take lasts ${spine.audio.durationSeconds.toFixed(1)} s; a ${strategy.plan.totalSeconds.toFixed(1)} s take would cut it. Make the take at least ${Math.ceil(spine.audio.durationSeconds + 0.4)} s.`);
+    fail("invalid", `The beat's voice recording lasts ${spine.audio.durationSeconds.toFixed(1)} s; a ${strategy.plan.totalSeconds.toFixed(1)} s clip would cut it. Make the clip at least ${Math.ceil(spine.audio.durationSeconds + 0.4)} s.`);
   }
   const identity = maxImages(args.recipe) >= 2 && spec.beat.type === "talking" ? identityReference(context, args.projectId) : null;
   const rendered = renderChain(spec, strategy.plan, args.recipe, serverPlugins.renderers());
@@ -119,19 +132,21 @@ export function pricingInput(take: ChainedTake, index: number, base: Pick<Genera
   };
 }
 
-/** One estimate for the whole take: every segment priced by the executor and added up. */
+/** One estimate for the whole recording: every segment priced by the executor and added up. */
 export function combineEstimates(take: ChainedTake, recipe: Recipe, estimates: EstimateOutcome[]): EstimateSummary {
   const { plan } = take;
   const span = `${plan.segments.length} segments of ${plan.segments[0].durationSeconds.toFixed(2)} s with ${plan.overlapSeconds.toFixed(2)} s crossfades, ${plan.totalSeconds.toFixed(2)} s in all`;
-  const audio = take.spine ? ", the beat's approved voice take as the one audio track" : ", each segment's own sound crossfaded at the seams";
-  const head = `Chained take: ${span}, each segment started from the one before${audio}. The whole take is reserved before segment 1 starts.`;
+  const audio = take.spine ? ", the beat's approved voice recording as the one audio track" : ", each segment's own sound crossfaded at the seams";
+  // A voice recording shorter than the clip leaves its end without a voice; the card says so.
+  const quiet = take.spine?.audio && take.spine.audio.durationSeconds < plan.totalSeconds - 0.5 ? ` The voice recording runs ${take.spine.audio.durationSeconds.toFixed(1)} s, so the last ${(plan.totalSeconds - take.spine.audio.durationSeconds).toFixed(1)} s have no voice.` : "";
+  const head = `Chained recording: ${span}, each segment started from the one before${audio}.${quiet} The whole recording is reserved before segment 1 starts.`;
   const rejected = estimates.find((estimate) => estimate.kind === "rejected");
   if (rejected && rejected.kind === "rejected") return { kind: "rejected", usd: null, credits: null, note: `${head} ${rejected.error.message}`.slice(0, 600) };
   if (estimates.every((estimate) => estimate.kind === "free")) return { kind: "free", usd: 0, credits: 0, note: `${head} ${estimates[0].kind === "free" ? estimates[0].note : ""}`.trim().slice(0, 600) };
   const usd = (estimate: EstimateOutcome) => (estimate.kind === "quoted" ? estimate.usd : estimate.kind === "unquoted" ? (estimate.ceilingUsd ?? recipe.ceilingUsd ?? null) : 0);
   const amounts = estimates.map(usd);
   const total = amounts.some((amount) => amount === null) ? null : Math.round(amounts.reduce((sum: number, amount) => sum + (amount ?? 0), 0) * 1e6) / 1e6;
-  const money = total === null ? "" : ` $${total.toFixed(2)} for the take.`;
+  const money = total === null ? "" : ` $${total.toFixed(2)} for the recording.`;
   const unquoted = estimates.find((estimate) => estimate.kind === "unquoted");
   if (unquoted && unquoted.kind === "unquoted") return { kind: "unquoted", usd: total, credits: null, note: `${head}${money} ${unquoted.note}`.slice(0, 600) };
   const quoted = estimates.filter((estimate) => estimate.kind === "quoted");
@@ -144,7 +159,7 @@ export function combineEstimates(take: ChainedTake, recipe: Recipe, estimates: E
 /** The strategy in a few words, for notes and the docs table. */
 export function strategyLabel(strategy: LengthStrategy): string {
   if (strategy.kind === "native") return `native (${LENGTH_LABELS[strategy.mechanism]}, up to ${strategy.maxSeconds} s)`;
-  if (strategy.kind === "workflow") return "one whole-take workflow";
-  if (strategy.kind === "chained") return `chained (${strategy.plan.segments.length} segments, ${strategy.drive === "audio" ? "each following its slice of the voice take" : "each from the previous last frame"})`;
+  if (strategy.kind === "workflow") return "one whole-recording workflow";
+  if (strategy.kind === "chained") return `chained (${strategy.plan.segments.length} segments, ${strategy.drive === "audio" ? "each following its slice of the voice recording" : "each from the previous last frame"})`;
   return "unsupported";
 }

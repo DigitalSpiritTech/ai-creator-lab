@@ -105,8 +105,8 @@ export const regenerateWith = defineTool({
     const job = store.jobs.get(asset.provenance.jobId) ?? fail("not_found", "The job that made this candidate is missing.");
     if (input.projectId && input.projectId !== job.projectId) fail("invalid", "This candidate belongs to another project.");
     const { request } = job;
-    // A chained take (or one of its segments) is redone as the whole take: its spec, its starting
-    // still and voice take, and its length, not one segment's.
+    // A chained recording (or one of its segments) is redone as the whole recording: its spec, its
+    // starting still and voice recording, and its length, not one segment's.
     const chain = store.chains.forJob(job)?.chain;
     // Candidates made before shot specs carry only their prompt; it goes over as written.
     const shot: ShotSpec = chain?.spec ?? request.spec ?? shotOf({ prompt: request.input.prompt });

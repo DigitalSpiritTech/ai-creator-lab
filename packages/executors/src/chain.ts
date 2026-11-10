@@ -1,5 +1,5 @@
 /**
- * The durable record of a chained take: the plan (segments, crossfade, what drives each segment),
+ * The durable record of a chained recording: the plan (segments, crossfade, what drives each segment),
  * the recipe snapshot every segment job runs, the job and asset each segment produced, and the
  * stitched result with its seam report. Saved in the `chains` table; every step of the chain reads
  * only this record and the jobs it names, so a restart resumes exactly where the chain stopped.
@@ -25,7 +25,7 @@ export const ChainSegmentSchema = z
     requestId: IdSchema,
     /** The request id of the one automatic retry after a black or empty output. */
     retryRequestId: IdSchema,
-    /** Where the segment starts in the take, and how long it runs. */
+    /** Where the segment starts in the recording, and how long it runs. */
     startSeconds: z.number().nonnegative(),
     durationSeconds: z.number().positive().max(60),
     /** The words it speaks (empty on b-roll), and its rendered prompt. */
@@ -35,7 +35,7 @@ export const ChainSegmentSchema = z
     reserveUsd: z.number().nonnegative(),
     /** The frame it starts from (segment 2 on): the previous segment's handover frame. */
     startFrame: FileRefSchema.nullable().default(null),
-    /** Its slice of the voice take (audio-driven chains). */
+    /** Its slice of the voice recording (audio-driven chains). */
     audio: FileRefSchema.nullable().default(null),
     jobId: IdSchema.nullable().default(null),
     assetId: IdSchema.nullable().default(null),
@@ -71,7 +71,7 @@ export const ChainSchema = z
     ownerId: OwnerIdSchema,
     recipe: RecipeSchema,
     drive: z.enum(["first_frame", "audio"]),
-    /** The take as planned, and the crossfade at every seam. */
+    /** The recording as planned, and the crossfade at every seam. */
     totalSeconds: z.number().positive().max(60),
     overlapSeconds: z.number().nonnegative().max(1),
     aspectRatio: z.string().max(8).optional(),
@@ -81,7 +81,7 @@ export const ChainSchema = z
     inputs: z.array(JobInputSchema).min(1).max(4),
     /** The same inputs' paths relative to the data directory, in order; later segments swap the first for their start frame. */
     images: z.array(z.string().min(1).max(4096)).min(1).max(4),
-    /** The continuous voice take that becomes the take's audio, when the beat has one. */
+    /** The continuous voice recording that becomes the clip's audio, when the beat has one. */
     spine: z
       .object({ assetId: IdSchema, sha256: Sha256Schema, relativePath: MediaPathSchema, durationSeconds: z.number().positive() })
       .strict()
@@ -96,6 +96,8 @@ export const ChainSchema = z
     error: JobErrorSchema.nullable(),
     outputAssetId: IdSchema.nullable(),
     seams: z.array(SeamReportSchema).max(12).default([]),
+    /** Local steps (handover frame, voice slice, stitch) that failed in a row; five end the chain. */
+    localFailures: z.number().int().nonnegative().default(0),
     revision: RevisionSchema,
     createdAt: TimestampSchema,
     updatedAt: TimestampSchema,
@@ -137,3 +139,27 @@ export function updateChain(chain: Chain, patch: Partial<Omit<Chain, "id" | "req
 export function withSegment(chain: Chain, index: number, patch: Partial<ChainSegment>): Chain["segments"] {
   return chain.segments.map((segment) => (segment.index === index ? ChainSegmentSchema.parse({ ...segment, ...patch }) : segment));
 }
+
+/** A chain as the project state and the jobs poll report it: where it stands, in a few fields. */
+export const ChainViewSchema = z
+  .object({
+    id: IdSchema,
+    status: ChainStatusSchema,
+    target: GenerationTargetSchema,
+    recipeId: z.string(),
+    totalSeconds: z.number().positive(),
+    segmentCount: z.number().int().positive(),
+    segmentsMade: z.number().int().nonnegative(),
+    /** The segment in progress (1-based), or null once every segment is in. */
+    currentSegment: z.number().int().positive().nullable(),
+    /** The job running that segment, when one is. */
+    jobId: IdSchema.nullable(),
+    reservedUsd: z.number().nonnegative(),
+    /** One line: "segment 2 of 4 in progress", the pause or failure reason, or the seam finding. */
+    summary: z.string().max(1200),
+    notice: z.string().max(600).nullable(),
+    outputAssetId: IdSchema.nullable(),
+    updatedAt: TimestampSchema,
+  })
+  .strict();
+export type ChainView = z.infer<typeof ChainViewSchema>;

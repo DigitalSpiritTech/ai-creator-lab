@@ -171,7 +171,7 @@ export const WORKFLOW_META: Record<string, WorkflowMeta> = {
     ceilingUsd: 0.1,
     fitImages: true,
     defaults: { width: 480, height: 832, length: 77 },
-    notes: "The still is the reference frame and the approved voice take drives the mouth; the length follows the take, 4.8 s at most.",
+    notes: "The still is the reference frame and the approved voice recording drives the mouth; the length follows the recording, 4.8 s per run (longer ones are chained).",
   },
   "chatterbox-turbo-tts": {
     title: "Chatterbox Turbo voice clone on Comfy Cloud",

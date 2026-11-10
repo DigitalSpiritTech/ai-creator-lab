@@ -47,10 +47,10 @@ export interface Store {
   readonly backends: ReturnType<typeof backendRepository>;
   /** Per-project recipe preferences by capability. */
   readonly preferences: ReturnType<typeof preferencesRepository>;
-  /** Chained takes: the plan, the job behind each segment, and the stitched result. */
+  /** Chained recordings: the plan, the job behind each segment, and the stitched result. */
   readonly chains: ReturnType<typeof chainRepository>;
   /** What the spend policy counts as held beyond job reservations (chain segments not admitted yet). */
-  readonly holds: { outstandingUsd(): number };
+  readonly holds: { outstandingUsd(except?: string): number };
   /** Runs synchronous store work atomically; nested calls become savepoints. */
   transaction<T>(work: () => T): T;
   close(): void;

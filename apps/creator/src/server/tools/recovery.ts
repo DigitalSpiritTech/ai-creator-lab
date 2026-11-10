@@ -1,6 +1,6 @@
 /**
  * Starts restart recovery once per process: every unfinished job is resumed in the background with
- * the shared generation context, one at a time, then every chained take that was running. Skipped during `next build` and when
+ * the shared generation context, one at a time, then every chained recording that was running. Skipped during `next build` and when
  * `STUDIO_RECOVERY=off`.
  * @packageDocumentation
  */
@@ -30,7 +30,7 @@ export function startRecoveryOnce(store: Store, log: (line: string) => void = (l
     .then(async () => {
       const deps = runDeps(createToolContext(store, createGenerationContext(store)));
       const steps = await recoverAndDrain(deps, log);
-      // Then every chained take that was running: its finished segments are in, so it admits the next or stitches.
+      // Then every chained recording that was running: its finished segments are in, so it admits the next or stitches.
       await recoverChains(deps, log);
       return steps;
     })

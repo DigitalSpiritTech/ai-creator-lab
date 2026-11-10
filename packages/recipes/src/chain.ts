@@ -1,5 +1,5 @@
 /**
- * Prompts for a chained take: one clip spec split into segment specs (the line shared out by time
+ * Prompts for a chained recording: one clip spec split into segment specs (the line shared out by time
  * at the beat's pace), each rendered in the recipe's prompt style, with continuity written in. A
  * segment after the first says it carries on from its start image (the previous segment's handover
  * frame); a segment before the last foreshadows the next one, ending on a steady pose that sets it
@@ -73,14 +73,14 @@ function segmentSpecs(spec: ClipSpec, plan: ChainPlan): { specs: ClipSpec[]; lin
   const shares = splitLine(spec.beat.spokenLine, plan);
   const lines = talking ? shares : plan.segments.map(() => "");
   if (talking && lines.some((line) => !line)) {
-    return { error: `The line has ${wordCount(spec.beat.spokenLine)} words, too few for a ${plan.totalSeconds} s take in ${plan.segments.length} segments. Lengthen the line or shorten the take.` };
+    return { error: `The line has ${wordCount(spec.beat.spokenLine)} words, too few for a ${plan.totalSeconds} s clip in ${plan.segments.length} segments. Lengthen the line or shorten the clip.` };
   }
   const specs: ClipSpec[] = [];
   for (const [position, segment] of plan.segments.entries()) {
     const seconds = Math.min(15, segment.durationSeconds);
     const words = wordCount(shares[position]);
     if (talking && words > maxWords(seconds)) {
-      return { error: `Segment ${segment.index} would carry ${words} words in ${seconds} s. Lengthen the take or shorten the line.` };
+      return { error: `Segment ${segment.index} would carry ${words} words in ${seconds} s. Lengthen the clip or shorten the line.` };
     }
     const beat = BeatSchema.safeParse({ ...spec.beat, spokenLine: shares[position], durationSeconds: seconds });
     if (!beat.success) return { error: `Segment ${segment.index}: ${beat.error.issues[0]?.message ?? "the beat does not fit"}` };
@@ -98,7 +98,7 @@ export function withContinuity(prompt: string, position: number, count: number, 
 }
 
 /**
- * Renders every segment of a chained take for a recipe. `table` is the plugin registry's renderer
+ * Renders every segment of a chained recording for a recipe. `table` is the plugin registry's renderer
  * table; without one, the starter renderers.
  */
 export function renderChain(spec: ClipSpec, plan: ChainPlan, recipe: PromptStyleSource, table: RendererTable = STARTER_RENDERER_TABLE): ChainRender {

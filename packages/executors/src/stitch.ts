@@ -1,7 +1,7 @@
 /**
- * The local half of a chained take: the handover frame each next segment starts from, the slice of
- * the voice take an audio-driven segment follows, the stitch (a short video crossfade at every seam,
- * the segments' own audio crossfaded, or the continuous voice take as the audio spine), and the seam
+ * The local half of a chained recording: the handover frame each next segment starts from, the slice
+ * of the voice recording an audio-driven segment follows, the stitch (a short video crossfade at every
+ * seam, the segments' own audio crossfaded, or the continuous voice recording as the audio spine), and the seam
  * check against the motion-review slop rules (black frames, a freeze, a visible jump, an audio gap
  * or click at a seam), all with ffmpeg filters.
  *
@@ -28,7 +28,7 @@ async function ffmpeg(args: string[], timeout = 300_000): Promise<{ stdout: stri
  */
 export async function extractHandoverFrame(video: string, info: Pick<VideoInfo, "frames" | "fps">, overlapSeconds: number, out: string): Promise<void> {
   const index = Math.max(0, info.frames - 1 - Math.round(overlapSeconds * info.fps));
-  const temporary = `${out}.tmp.png`;
+  const temporary = (await tempBeside(out)).replace(/\.tmp$/, ".png");
   try {
     await ffmpeg(["-v", "error", "-y", "-i", video, "-map", "0:v:0", "-vf", `select=eq(n\\,${index})`, "-fps_mode", "passthrough", "-frames:v", "1", "-update", "1", "-f", "image2", "-c:v", "png", temporary], 60_000);
     await rename(temporary, out);
@@ -39,7 +39,7 @@ export async function extractHandoverFrame(video: string, info: Pick<VideoInfo, 
 
 /** Cuts `durationSeconds` of a recording from `startSeconds` as 48 kHz mono WAV, padded with silence past its end. */
 export async function sliceAudio(source: string, startSeconds: number, durationSeconds: number, out: string): Promise<void> {
-  const temporary = `${out}.tmp.wav`;
+  const temporary = (await tempBeside(out)).replace(/\.tmp$/, ".wav");
   try {
     await ffmpeg(
       ["-v", "error", "-y", "-ss", startSeconds.toFixed(3), "-i", source, "-af", `apad=whole_dur=${durationSeconds.toFixed(3)}`, "-t", durationSeconds.toFixed(3), "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", "-f", "wav", temporary],
@@ -61,7 +61,7 @@ export interface StitchSegment {
 export interface StitchRequest {
   segments: StitchSegment[];
   overlapSeconds: number;
-  /** The continuous voice take; when set it is the whole take's audio and the segments' own is dropped. */
+  /** The continuous voice recording; when set it is the whole clip's audio and the segments' own is dropped. */
   spine?: { path: string };
   width: number;
   height: number;
@@ -72,7 +72,7 @@ export interface StitchRequest {
 
 export interface StitchResult {
   info: VideoInfo;
-  /** The middle of each crossfade in the stitched take, in seconds. */
+  /** The middle of each crossfade in the stitched clip, in seconds. */
   seams: number[];
   /** What ffmpeg was asked to do, for the record (no paths). */
   summary: string;
@@ -154,9 +154,9 @@ export async function stitchTake(request: StitchRequest): Promise<StitchResult> 
       "-t", totalSeconds.toFixed(3), "-movflags", "+faststart", temporary,
     ]);
     const info = await probeVideo(temporary);
-    if (!info.hasAudio) throw new Error("The stitched take has no audio track.");
+    if (!info.hasAudio) throw new Error("The stitched clip has no audio track.");
     await rename(temporary, request.out);
-    const audio = request.spine ? "the voice take as the one audio track" : `the segments' audio crossfaded over ${request.overlapSeconds.toFixed(3)} s`;
+    const audio = request.spine ? "the voice recording as the one audio track" : `the segments' audio crossfaded over ${request.overlapSeconds.toFixed(3)} s`;
     return { info, seams, summary: `${request.segments.length} segments, ${request.overlapSeconds.toFixed(3)} s video crossfades at ${request.width}x${request.height} ${request.fps} fps, ${audio}; H.264 CRF 18, AAC 160k.` };
   } finally {
     await rm(temporary, { force: true });
@@ -168,12 +168,12 @@ export type SeamIssue = "black" | "freeze" | "jump" | "audio_gap" | "audio_click
 export interface SeamReport {
   seconds: number;
   issues: SeamIssue[];
-  /** Largest frame-to-frame luma difference (signalstats YDIF) near the seam, and the take's median. */
+  /** Largest frame-to-frame luma difference (signalstats YDIF) near the seam, and the clip's median. */
   videoDifference: number;
   videoBaseline: number;
-  /** Quietest 25 ms window near the seam in dBFS (null when the take has no audio). */
+  /** Quietest 25 ms window near the seam in dBFS (null when the clip has no audio). */
   quietestDb: number | null;
-  /** Largest sample-to-sample step near the seam over the take's median step. */
+  /** Largest sample-to-sample step near the seam over the clip's median step. */
   clickRatio: number | null;
 }
 
@@ -227,10 +227,10 @@ function intervals(log: string, startKey: RegExp, endKey: RegExp, totalSeconds: 
 const overlaps = (interval: Interval, from: number, to: number) => interval.start < to && interval.end > from;
 
 /**
- * Checks every seam of a stitched take with ffmpeg filters: `blackdetect` (black frames), `freezedetect`
- * (a held picture), `signalstats` YDIF (a frame-to-frame jump well above the take's median), and on
+ * Checks every seam of a stitched clip with ffmpeg filters: `blackdetect` (black frames), `freezedetect`
+ * (a held picture), `signalstats` YDIF (a frame-to-frame jump well above the clip's median), and on
  * the audio `silencedetect` plus 25 ms `astats` windows (a gap below -50 dBFS) and the same windows
- * over `aderivative` (a click: a sample-to-sample step more than six times the take's median).
+ * over `aderivative` (a click: a sample-to-sample step more than six times the clip's median).
  */
 export async function checkSeams(path: string, seams: readonly number[], totalSeconds: number): Promise<SeamReport[]> {
   const video = await ffmpeg(

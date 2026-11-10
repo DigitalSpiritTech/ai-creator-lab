@@ -19,6 +19,13 @@ import { renderMockMp4, renderMockWav } from "@creator-lab/executors/mock";
 import { checkSeams, crossfadeOffsets, extractHandoverFrame, sliceAudio, stitchFilter, stitchTake } from "@creator-lab/executors/stitch";
 
 const root = mkdtempSync(join(tmpdir(), "chain-stitch-"));
+
+/** A plan the test expects to exist. */
+function planned(...args: Parameters<typeof planChain>): NonNullable<ReturnType<typeof planChain>> {
+  const plan = planChain(...args);
+  assert.ok(plan, `a plan for ${args[0]} s on ${args[1]} s segments`);
+  return plan;
+}
 after(() => rmSync(root, { recursive: true, force: true }));
 
 const i2v = MOCK_RECIPES.find((recipe) => recipe.capability === "image_to_video")!;
@@ -39,7 +46,7 @@ async function still(name: string, color = "#2a4d6e"): Promise<string> {
 }
 
 /** Makes a chain the way the app does: each segment after the first starts from the previous one's handover frame. */
-async function chainOf(plan: ReturnType<typeof planChain>, first: string, prefix: string, audio?: (index: number) => string): Promise<{ path: string; durationSeconds: number; hasAudio: boolean }[]> {
+async function chainOf(plan: NonNullable<ReturnType<typeof planChain>>, first: string, prefix: string, audio?: (index: number) => string): Promise<{ path: string; durationSeconds: number; hasAudio: boolean }[]> {
   const made: { path: string; durationSeconds: number; hasAudio: boolean }[] = [];
   let image = first;
   for (const segment of plan.segments) {
@@ -86,7 +93,7 @@ describe("stitch filter", () => {
 
 describe("chained mock segments, stitched", () => {
   test("a 20 s take on a 5 s model: four segments, one audio track, clean seams (segment audio crossfaded)", async () => {
-    const plan = planChain(20, 5);
+    const plan = planned(20, 5);
     assert.equal(plan.segments.length, 4);
     const segments = await chainOf(plan, await still("start.png"), "own");
     const out = join(root, "own-take.mp4");
@@ -105,7 +112,7 @@ describe("chained mock segments, stitched", () => {
     const spoken = Array.from({ length: 48 }, (_, index) => `word${index}`).join(" ");
     const wav = renderMockWav(spoken);
     writeFileSync(voice, wav.bytes);
-    const plan = planChain(wav.durationSeconds + 0.4, 4.8);
+    const plan = planned(wav.durationSeconds + 0.4, 4.8);
     const slices = plan.segments.map((segment) => join(root, `voice-${segment.index}.wav`));
     for (const [position, segment] of plan.segments.entries()) await sliceAudio(voice, segment.startSeconds, segment.durationSeconds, slices[position]);
     const segments = await chainOf(plan, await still("speech.png", "#3b2a4d"), "spoken", (index) => slices[index - 1]);
@@ -121,7 +128,7 @@ describe("chained mock segments, stitched", () => {
 
 describe("seam check catches slop", () => {
   test("black frames and a jump between unrelated segments are flagged at the seam", async () => {
-    const plan = planChain(10, 5);
+    const plan = planned(10, 5);
     const light = await renderMockMp4(mockJob(i2v, { images: [await still("light.png", "#e8e2d0")], durationSeconds: 5 }), join(root, "light.mp4"), "media/light.mp4", root);
     const dark = await renderMockMp4(mockJob(i2v, { images: [await still("dark.png", "#101418")], durationSeconds: 5 }), join(root, "dark.mp4"), "media/dark.mp4", root);
     const jumpy = join(root, "jumpy.mp4");

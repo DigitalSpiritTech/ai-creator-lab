@@ -1,14 +1,14 @@
 /**
- * Length as a capability (v0.2 F4): how a recipe makes a clip of a given length. A take no longer
- * than the recipe makes in one run is native; a longer one is either one whole-take community
- * workflow (where the backend runs custom graphs) or chained segments, each started from the
- * previous segment's handover frame and joined with a short crossfade.
+ * Length as a capability (v0.2 F4): how a recipe makes a clip of a given length. A clip no longer
+ * than the recipe makes in one run is native; a longer one is either one whole-recording community
+ * workflow (where the backend runs custom graphs) or a chained recording: segments, each started
+ * from the previous segment's handover frame and joined with a short crossfade.
  *
  * | Strategy | When | What runs |
  * | --- | --- | --- |
- * | `native` | the take fits one run (H3 multi-frame, H3 last frame, Kling first/last up to 15 s, LTX extension where a recipe declares it) | one job |
- * | `workflow` | the recipe is a whole-take workflow and the backend runs custom graphs | one job through the Workflow executor |
- * | `chained` | the recipe animates a first frame (or follows a voice take) | one durable job per segment, then a local stitch |
+ * | `native` | the clip fits one run (H3 multi-frame, H3 last frame, Kling first/last up to 15 s; `ltx_extension` is named for a future LTX extend recipe, none exists yet) | one job |
+ * | `workflow` | the recipe is a whole-recording workflow and the backend runs custom graphs | one job through the Workflow executor |
+ * | `chained` | the recipe animates a first frame (or follows a voice recording) | one durable job per segment, then a local stitch |
  *
  * One run's length is the recipe's known-good length (the workflow's default frame count, the
  * Router durations), with half a second of slack for workflows, which snap to their own length.
@@ -34,15 +34,15 @@ export const RecipeLengthSchema = z
     /** The mechanism behind the native length, for the strategy table and the proposal note. */
     native: NativeLengthSchema.optional(),
     /**
-     * How a longer take is made: `chain` (segments; the default for image to video and speech to
-     * video), `workflow` (this recipe is one whole-take community workflow), or `none`.
+     * How a longer clip is made: `chain` (segments; the default for image to video and speech to
+     * video), `workflow` (this recipe is one whole-recording community workflow), or `none`.
      */
     longer: z.enum(["chain", "workflow", "none"]).optional(),
   })
   .strict();
 export type RecipeLength = z.infer<typeof RecipeLengthSchema>;
 
-/** What drives each chained segment: the previous segment's handover frame, or a slice of the voice take. */
+/** What drives each chained segment: the previous segment's handover frame, or a slice of the voice recording. */
 export type ChainDrive = "first_frame" | "audio";
 
 export const LENGTH_LABELS: Record<NativeLength, string> = {
@@ -55,13 +55,13 @@ export const LENGTH_LABELS: Record<NativeLength, string> = {
 
 /** Mock video recipes behave like a five-second model. */
 export const MOCK_NATIVE_SECONDS = 5;
-/** The longest take a chain plans (thirteen segments of about five seconds). */
+/** The longest recording a chain plans (thirteen segments of about five seconds). */
 export const MAX_TAKE_SECONDS = 60;
 export const MAX_CHAIN_SEGMENTS = 13;
 /** The crossfade a seam aims for (the v0.2 spike's 0.25 s) and the least it uses (two frames at 24 fps). */
 export const TARGET_OVERLAP_SECONDS = 0.25;
 export const MIN_OVERLAP_SECONDS = 2 / 24;
-/** How far a planned take may fall short of the request before another segment is added. */
+/** How far a planned recording may fall short of the request before another segment is added. */
 export const LENGTH_TOLERANCE_SECONDS = 0.5;
 
 const round3 = (value: number) => Math.round(value * 1000) / 1000;
@@ -126,45 +126,80 @@ export function backendAllowsCustomGraphs(kind: BackendKind | undefined): boolea
   return kind === undefined || kind === "cloud" || kind === "comfyui";
 }
 
-/** One planned segment of a chained take, in take time. */
+/** One planned segment of a chained recording, in recording time. */
 export interface PlannedSegment {
   /** 1-based. */
   index: number;
-  /** Where this segment starts in the take (the previous one's crossfade start). */
+  /** Where this segment starts in the recording (the previous one's crossfade start). */
   startSeconds: number;
   durationSeconds: number;
 }
 
 export interface ChainPlan {
-  /** What the stitched take will last: the segments minus the crossfades. */
+  /** What the stitched recording will last: the segments minus the crossfades. */
   totalSeconds: number;
   /** The crossfade at every seam; segment k+1 starts from segment k's frame at its length minus this. */
   overlapSeconds: number;
   segments: PlannedSegment[];
 }
 
-/**
- * Plans the fewest segments of at most `segmentMaxSeconds` that cover `totalSeconds` with a short
- * crossfade at every seam. The crossfade comes out of the segments' spare length: it aims for
- * {@link TARGET_OVERLAP_SECONDS}, never under {@link MIN_OVERLAP_SECONDS}, and when the model has
- * no spare length the take may come out up to {@link LENGTH_TOLERANCE_SECONDS} short instead of
- * paying for another segment (20 s on a 5 s model is four segments, 19.75 s).
- */
-export function planChain(totalSeconds: number, segmentMaxSeconds: number): ChainPlan {
-  if (!(segmentMaxSeconds > MIN_OVERLAP_SECONDS * 2)) throw new Error("A chain needs segments longer than its crossfade.");
-  let count = Math.max(2, Math.ceil(totalSeconds / segmentMaxSeconds));
-  const reach = (n: number) => n * segmentMaxSeconds - (n - 1) * MIN_OVERLAP_SECONDS;
-  while (reach(count) < totalSeconds - LENGTH_TOLERANCE_SECONDS) count += 1;
-  if (count > MAX_CHAIN_SEGMENTS) throw new Error(`A take of ${totalSeconds} s needs more than ${MAX_CHAIN_SEGMENTS} segments.`);
-  const spare = (count * segmentMaxSeconds - totalSeconds) / (count - 1);
-  const overlap = round3(Math.min(TARGET_OVERLAP_SECONDS, Math.max(MIN_OVERLAP_SECONDS, spare)));
-  const length = round3(Math.min(segmentMaxSeconds, (totalSeconds + (count - 1) * overlap) / count));
+export interface PlanOptions {
+  /** The recipe's frame rate; the shortest crossfade is two of its frames. */
+  fps?: number;
+  /** The only lengths one run accepts (a Router model's durations); segments snap to one of them. */
+  durations?: readonly number[];
+}
+
+/** The shortest crossfade: two frames at the recipe's rate (24 fps when it does not say). */
+export function minOverlapSeconds(fps?: number): number {
+  return round3(Math.max(MIN_OVERLAP_SECONDS, 2 / (fps && fps > 0 ? fps : 24)));
+}
+
+function planOf(count: number, length: number, overlap: number): ChainPlan {
   const segments = Array.from({ length: count }, (_, position) => ({
     index: position + 1,
     startSeconds: round3(position * (length - overlap)),
     durationSeconds: length,
   }));
-  return { totalSeconds: Math.round((count * length - (count - 1) * overlap) * 100) / 100, overlapSeconds: overlap, segments };
+  return { totalSeconds: Math.round((count * length - (count - 1) * overlap) * 100) / 100, overlapSeconds: round3(overlap), segments };
+}
+
+/**
+ * Plans the fewest segments of at most `segmentMaxSeconds` that cover `totalSeconds` with a short
+ * crossfade at every seam, or null when that needs more than {@link MAX_CHAIN_SEGMENTS}.
+ *
+ * Any length (workflows, the mock): the crossfade comes out of the segments' spare length. It aims
+ * for {@link TARGET_OVERLAP_SECONDS}, never under two frames, and when the model has no spare length
+ * the recording may come out up to {@link LENGTH_TOLERANCE_SECONDS} short instead of paying for
+ * another segment (20 s on a 5 s model is four segments, 19.75 s).
+ *
+ * Fixed lengths (`durations`, Router models): every segment is the shortest allowed length that still
+ * covers the request with the full crossfade (or the most it can take), so the body the model gets
+ * is always one it accepts (Kling at 20 s is two 10 s segments with a 0.25 s crossfade, Wan 3 at 8 s
+ * two 5 s segments). The recording may then run a little longer than asked.
+ */
+export function planChain(totalSeconds: number, segmentMaxSeconds: number, options: PlanOptions = {}): ChainPlan | null {
+  const minimum = minOverlapSeconds(options.fps);
+  const allowed = [...(options.durations ?? [])].filter((value) => value > minimum * 2 && value <= segmentMaxSeconds + 1e-9).sort((a, b) => a - b);
+  const longest = allowed.length ? allowed[allowed.length - 1] : segmentMaxSeconds;
+  if (!(longest > minimum * 2)) return null;
+  const floor = totalSeconds - LENGTH_TOLERANCE_SECONDS;
+  for (let count = Math.max(2, Math.ceil(totalSeconds / longest)); count <= MAX_CHAIN_SEGMENTS; count++) {
+    if (allowed.length) {
+      for (const length of allowed) {
+        const spare = (count * length - totalSeconds) / (count - 1);
+        const full = count * length - (count - 1) * TARGET_OVERLAP_SECONDS;
+        const overlap = full >= floor ? TARGET_OVERLAP_SECONDS : Math.max(minimum, Math.min(TARGET_OVERLAP_SECONDS, spare));
+        if (count * length - (count - 1) * overlap >= floor) return planOf(count, length, overlap);
+      }
+      continue;
+    }
+    if (count * longest - (count - 1) * minimum < floor) continue;
+    const spare = (count * longest - totalSeconds) / (count - 1);
+    const overlap = round3(Math.min(TARGET_OVERLAP_SECONDS, Math.max(minimum, spare)));
+    return planOf(count, round3(Math.min(longest, (totalSeconds + (count - 1) * overlap) / count)), overlap);
+  }
+  return null;
 }
 
 export type LengthStrategy =
@@ -174,8 +209,8 @@ export type LengthStrategy =
   | { kind: "unsupported"; reason: string };
 
 /**
- * Resolves how a recipe makes a take of `seconds`. `customGraphs` says whether the backend the
- * recipe is placed on runs custom graphs (see {@link backendAllowsCustomGraphs}).
+ * Resolves how a recipe makes a recording of `seconds`. `customGraphs` says whether the backend the
+ * recipe is placed on runs custom graphs (see {@link backendAllowsCustomGraphs}). Never throws.
  */
 export function resolveLengthStrategy(recipe: Recipe, seconds: number, options: { customGraphs?: boolean } = {}): LengthStrategy {
   const max = nativeMaxSeconds(recipe);
@@ -184,10 +219,10 @@ export function resolveLengthStrategy(recipe: Recipe, seconds: number, options: 
   // over is still one run rather than a second paid segment; Router durations are exact.
   const slack = recipe.kind === "router" ? 0.01 : LENGTH_TOLERANCE_SECONDS;
   if (seconds <= max + slack) return { kind: "native", mechanism: recipe.length?.native ?? "single_run", maxSeconds: max };
-  if (seconds > MAX_TAKE_SECONDS) return { kind: "unsupported", reason: `Takes are at most ${MAX_TAKE_SECONDS} s.` };
+  if (seconds > MAX_TAKE_SECONDS) return { kind: "unsupported", reason: `A recording is at most ${MAX_TAKE_SECONDS} s.` };
   if (recipe.length?.longer === "workflow" && recipe.kind === "workflow") {
     if (options.customGraphs ?? true) return { kind: "workflow", maxSeconds: max };
-    return { kind: "unsupported", reason: `${recipe.title} is a whole-take workflow, and this backend runs only the graphs it was deployed with. Run it on Comfy Cloud or a self-hosted ComfyUI.` };
+    return { kind: "unsupported", reason: `${recipe.title} makes a whole long recording in one workflow, and this backend runs only the graphs it was deployed with. Run it on Comfy Cloud or a self-hosted ComfyUI.` };
   }
   const drive = chainDrive(recipe);
   if (!drive) {
@@ -196,12 +231,14 @@ export function resolveLengthStrategy(recipe: Recipe, seconds: number, options: 
     const hard = hardMaxSeconds(recipe) ?? max;
     if (seconds <= hard + 0.01) return { kind: "native", mechanism: recipe.length?.native ?? "single_run", maxSeconds: hard };
     const what = recipe.capability === "first_last_to_video" ? "An ending frame pins the end of one run" : `${recipe.title} cannot start a run from another run's last frame`;
-    return { kind: "unsupported", reason: `${what}, so it makes at most ${hard} s. Use an image to video recipe for a longer take, or shorten it.` };
+    return { kind: "unsupported", reason: `${what}, so it makes at most ${hard} s. Use an image to video recipe for a longer recording, or shorten it.` };
   }
-  return { kind: "chained", drive, segmentMaxSeconds: max, plan: planChain(seconds, max) };
+  const plan = planChain(seconds, max, { fps: recipeFps(recipe), durations: recipe.kind === "router" ? recipe.limits.durations : undefined });
+  if (!plan) return { kind: "unsupported", reason: `${seconds} s on ${recipe.title} needs more than ${MAX_CHAIN_SEGMENTS} segments. Shorten the recording or pick a model that makes longer runs.` };
+  return { kind: "chained", drive, segmentMaxSeconds: max, plan };
 }
 
-/** Where every seam sits in the stitched take: the middle of each crossfade. */
+/** Where every seam sits in the stitched recording: the middle of each crossfade. */
 export function seamTimes(plan: Pick<ChainPlan, "overlapSeconds"> & { segments: { durationSeconds: number }[] }): number[] {
   const seams: number[] = [];
   let offset = 0;

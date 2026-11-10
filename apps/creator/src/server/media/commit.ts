@@ -165,7 +165,7 @@ export async function commitJobOutputs(
     const completed = advanceJob(job, { status: "completed", outputs: assets.map((asset) => asset.id) }, context.now);
     const committed = store.transaction(() => {
       if (!store.jobs.commitOutputs(completed, assets)) return false;
-      // A chained take's segments are not candidates on their own; the stitched take is.
+      // A chained recording's segments are not candidates on their own; the stitched clip is.
       if (context.attach === false) return true;
       attachToTarget(
         store,
