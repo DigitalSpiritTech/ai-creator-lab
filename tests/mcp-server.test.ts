@@ -99,6 +99,36 @@ describe("MCP server", () => {
     assert.ok(lines.every((line) => !line.includes("Avery")), "logs carry no inputs");
   });
 
+  test("the Quick Ad over MCP, as in docs/MCP.md: start_quick_ad, two approve_and_generate calls, two approvals, and the export", async () => {
+    const { client, project, lines } = await connect();
+    const { tools } = await client.listTools();
+    assert.ok(tools.some((tool) => tool.name === "start_quick_ad"), "the Quick Ad tool is offered with or without spending");
+    const call = async <T,>(name: string, args: Record<string, unknown>) => {
+      const result = await client.callTool({ name, arguments: args });
+      assert.notEqual(result.isError, true, `${name}: ${JSON.stringify(result.content)}`);
+      return json(result) as T;
+    };
+    const started = await call<{ content: { id: string } }>("start_quick_ad", {
+      projectId: project.id,
+      brief: { productSummary: "Ridgeline 32 oz insulated bottle, keeps drinks cold 24 hours", audience: "Commuters who leave a drink in the car, on TikTok" },
+    });
+    const contentId = started.content.id;
+    const frame = await call<{ count: number }>("compose_still", { contentId, beatIndex: 1 });
+    assert.equal(frame.count, 1);
+    const frames = await call<{ results: { assetIds: string[] }[] }>(APPROVE_AND_GENERATE, { proposal: frame, wait: true });
+    await call("approve", { kind: "still", contentId, beatIndex: 1, assetId: frames.results[0].assetIds[0] });
+    const clip = await call<object>("generate_clip", { contentId, beatIndex: 1 });
+    const clips = await call<{ results: { assetIds: string[] }[] }>(APPROVE_AND_GENERATE, { proposal: clip, wait: true });
+    await call("approve", { kind: "clip", contentId, beatIndex: 1, assetId: clips.results[0].assetIds[0] });
+    const exported = await call<{ export: { status: string }; asset: { width: number; height: number } }>("assemble_ad", { contentId, captions: true });
+    assert.equal(exported.export.status, "completed");
+    assert.deepEqual([exported.asset.width, exported.asset.height], [1080, 1920]);
+    assert.deepEqual(
+      lines.map((line) => line.replace("[mcp] ", "").replace(": ok", "")),
+      ["start_quick_ad", "compose_still", APPROVE_AND_GENERATE, "approve", "generate_clip", APPROVE_AND_GENERATE, "approve", "assemble_ad"],
+    );
+  });
+
   test("project state and asset files are readable as resources", async () => {
     const { client, project, store, now } = await connect();
     const { resourceTemplates } = await client.listResourceTemplates();
