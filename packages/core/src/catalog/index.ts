@@ -7,3 +7,4 @@ export * from "./tags";
 export * from "./availability";
 export * from "./backends";
 export * from "./object-info";
+export * from "./length";
