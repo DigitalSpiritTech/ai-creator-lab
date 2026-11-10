@@ -5,7 +5,7 @@
 import { type Backend, COMFY_CLOUD_URL, backendUsable, isComfyHost, isWorkflowBackend, normalizeBackendUrl, runsFreeOn, type Recipe } from "@creator-lab/core/catalog";
 import type { JobStorePort } from "@creator-lab/core/domain/job";
 import { quoteRouter } from "./allowance";
-import { MockExecutor } from "./mock";
+import { MockExecutor, type MockVideo } from "./mock";
 import { createRouterModels, RouterExecutor } from "./router";
 import type { Executor } from "./types";
 import { createBackendClient, WorkflowExecutor, type WorkflowClient, type WorkflowTarget } from "./workflow";
@@ -38,6 +38,13 @@ export interface ExecutorConfig {
   backends?: () => readonly Backend[];
   /** Builds the SDK client for a backend; tests pass fakes. `baseUrl` null means Comfy Cloud. */
   clientFor?: (baseUrl: string | null, apiKey: string | undefined, backend: Backend) => WorkflowClient;
+  /** What mock video jobs write; defaults to `mp4` when MOCK_VIDEO=mp4, else storyboards. */
+  mockVideo?: MockVideo;
+}
+
+/** The mock's video mode from the environment: `MOCK_VIDEO=mp4` makes real clips (chained takes need them). */
+export function mockVideoFromEnv(env: Record<string, string | undefined> = process.env): MockVideo {
+  return env.MOCK_VIDEO?.trim() === "mp4" ? "mp4" : "storyboard";
 }
 
 /**
@@ -83,7 +90,7 @@ export function legacyClient(
 
 /** Creates the mock executor always, and the Router and Workflow executors when a Comfy key is set. */
 export function createExecutors(config: ExecutorConfig): ExecutorSet {
-  const mock = new MockExecutor({ jobs: config.jobs });
+  const mock = new MockExecutor({ jobs: config.jobs, video: config.mockVideo ?? mockVideoFromEnv() });
   const apiKey = config.apiKey?.trim();
   const router = apiKey
     ? new RouterExecutor({
