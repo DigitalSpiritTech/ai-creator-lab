@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 import { createHash } from "node:crypto";
-import { type AspectRatio, type Capability, type Recipe, imageSlotNames } from "@/lib/catalog";
+import { type AspectRatio, type BackendRouting, type Capability, type Placement, type Recipe, bindRecipe, imageSlotNames, placeRecipe, placedTitle, placementNote } from "@/lib/catalog";
 import { AspectRatioSchema } from "@/lib/catalog";
 import type { Asset } from "@/lib/domain/asset";
 import { fail } from "@/lib/domain/failure";
@@ -60,7 +60,9 @@ function fits(recipe: Recipe, references: number): boolean {
 /**
  * Picks the recipe for a step: the requested one, else the workspace default, else the starter
  * primary, then the hosted alternative, then any runnable recipe, then the mock. Only recipes whose
- * executor is configured and that take this many references qualify.
+ * executor is configured and that take this many references qualify. With `routing`, a recipe also
+ * needs a backend that can run it (the default backend or the Comfy Cloud fallback), so a workflow
+ * the default backend lacks nodes for is skipped, and a requested one is refused with the reason.
  */
 export function pickRecipe(
   recipes: Recipe[],
@@ -68,16 +70,22 @@ export function pickRecipe(
   capability: Capability,
   references: number,
   preferred: (string | undefined)[],
+  routing?: BackendRouting,
 ): Recipe {
+  const placeable = (recipe: Recipe): Placement => (routing ? placeRecipe(recipe, routing) : { ok: true, backend: null });
+  const canRun = (recipe: Recipe) => (routing ? placeable(recipe).ok : !!executors.forRecipe(recipe));
   const runnable = (recipe: Recipe | undefined): recipe is Recipe =>
-    !!recipe && recipe.capability === capability && !!executors.forRecipe(recipe) && fits(recipe, references);
+    !!recipe && recipe.capability === capability && canRun(recipe) && fits(recipe, references);
   const byId = (id: string | undefined) => (id ? recipes.find((recipe) => recipe.id === id) : undefined);
   const [requested, ...others] = preferred;
   if (requested) {
     const recipe = byId(requested);
     if (!recipe) fail("not_found", `There is no recipe ${requested}.`);
     if (recipe.capability !== capability) fail("invalid", `${recipe.title} does ${recipe.capability.replaceAll("_", " ")}, not ${capability.replaceAll("_", " ")}.`);
-    if (!executors.forRecipe(recipe)) fail("invalid", `${recipe.title} needs a Comfy API key in .env.local before it can run.`);
+    if (routing) {
+      const placement = placeable(recipe);
+      if (!placement.ok) fail("invalid", placement.reason);
+    } else if (!executors.forRecipe(recipe)) fail("invalid", `${recipe.title} needs a Comfy API key in .env.local before it can run.`);
     if (!fits(recipe, references)) fail("invalid", `${recipe.title} takes ${referenceRange(recipe).join(" to ")} reference images; this step has ${references}.`);
     return recipe;
   }
@@ -167,11 +175,32 @@ export function isFaceLock(spec: Pick<ProposalSpec, "capability" | "target">): b
 export async function proposalRecipe(context: ToolContext, spec: Pick<ProposalSpec, "capability" | "recipeId" | "target">, references: number): Promise<Recipe> {
   const generation = requireGeneration(context);
   const recipes = await generation.recipes();
-  return pickRecipe(recipes, generation.executors, spec.capability, references, [
-    spec.recipeId,
-    context.store.workspace.get().defaultRecipes[spec.capability],
-    isFaceLock(spec) ? purposeRecipe(recipes, "character_start")?.id : undefined,
-  ]);
+  return pickRecipe(
+    recipes,
+    generation.executors,
+    spec.capability,
+    references,
+    [spec.recipeId, context.store.workspace.get().defaultRecipes[spec.capability], isFaceLock(spec) ? purposeRecipe(recipes, "character_start")?.id : undefined],
+    generation.routing?.(),
+  );
+}
+
+/**
+ * The recipe bound to the backend it runs on, with the title and note the proposal shows. Without
+ * routing the recipe is returned as it is.
+ */
+export function placeForProposal(context: ToolContext, recipe: Recipe): { recipe: Recipe; title: string; note: string; backendId?: string } {
+  const routing = requireGeneration(context).routing?.();
+  if (!routing) return { recipe, title: recipe.title, note: "" };
+  const placement = placeRecipe(recipe, routing);
+  if (!placement.ok) fail("invalid", placement.reason);
+  const bound = bindRecipe(recipe, placement.backend);
+  return {
+    recipe: bound,
+    title: placedTitle(recipe, placement.backend),
+    note: placementNote(placement),
+    ...(bound.kind === "workflow" && bound.backendId ? { backendId: bound.backendId } : {}),
+  };
 }
 
 /** Builds and estimates a proposal. Nothing is submitted. */
@@ -179,17 +208,22 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
   const generation = requireGeneration(context);
   context.store.projects.getRequired(spec.projectId);
   const assets = referenceAssets(context, spec.projectId, spec.references);
-  const recipe = await proposalRecipe(context, spec, assets.filter((asset) => asset.kind !== "audio").length);
+  const picked = await proposalRecipe(context, spec, assets.filter((asset) => asset.kind !== "audio").length);
+  const placed = placeForProposal(context, picked);
+  const recipe = placed.recipe;
   const id = context.newId();
-  const executor = generation.executors.forRecipe(recipe)!;
+  const executor = generation.executors.forRecipe(recipe) ?? fail("invalid", `${placed.title} cannot run with the keys and backends configured now.`);
   const slots = recipe.kind === "workflow" ? Object.fromEntries(Object.entries(spec.slots ?? {}).filter(([name]) => name in recipe.sidecar.slots)) : {};
-  const estimate = await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, slots }, assets) });
+  const estimated = summarizeEstimate(await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, slots }, assets) }));
+  // Where it runs comes first, so a fallback to Comfy Cloud is never silent.
+  const estimate = placed.note ? { ...estimated, note: `${placed.note} ${estimated.note}`.trim().slice(0, 600) } : estimated;
   return GenerationProposalSchema.parse({
     id,
     projectId: spec.projectId,
     capability: spec.capability,
     recipeId: recipe.id,
-    recipeTitle: recipe.title,
+    recipeTitle: placed.title,
+    ...(placed.backendId ? { backendId: placed.backendId } : {}),
     prompt: spec.prompt,
     references: spec.references,
     aspectRatio: spec.aspectRatio,
@@ -198,7 +232,7 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
     ...(spec.seed !== undefined && recipe.kind === "workflow" ? { seed: spec.seed } : {}),
     count: spec.count,
     target: spec.target,
-    estimate: summarizeEstimate(estimate),
+    estimate,
   });
 }
 
@@ -222,15 +256,29 @@ export function runDeps(context: ToolContext): RunDeps {
   };
 }
 
+/**
+ * The catalog recipe bound to the backend the proposal named. The backend must still be able to run
+ * it; a workflow proposal made before backends existed runs where it would now only when that is not
+ * a fallback, so a changed backend always comes back as a new proposal.
+ */
+export function boundForSubmit(routing: BackendRouting | undefined, recipe: Recipe, backendId: string | undefined): Recipe {
+  if (!routing || recipe.kind !== "workflow") return recipe;
+  const placement = placeRecipe(recipe, routing, backendId);
+  if (!placement.ok) fail("invalid", placement.reason);
+  if (placement.fallbackFrom) fail("invalid", `${placementNote(placement)} Propose it again to run it there.`);
+  return bindRecipe(recipe, placement.backend);
+}
+
 /** The recipe, semantic input, and pinned references a proposal turns into. */
 export async function proposalRequest(
   context: ToolContext,
   proposal: GenerationProposal,
 ): Promise<{ recipe: Recipe; input: GenerationInput; inputs: JobInput[] }> {
   const generation = requireGeneration(context);
-  const recipe = (await generation.recipes()).find((entry) => entry.id === proposal.recipeId);
-  if (!recipe) fail("not_found", `There is no recipe ${proposal.recipeId}.`);
-  if (recipe.capability !== proposal.capability) fail("invalid", "The proposal's recipe does not match its capability.");
+  const listed = (await generation.recipes()).find((entry) => entry.id === proposal.recipeId);
+  if (!listed) fail("not_found", `There is no recipe ${proposal.recipeId}.`);
+  if (listed.capability !== proposal.capability) fail("invalid", "The proposal's recipe does not match its capability.");
+  const recipe = boundForSubmit(generation.routing?.(), listed, proposal.backendId);
   const assets = referenceAssets(context, proposal.projectId, proposal.references);
   const inputs = assets.map((asset, index) => ({ role: proposal.references[index].role, assetId: asset.id, sha256: asset.sha256 }));
   return { recipe, input: generationInput(proposal, assets), inputs };

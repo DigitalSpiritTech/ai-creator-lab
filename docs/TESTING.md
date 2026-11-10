@@ -104,3 +104,14 @@ Set the premium defaults from run 2 and repeat run 3. Expected cost about 450 to
 ## Resetting
 
 Everything lives in the data folder (`STUDIO_DATA_DIR`, default `.data`): the database, media, exports and the keys file. To start over, stop the server and move that folder aside; the next start creates a fresh one. To keep the projects and get room to spend, add to this month or raise the monthly budget in Settings; spend resets on the budget reset day, and the operator ceiling counts per calendar month.
+
+## Backends (a self-hosted ComfyUI, no credits)
+
+The automated tests cover the probe and placement with a recorded object_info and fake clients. This check needs a real ComfyUI, ideally one without the LTX nodes.
+
+1. Start your ComfyUI and the Comfy API proxy (`http://127.0.0.1:8189` by default).
+2. Settings, Backends: choose Self-hosted ComfyUI, give it a name, enter the address, and click Add and check. The line under it should give the node class count and how many recipes can run there.
+3. In the table, the LTX rows should read Unavailable on that backend with the missing LTX node names. Comfy Cloud should read Verified.
+4. Click Make default on it, then propose a clip. The card should say "Runs on Comfy Cloud because <name> cannot run it (missing nodes ...)". Propose a Z-Image face. The card should name your backend and show the run as free.
+5. Approve the Z-Image proposal (it costs no credits on your own ComfyUI). When it finishes, the Z-Image row should read Verified with today's date on that backend. Record the run in docs/VERIFICATION.md.
+6. Make Comfy Cloud the default again, or remove the backend.

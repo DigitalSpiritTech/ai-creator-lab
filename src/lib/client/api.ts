@@ -29,7 +29,7 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
   return parse<T>(await fetch(path, { cache: "no-store", signal }));
 }
 
-export async function sendJson<T>(path: string, body: unknown, method: "POST" | "PUT" = "POST"): Promise<T> {
+export async function sendJson<T>(path: string, body: unknown, method: "POST" | "PUT" | "DELETE" = "POST"): Promise<T> {
   return parse<T>(
     await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
   );

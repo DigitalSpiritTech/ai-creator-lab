@@ -145,6 +145,15 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX budget_extensions_period ON budget_extensions(period_key);
   `,
+  // Backends (v0.2 F6): the servers recipes run on, each with its last object_info probe and the
+  // recipes verified there by a real run. Self-contained: one new table, nothing else changes, and
+  // the built-in entries (Comfy Cloud, Comfy Router, COMFY_BASE_URL) are written on first read.
+  `
+  CREATE TABLE backends (
+    id TEXT PRIMARY KEY,
+    data TEXT NOT NULL CHECK (${jsonOwnId})
+  );
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

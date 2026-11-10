@@ -1,6 +1,6 @@
 /**
  * Settings: keys (write-only; the page only ever learns whether each is set), assistant model,
- * monthly budget (reset day, add to this month, the read-only operator ceiling) and auto-approve,
+ * backends (where recipes run, with a free object_info check), monthly budget (reset day, add to this month, the read-only operator ceiling) and auto-approve,
  * default recipe per capability, data directory, theme.
  * @packageDocumentation
  */
@@ -8,6 +8,7 @@
 
 import { KeyRound, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { BackendsSection } from "@/components/settings/backends-section";
 import { Notice, PageHeader } from "@/components/shell/page-header";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
@@ -208,6 +209,8 @@ export function SettingsForm() {
           <p className="text-xs text-muted-foreground">Checking…</p>
         )}
       </section>
+
+      <BackendsSection />
 
       <MonthlyBudget
         view={view}

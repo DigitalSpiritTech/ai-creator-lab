@@ -5,7 +5,19 @@
  * @packageDocumentation
  */
 import { resolve } from "node:path";
-import { MockRecipeSchema, RouterRecipeSchema, type Capability, type MockRecipe, type Recipe, type RecipeTag, type RouterRecipe } from "@/lib/catalog";
+import {
+  type BackendRouting,
+  MockRecipeSchema,
+  type Placement,
+  RouterRecipeSchema,
+  type Capability,
+  type MockRecipe,
+  type Recipe,
+  type RecipeTag,
+  type RouterRecipe,
+  placeRecipe,
+  placeRecipes,
+} from "@/lib/catalog";
 import { loadWorkflowRecipes, type WorkflowMeta } from "@/server/catalog/workflows";
 
 export const WORKFLOW_META: Record<string, WorkflowMeta> = {
@@ -497,8 +509,24 @@ export async function defaultRecipes(workflowsDir: string = resolve(process.cwd(
   return [...recipes, ...ROUTER_RECIPES, ...(mocks ? MOCK_RECIPES : [])];
 }
 
-/** Recipes for a capability: verified first, then unverified, mocks last. */
-export function recipesFor(recipes: Recipe[], capability: Capability): Recipe[] {
+/**
+ * Recipes for a capability: verified first, then unverified, mocks last. This is the one place that
+ * answers "which recipes are available for this capability". With `routing` (the backend list and
+ * key status, `GenerationContext.routing`) it keeps only recipes some backend can run now: the
+ * default backend, or Comfy Cloud as the fallback, per `placeRecipe`. Use `recipeAvailability` to
+ * keep every recipe with its placement and the reason one cannot run.
+ */
+export function recipesFor(recipes: Recipe[], capability: Capability, routing?: BackendRouting): Recipe[] {
+  const ranked = rankRecipes(recipes.filter((recipe) => recipe.capability === capability));
+  return routing ? ranked.filter((recipe) => placeRecipe(recipe, routing).ok) : ranked;
+}
+
+function rankRecipes(recipes: Recipe[]): Recipe[] {
   const rank = (recipe: Recipe) => (recipe.kind === "mock" ? 2 : recipe.verified ? 0 : 1);
-  return recipes.filter((recipe) => recipe.capability === capability).sort((a, b) => rank(a) - rank(b));
+  return [...recipes].sort((a, b) => rank(a) - rank(b));
+}
+
+/** Every recipe for a capability, in `recipesFor` order, with where it would run or why it cannot. */
+export function recipeAvailability(recipes: Recipe[], capability: Capability, routing: BackendRouting): { recipe: Recipe; placement: Placement }[] {
+  return placeRecipes(rankRecipes(recipes.filter((recipe) => recipe.capability === capability)), routing);
 }

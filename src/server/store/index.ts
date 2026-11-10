@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { MEDIA_DIRECTORIES } from "@/server/media/paths";
 import { assetRepository } from "@/server/store/assets";
+import { backendRepository } from "@/server/store/backends";
 import { budgetRepository } from "@/server/store/budget";
 import { openDatabase, transaction } from "@/server/store/connection";
 import { contentRepository } from "@/server/store/content";
@@ -37,6 +38,8 @@ export interface Store {
   readonly documents: ReturnType<typeof documentRepository>;
   /** Per-period budget extensions ("add to this month"). */
   readonly budget: ReturnType<typeof budgetRepository>;
+  /** Servers recipes run on (Comfy Cloud, Router, self-hosted ComfyUI, deployments). */
+  readonly backends: ReturnType<typeof backendRepository>;
   /** Runs synchronous store work atomically; nested calls become savepoints. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -62,6 +65,7 @@ export function openStore(dataDir: string): Store {
     content: contentRepository(database),
     documents: documentRepository(database),
     budget: budgetRepository(database),
+    backends: backendRepository(database),
     transaction: (work) => transaction(database, work),
     close: () => database.close(),
   };

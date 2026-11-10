@@ -19,6 +19,7 @@ import {
   sameRequest,
 } from "@/lib/domain/job";
 import type { BudgetCrossing, SpendPolicy } from "@/lib/domain/spend";
+import { markVerifiedRun } from "@/server/catalog/backends";
 import { type AllowanceState, checkSpend } from "@/server/executors/allowance";
 import type { ExecutorSet } from "@/server/executors/index";
 import { COLLECTION_WINDOW_MS, type SpendDeps, currentSpendPolicy } from "@/server/executors/spend";
@@ -239,6 +240,9 @@ async function commitRetrieved(deps: RunDeps, staged: Job): Promise<StepOutcome>
     const result = await commitJobOutputs(deps.store, job, outputs, { now: clock(deps), newId: deps.newId ?? randomUUID });
     const saved = result.job;
     if (saved.status === "failed") return { kind: "failed", job: saved, error: saved.error };
+    // A finished run on a backend is what "verified" means there; the probe only says "compatible".
+    const recipe = saved.request.recipe;
+    if (recipe.kind === "workflow" && recipe.backendId) markVerifiedRun(deps.store, recipe.backendId, recipe.id, clock(deps));
     return { kind: "completed", job: saved, assets: deps.store.assets.list({ jobId: saved.id, state: "any" }).reverse() };
   } catch (cause) {
     const error = toJobError(cause, "The outputs could not be saved.");

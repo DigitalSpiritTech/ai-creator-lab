@@ -68,7 +68,7 @@ HOST=0.0.0.0 STUDIO_ALLOWED_HOSTS=studio.lan,192.168.1.20 npm start
 
 `STUDIO_READ_ONLY=1` turns the studio into a viewer of its data folder: every request that could change something is refused, the chat is off, and a banner says so. It is meant for showing finished work, so it never asks for a password, even on a network: only use it on a data folder you would show to anyone who can reach the port. [docs/DEMO-DEPLOY.md](docs/DEMO-DEPLOY.md) shows how to host one.
 
-## Settings: keys and the monthly budget
+## Settings: keys, backends, and the monthly budget
 
 Open Settings in the left rail.
 
@@ -78,6 +78,16 @@ Open Settings in the left rail.
   2. Your monthly budget in Settings (USD), with the day of the month it resets (1 to 28, at midnight UTC). Settings shows this period's dates, the budget in force, what has been spent, what is reserved by jobs in flight, and what remains, in dollars with Comfy credits beside them (210 credits per dollar).
 - Spend counts in the period its cost was recorded, so a new period starts at zero. Settings warns at 50 and 80 percent of the month's budget and says when it is used up.
 - With either number at zero, nothing paid runs. Proposals still show you the quote, so you can walk the flow up to the gate before spending anything.
+
+### Backends: where recipes run
+
+Settings, Backends lists the servers recipes run on. Comfy Cloud and Comfy Router are always there. You can add a self-hosted ComfyUI (usually through the Comfy API proxy, for example `http://127.0.0.1:8189`, or a ComfyUI on your network) or a Comfy API deployment (`https://<name>.run.comfy.app`). If you set `COMFY_BASE_URL` in `.env.local`, that server is listed too and stays the default, so an existing setup keeps running where it did.
+
+- Adding a backend checks it right away. The app reads the server's node list (`object_info`) and compares it with every workflow: which node classes each one uses and which model files its loaders name. Checking is free and never submits anything. Press Check to do it again after you install nodes or models.
+- The table under the list shows each recipe on each backend: Verified (a real run finished there; for Comfy Cloud, also the date in the catalog), Compatible (the check found everything), Unavailable with the missing node and model names, or Not checked.
+- Workflows run on the default backend. Make default picks it. When the default lacks what a recipe needs, the proposal says so ("Runs on Comfy Cloud because Studio PC cannot run it (missing nodes ...)") and runs it on Comfy Cloud. If Cloud cannot run it either (no key, or Cloud lacks it too), the proposal is refused with the reason. A proposal never moves to another backend without a new proposal saying so.
+- Keys are not stored per backend. Comfy Cloud, Router and deployments on Comfy's own hosts use your Comfy API key. A self-hosted ComfyUI never receives it. Runs on your own ComfyUI cost no Comfy credits, so once a check has cleared a recipe there its proposals show as free (before the first check, the recipe's usual price is reserved). A workflow that uses a partner (API) node, such as a hosted model inside the graph, is unavailable on any backend but Comfy Cloud, because it would bill the Comfy account signed in to that server, outside your budget.
+- A backend with generations still running cannot be removed until they finish. On a hosted copy (judging or read-only), only Comfy Cloud and Router are offered.
 
 ## Your first ad in ten minutes
 

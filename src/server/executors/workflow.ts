@@ -1,6 +1,8 @@
 /**
  * Workflow executor: runs an API-format ComfyUI workflow plus its slot sidecar through `@comfyorg/sdk`
- * against COMFY_BASE_URL (blank means Comfy Cloud). Submits once with the job id as idempotency key,
+ * against the backend its recipe snapshot is bound to (Comfy Cloud, a deployment, or a self-hosted
+ * ComfyUI through the v2 proxy); jobs saved before backends existed use the COMFY_BASE_URL client
+ * (blank means Comfy Cloud). Submits once with the job id as idempotency key,
  * saves the provider job id immediately, polls authoritatively, and copies verified outputs locally
  * before the signed URLs expire.
  * @packageDocumentation
@@ -102,6 +104,38 @@ export interface CloudOutputHandle {
 /** The real SDK client; COMFY_BASE_URL decides Cloud, a deployment, or a local proxy. */
 export function createWorkflowClient(apiKey: string | undefined): WorkflowClient {
   return new Comfy({ apiKey: apiKey || undefined, clientInfo: "ai-creator-lab" });
+}
+
+/**
+ * An SDK client for one backend. The SDK takes its base URL from COMFY_BASE_URL at construction
+ * only, so the variable is set for the synchronous constructor call and restored right after;
+ * COMFY_API_KEY is hidden the same way so the key goes only where `apiKey` sends it. Pass no key for
+ * a self-hosted ComfyUI. `baseUrl` null means Comfy Cloud.
+ */
+export function createBackendClient(baseUrl: string | null, apiKey: string | undefined): WorkflowClient {
+  const saved = { base: process.env.COMFY_BASE_URL, key: process.env.COMFY_API_KEY };
+  try {
+    if (baseUrl) process.env.COMFY_BASE_URL = baseUrl;
+    else delete process.env.COMFY_BASE_URL;
+    delete process.env.COMFY_API_KEY;
+    return new Comfy({ apiKey: apiKey || undefined, clientInfo: "ai-creator-lab" });
+  } finally {
+    if (saved.base === undefined) delete process.env.COMFY_BASE_URL;
+    else process.env.COMFY_BASE_URL = saved.base;
+    if (saved.key === undefined) delete process.env.COMFY_API_KEY;
+    else process.env.COMFY_API_KEY = saved.key;
+  }
+}
+
+/** One backend a bound recipe runs on. */
+export interface WorkflowTarget {
+  client: WorkflowClient;
+  label: string;
+  /**
+   * Whether this recipe runs here for no Comfy credits: a self-hosted ComfyUI whose last probe
+   * cleared it (no partner node). Anything else reserves the recipe's ceiling.
+   */
+  freeFor(recipeId: string): boolean;
 }
 
 const RECOVERY_WINDOW_MS = 23 * 60 * 60 * 1000;
@@ -272,7 +306,10 @@ export interface WorkflowExecutorOptions {
   jobs: JobStorePort;
   /** Relative reference image paths resolve against this folder (the data directory). */
   mediaRoot?: string;
-  client: WorkflowClient;
+  /** The COMFY_BASE_URL client, for recipes not bound to a backend (jobs saved before backends existed, tests). */
+  client?: WorkflowClient;
+  /** The client for a recipe snapshot's `backendId`; undefined when that backend is gone or unusable. */
+  targets?: (backendId: string) => WorkflowTarget | undefined;
   /** Folder holding `*.api.json` files; defaults to `<cwd>/workflows`. */
   workflowsDir?: string;
   now?: () => number;
@@ -293,7 +330,8 @@ export class WorkflowExecutor implements Executor {
   readonly kind = "workflow" as const;
   private readonly jobs: JobStorePort;
   private readonly mediaRoot: string;
-  private readonly client: WorkflowClient;
+  private readonly client: WorkflowClient | undefined;
+  private readonly targets: ((backendId: string) => WorkflowTarget | undefined) | undefined;
   private readonly workflowsDir: string;
   private readonly now: () => number;
   private readonly staleSubmitMs: number;
@@ -303,15 +341,23 @@ export class WorkflowExecutor implements Executor {
     this.jobs = options.jobs;
     this.mediaRoot = options.mediaRoot ?? process.cwd();
     this.client = options.client;
+    this.targets = options.targets;
     this.workflowsDir = options.workflowsDir ?? resolve(process.cwd(), "workflows");
     this.now = options.now ?? Date.now;
     this.staleSubmitMs = options.staleSubmitMs ?? 120_000;
+  }
+
+  /** Whether a recipe snapshot can run here: its bound backend is usable, or the default client exists. */
+  canRun(recipe: { backendId?: string }): boolean {
+    return recipe.backendId ? !!this.targets?.(recipe.backendId) : !!this.client;
   }
 
   async estimate(request: GenerationRequest): Promise<EstimateOutcome> {
     try {
       const recipe = this.recipeOf(request);
       const plan = planWorkflow(recipe, absoluteInput(request.input, this.mediaRoot), await this.loadGraph(recipe), 0);
+      const target = recipe.backendId ? this.targets?.(recipe.backendId) : undefined;
+      if (target?.freeFor(recipe.id)) return { kind: "free", note: "Your own ComfyUI: no Comfy credits." };
       if (recipe.ceilingUsd === undefined) return { kind: "unquoted", ceilingUsd: null, note: recipe.costHint };
       const usd = scaleByLength(recipe.ceilingUsd, plan.values.length, recipe.defaults.length ?? recipe.sidecar.limits.length?.default);
       return { kind: "quoted", usd, credits: usdToCredits(usd), source: "hint", note: recipe.costHint };
@@ -370,7 +416,7 @@ export class WorkflowExecutor implements Executor {
     const recipe = this.recipeOf(job.request);
     let handle: CloudJobHandle;
     try {
-      handle = await this.client.jobs.get(job.providerRef);
+      handle = await this.clientOf(recipe).jobs.get(job.providerRef);
     } catch (cause) {
       if (cause instanceof NotFound) return this.retrieveFailed(job, jobError("provider", "Comfy no longer has this job's outputs; they expire after a few hours.", false, "expired"));
       return this.retrieveFailed(job, jobError("provider", "Comfy could not be reached to collect the outputs. Retrieval will retry.", true));
@@ -408,7 +454,7 @@ export class WorkflowExecutor implements Executor {
       const job = loadJob(this.jobs, jobId);
       if (job.status === "completed" || job.status === "failed" || job.status === "retrieving") return { kind: "too_late", job };
       if (!job.providerRef) return { kind: "failed", error: jobError("conflict", "This submission is not confirmed yet, so it cannot be canceled. Check again shortly.", true) };
-      const handle = await this.client.jobs.get(job.providerRef);
+      const handle = await this.clientOf(this.recipeOf(job.request)).jobs.get(job.providerRef);
       await handle.cancel();
       const error = jobError("invalid", "Canceled before it finished.", false, "canceled");
       return { kind: "canceled", job: failJob(this.jobs, job, error, this.now()) };
@@ -420,6 +466,17 @@ export class WorkflowExecutor implements Executor {
   private recipeOf(request: Pick<GenerationRequest, "recipe">): WorkflowRecipe {
     if (request.recipe.kind !== "workflow") throw invalid("The workflow executor runs workflow recipes only.");
     return request.recipe;
+  }
+
+  /** The client for a recipe snapshot: its bound backend's, else the COMFY_BASE_URL client. */
+  private clientOf(recipe: WorkflowRecipe): WorkflowClient {
+    if (recipe.backendId) {
+      const target = this.targets?.(recipe.backendId);
+      if (!target) throw new ExecutorFailure(jobError("invalid", "The backend this generation was made for is no longer usable. Check Backends in Settings.", true));
+      return target.client;
+    }
+    if (!this.client) throw new ExecutorFailure(jobError("invalid", "No Comfy client is configured. Add a Comfy API key in Settings."));
+    return this.client;
   }
 
   private async loadGraph(recipe: WorkflowRecipe): Promise<WorkflowGraph> {
@@ -440,9 +497,10 @@ export class WorkflowExecutor implements Executor {
     const recipe = this.recipeOf(job.request);
     const workflowGraph = graph ?? (await this.loadGraph(recipe));
     const plan = planWorkflow(recipe, absoluteInput(job.request.input, this.mediaRoot), workflowGraph, seedFromId(job.id));
+    const client = this.clientOf(recipe);
     const scratch = recipe.fitImages && plan.images.length ? await mkdtemp(join(tmpdir(), "acl-fit-")) : undefined;
     try {
-      const workflow = this.client.workflows.fromJson(structuredClone(workflowGraph));
+      const workflow = client.workflows.fromJson(structuredClone(workflowGraph));
       const values: Record<string, SlotValue> = { ...plan.values };
       for (const image of plan.images) {
         let path = image.path;
@@ -452,13 +510,13 @@ export class WorkflowExecutor implements Executor {
             throw invalid("A reference image could not be read as an image.");
           });
         }
-        values[image.slot] = this.client.assets.fromFile(path) as object;
+        values[image.slot] = client.assets.fromFile(path) as object;
       }
-      if (plan.audio) values[plan.audio.slot] = this.client.assets.fromFile(plan.audio.path) as object;
+      if (plan.audio) values[plan.audio.slot] = client.assets.fromFile(plan.audio.path) as object;
       applySlots(workflow, recipe.sidecar, values);
       let handle: CloudJobHandle;
       try {
-        handle = await this.client.submit(workflow, { idempotencyKey: job.id });
+        handle = await client.submit(workflow, { idempotencyKey: job.id });
       } catch (cause) {
         return await this.submitFailed(job, cause);
       }
@@ -479,7 +537,7 @@ export class WorkflowExecutor implements Executor {
     if (cause instanceof IdempotencyKeyReuse) {
       const fresh = loadJob(this.jobs, job.id);
       if (fresh.providerRef) {
-        const handle = await this.client.jobs.get(fresh.providerRef);
+        const handle = await this.clientOf(this.recipeOf(fresh.request)).jobs.get(fresh.providerRef);
         const saved = this.saveObservation(fresh, handle);
         return saved.status === "failed" ? { kind: "failed", job: saved, error: saved.error } : { kind: "accepted", job: saved };
       }
@@ -513,7 +571,7 @@ export class WorkflowExecutor implements Executor {
   private async observe(job: Job): Promise<PollOutcome> {
     let handle: CloudJobHandle;
     try {
-      handle = await this.client.jobs.get(job.providerRef!);
+      handle = await this.clientOf(this.recipeOf(job.request)).jobs.get(job.providerRef!);
     } catch (cause) {
       if (cause instanceof NotFound) {
         const error = jobError("provider", "Comfy no longer knows this job; it may have expired.", false, "not_found");

@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 import { z } from "zod";
-import { AspectRatioSchema, CapabilitySchema } from "@/lib/catalog";
+import { AspectRatioSchema, CapabilitySchema, placeRecipe, placementNote } from "@/lib/catalog";
 import { IdSchema, RecipeIdSchema, text } from "@/lib/domain/common";
 import { type Asset, AssetSchema } from "@/lib/domain/asset";
 import { type ContentPiece, ExportRecordSchema } from "@/lib/domain/content";
@@ -553,7 +553,7 @@ export const assembleAd = defineTool({
 export const listRecipes = defineTool({
   name: "list_recipes",
   description:
-    "List recipes that can run a capability, verified first and mocks last, with whether each is verified on a real account, uses open weights, and can run with the keys configured now.",
+    "List recipes that can run a capability, verified first and mocks last, with whether each is verified on a real account, uses open weights, can run with the keys and backends configured now, and which backend it would run on (runsOn; backendNote says why one cannot run or that it falls back to Comfy Cloud).",
   input: z.object({ capability: CapabilitySchema.optional() }).strict(),
   output: z.object({
     recipes: z.array(
@@ -567,6 +567,10 @@ export const listRecipes = defineTool({
         openWeights: z.boolean(),
         costHint: z.string(),
         available: z.boolean(),
+        /** The backend it would run on now (Settings, Backends), when backends decide it. */
+        runsOn: z.string().nullable(),
+        /** Why it cannot run, or that it falls back to Comfy Cloud, in words for the person. */
+        backendNote: z.string().nullable(),
       }),
     ),
   }),
@@ -575,8 +579,11 @@ export const listRecipes = defineTool({
     const listed = input.capability
       ? recipesFor(recipes, input.capability)
       : [...recipes].sort((a, b) => Number(a.kind === "mock") - Number(b.kind === "mock") || Number(!a.verified) - Number(!b.verified));
+    const routing = context.generation?.routing?.();
     return {
-      recipes: listed.map((recipe) => ({
+      recipes: listed.map((recipe) => {
+        const placement = routing ? placeRecipe(recipe, routing) : undefined;
+        return {
         id: recipe.id,
         title: recipe.title,
         capability: recipe.capability,
@@ -585,8 +592,11 @@ export const listRecipes = defineTool({
         verifiedOn: recipe.verified,
         openWeights: recipe.openWeights,
         costHint: recipe.costHint,
-        available: context.generation ? !!context.generation.executors.forRecipe(recipe) : recipe.kind === "mock",
-      })),
+        available: placement ? placement.ok : context.generation ? !!context.generation.executors.forRecipe(recipe) : recipe.kind === "mock",
+        runsOn: placement?.ok ? (placement.backend?.label ?? null) : null,
+        backendNote: placement ? (placement.ok ? placementNote(placement) || null : placement.reason) : null,
+        };
+      }),
     };
   },
 });
