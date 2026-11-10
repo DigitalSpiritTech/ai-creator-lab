@@ -2,13 +2,13 @@
  * Executors and the factory that wires them to the user's Comfy key.
  * @packageDocumentation
  */
-import type { Recipe } from "@/lib/catalog";
+import { type Backend, backendUsable, isComfyHost, isWorkflowBackend, type Recipe } from "@/lib/catalog";
 import type { JobStorePort } from "@/lib/domain/job";
 import { quoteRouter } from "@/server/executors/allowance";
 import { MockExecutor } from "@/server/executors/mock";
 import { createRouterModels, RouterExecutor } from "@/server/executors/router";
 import type { Executor } from "@/server/executors/types";
-import { createWorkflowClient, WorkflowExecutor } from "@/server/executors/workflow";
+import { createBackendClient, createWorkflowClient, WorkflowExecutor, type WorkflowClient, type WorkflowTarget } from "@/server/executors/workflow";
 
 export * from "@/server/executors/types";
 export { MockExecutor } from "@/server/executors/mock";
@@ -31,8 +31,11 @@ export interface ExecutorSet {
   mock: MockExecutor;
   router?: RouterExecutor;
   workflow?: WorkflowExecutor;
-  /** The executor for a recipe, or undefined when its target is not configured. */
-  forRecipe(recipe: Pick<Recipe, "kind">): Executor | undefined;
+  /**
+   * The executor for a recipe, or undefined when its target is not configured. A workflow recipe
+   * bound to a backend (`backendId`) needs that backend to be usable.
+   */
+  forRecipe(recipe: Pick<Recipe, "kind"> & { backendId?: string }): Executor | undefined;
 }
 
 export interface ExecutorConfig {
@@ -42,6 +45,33 @@ export interface ExecutorConfig {
   apiKey?: string;
   workflowsDir?: string;
   schemaFor?: (model: string) => Promise<unknown | undefined>;
+  /** The backend list (read on every use, so Settings changes apply at once). */
+  backends?: () => readonly Backend[];
+  /** Builds the SDK client for a backend; tests pass fakes. `baseUrl` null means Comfy Cloud. */
+  clientFor?: (baseUrl: string | null, apiKey: string | undefined, backend: Backend) => WorkflowClient;
+}
+
+/**
+ * Resolves a backend id to a workflow target, caching one client per backend address. The Comfy key
+ * goes to Comfy Cloud and to deployments on Comfy's own hosts only.
+ */
+function workflowTargets(config: ExecutorConfig, apiKey: string | undefined): ((backendId: string) => WorkflowTarget | undefined) | undefined {
+  const { backends } = config;
+  if (!backends) return undefined;
+  const build = config.clientFor ?? ((baseUrl: string | null, key: string | undefined) => createBackendClient(baseUrl, key));
+  const clients = new Map<string, WorkflowClient>();
+  return (backendId) => {
+    const backend = backends().find((entry) => entry.id === backendId);
+    if (!backend || !isWorkflowBackend(backend) || !backendUsable(backend, !!apiKey).ok) return undefined;
+    const key = backend.kind === "cloud" || (backend.kind === "deployment" && isComfyHost(backend.baseUrl)) ? apiKey : undefined;
+    const cacheKey = `${backend.kind}\n${backend.baseUrl}\n${key ? "keyed" : "open"}`;
+    let client = clients.get(cacheKey);
+    if (!client) {
+      client = build(backend.kind === "cloud" ? null : backend.baseUrl, key, backend);
+      clients.set(cacheKey, client);
+    }
+    return { client, label: backend.label, free: backend.kind === "comfyui" };
+  };
 }
 
 /** Creates the mock executor always, and the Router and Workflow executors when a Comfy key is set. */
@@ -57,12 +87,15 @@ export function createExecutors(config: ExecutorConfig): ExecutorSet {
         schemaFor: config.schemaFor,
       })
     : undefined;
+  const defaultClient = apiKey || process.env.COMFY_BASE_URL?.trim() ? createWorkflowClient(apiKey) : undefined;
+  const targets = workflowTargets(config, apiKey);
   const workflow =
-    apiKey || process.env.COMFY_BASE_URL?.trim()
+    defaultClient || targets
       ? new WorkflowExecutor({
           jobs: config.jobs,
           mediaRoot: config.mediaRoot,
-          client: createWorkflowClient(apiKey),
+          client: defaultClient,
+          targets,
           workflowsDir: config.workflowsDir,
         })
       : undefined;
@@ -72,7 +105,8 @@ export function createExecutors(config: ExecutorConfig): ExecutorSet {
     workflow,
     forRecipe(recipe) {
       if (recipe.kind === "mock") return mock;
-      return recipe.kind === "router" ? router : workflow;
+      if (recipe.kind === "router") return router;
+      return workflow?.canRun(recipe) ? workflow : undefined;
     },
   };
 }

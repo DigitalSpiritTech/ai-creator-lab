@@ -10,6 +10,8 @@ import { RecipeTagsSchema } from "@/lib/catalog/tags";
 
 export const RecipeIdSchema = z.string().regex(/^[a-z0-9][a-z0-9.-]{1,79}$/);
 export const RouterModelIdSchema = z.string().regex(/^[\w.-]+\/[\w.-]+$/).max(200);
+/** A backend in Settings: `cloud`, `router`, `env` (from COMFY_BASE_URL), or one a person added. */
+export const BackendIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{1,39}$/);
 
 /** Dotted path into a JSON body; numeric segments index arrays, e.g. `contents.0.parts`. */
 export const BodyPathSchema = z.string().regex(/^[A-Za-z_][\w-]*(\.(\d+|[A-Za-z_][\w-]*))*$/).max(200);
@@ -113,6 +115,12 @@ export const WorkflowRecipeSchema = z.object({
   /** File name under `workflows/`. */
   file: z.string().regex(/^[\w.-]+\.api\.json$/),
   target: z.enum(["cloud", "any"]),
+  /**
+   * The backend this run is bound to, set on the snapshot a proposal and its jobs carry (never in the
+   * catalog), so polling and retrieval after a restart reach the same server. Absent on jobs saved
+   * before backends existed; those use the COMFY_BASE_URL client as before.
+   */
+  backendId: BackendIdSchema.optional(),
   sidecar: SlotSidecarSchema,
   /** Center-crop and Lanczos-scale image inputs to the output size before upload (the LTX graph needs this). */
   fitImages: z.boolean().default(false),

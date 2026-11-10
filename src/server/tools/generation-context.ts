@@ -6,6 +6,7 @@
  */
 import { resolve } from "node:path";
 import type { Recipe } from "@/lib/catalog";
+import { backendRouting, listBackends } from "@/server/catalog/backends";
 import { defaultRecipes } from "@/server/catalog/defaults";
 import { adapterRecipes } from "@/server/catalog/router-adapters";
 import { createExecutors } from "@/server/executors";
@@ -30,7 +31,8 @@ export function createGenerationContext(store: Store, options: { workflowsDir?: 
   if (cached) return cached;
   let catalog: Promise<Recipe[]> | undefined;
   const context: GenerationContext = {
-    executors: createExecutors({ jobs: store.jobs, mediaRoot: store.dataDir, apiKey, workflowsDir }),
+    executors: createExecutors({ jobs: store.jobs, mediaRoot: store.dataDir, apiKey, workflowsDir, backends: () => listBackends(store) }),
+    routing: () => backendRouting(store, !!apiKey),
     recipes: async () => {
       catalog ??= defaultRecipes(workflowsDir);
       const starters = await catalog;

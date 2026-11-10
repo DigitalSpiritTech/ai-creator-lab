@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 import { z } from "zod";
-import { AspectRatioSchema, RecipeSchema } from "@/lib/catalog";
+import { AspectRatioSchema, BackendIdSchema, RecipeSchema } from "@/lib/catalog";
 import { CapabilitySchema } from "@/lib/domain/capability";
 import { IdSchema, RecipeIdSchema, RevisionSchema, Sha256Schema, TimestampSchema, text } from "@/lib/domain/common";
 import { SlotKindSchema } from "@/lib/domain/content";
@@ -303,6 +303,11 @@ export const GenerationProposalSchema = z
     capability: CapabilitySchema,
     recipeId: RecipeIdSchema,
     recipeTitle: z.string().max(120),
+    /**
+     * The backend a workflow proposal runs on (Settings, Backends). Submitting runs it there or
+     * refuses; it never moves to another backend without a new proposal saying so.
+     */
+    backendId: BackendIdSchema.optional(),
     prompt: z.string().min(1).max(10_000),
     references: z.array(z.object({ role: JobInputSchema.shape.role, assetId: IdSchema }).strict()).max(16),
     aspectRatio: AspectRatioSchema.optional(),

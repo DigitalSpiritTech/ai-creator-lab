@@ -1,0 +1,172 @@
+{
+  "UNETLoader": {
+    "input": {
+      "required": {
+        "unet_name": [["z_image_turbo_bf16.safetensors", "flux1-dev-fp8.safetensors"]],
+        "weight_dtype": [["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"]]
+      }
+    },
+    "input_order": { "required": ["unet_name", "weight_dtype"] },
+    "output": ["MODEL"],
+    "name": "UNETLoader",
+    "display_name": "Load Diffusion Model",
+    "category": "advanced/loaders",
+    "output_node": false
+  },
+  "CLIPLoader": {
+    "input": {
+      "required": {
+        "clip_name": [["qwen_3_4b.safetensors", "t5xxl_fp8_e4m3fn.safetensors"]],
+        "type": [["stable_diffusion", "stable_cascade", "sd3", "flux", "lumina2", "wan", "qwen_image", "ltxv"]]
+      },
+      "optional": { "device": [["default", "cpu"], { "advanced": true }] }
+    },
+    "output": ["CLIP"],
+    "name": "CLIPLoader",
+    "category": "advanced/loaders",
+    "output_node": false
+  },
+  "VAELoader": {
+    "input": {
+      "required": {
+        "vae_name": ["COMBO", { "options": ["ae.safetensors", "pixel_space"] }]
+      }
+    },
+    "output": ["VAE"],
+    "name": "VAELoader",
+    "category": "loaders",
+    "output_node": false
+  },
+  "LoraLoaderModelOnly": {
+    "input": { "required": { "model": ["MODEL"], "lora_name": [[]], "strength_model": ["FLOAT", { "default": 1, "min": -100, "max": 100, "step": 0.01 }] } },
+    "output": ["MODEL"],
+    "name": "LoraLoaderModelOnly",
+    "category": "loaders",
+    "output_node": false
+  },
+  "CLIPTextEncode": {
+    "input": { "required": { "text": ["STRING", { "multiline": true, "dynamicPrompts": true }], "clip": ["CLIP"] } },
+    "output": ["CONDITIONING"],
+    "name": "CLIPTextEncode",
+    "category": "conditioning",
+    "output_node": false
+  },
+  "ConditioningZeroOut": {
+    "input": { "required": { "conditioning": ["CONDITIONING"] } },
+    "output": ["CONDITIONING"],
+    "name": "ConditioningZeroOut",
+    "category": "advanced/conditioning",
+    "output_node": false
+  },
+  "EmptySD3LatentImage": {
+    "input": { "required": { "width": ["INT", { "default": 1024, "min": 16, "max": 16384, "step": 16 }], "height": ["INT", { "default": 1024, "min": 16, "max": 16384, "step": 16 }], "batch_size": ["INT", { "default": 1, "min": 1, "max": 4096 }] } },
+    "output": ["LATENT"],
+    "name": "EmptySD3LatentImage",
+    "category": "latent/sd3",
+    "output_node": false
+  },
+  "ModelSamplingAuraFlow": {
+    "input": { "required": { "model": ["MODEL"], "shift": ["FLOAT", { "default": 1.73, "min": 0, "max": 100, "step": 0.01 }] } },
+    "output": ["MODEL"],
+    "name": "ModelSamplingAuraFlow",
+    "category": "advanced/model",
+    "output_node": false
+  },
+  "KSampler": {
+    "input": {
+      "required": {
+        "model": ["MODEL"],
+        "seed": ["INT", { "default": 0, "min": 0, "max": 18446744073709551615 }],
+        "steps": ["INT", { "default": 20, "min": 1, "max": 10000 }],
+        "cfg": ["FLOAT", { "default": 8, "min": 0, "max": 100 }],
+        "sampler_name": [["euler", "euler_ancestral", "res_multistep"]],
+        "scheduler": [["simple", "normal", "karras"]],
+        "positive": ["CONDITIONING"],
+        "negative": ["CONDITIONING"],
+        "latent_image": ["LATENT"],
+        "denoise": ["FLOAT", { "default": 1, "min": 0, "max": 1, "step": 0.01 }]
+      }
+    },
+    "output": ["LATENT"],
+    "name": "KSampler",
+    "category": "sampling",
+    "output_node": false
+  },
+  "VAEDecode": {
+    "input": { "required": { "samples": ["LATENT"], "vae": ["VAE"] } },
+    "output": ["IMAGE"],
+    "name": "VAEDecode",
+    "category": "latent",
+    "output_node": false
+  },
+  "VAEDecodeTiled": {
+    "input": { "required": { "samples": ["LATENT"], "vae": ["VAE"], "tile_size": ["INT", { "default": 512 }], "overlap": ["INT", { "default": 64 }], "temporal_size": ["INT", { "default": 64 }], "temporal_overlap": ["INT", { "default": 8 }] } },
+    "output": ["IMAGE"],
+    "name": "VAEDecodeTiled",
+    "category": "_for_testing",
+    "output_node": false
+  },
+  "SaveImage": {
+    "input": { "required": { "images": ["IMAGE"], "filename_prefix": ["STRING", { "default": "ComfyUI" }] } },
+    "output": [],
+    "name": "SaveImage",
+    "category": "image",
+    "output_node": true
+  },
+  "LoadImage": {
+    "input": { "required": { "image": [["example.png"], { "image_upload": true }] } },
+    "output": ["IMAGE", "MASK"],
+    "name": "LoadImage",
+    "category": "image",
+    "output_node": false
+  },
+  "RandomNoise": {
+    "input": { "required": { "noise_seed": ["INT", { "default": 0, "min": 0 }] } },
+    "output": ["NOISE"],
+    "name": "RandomNoise",
+    "category": "sampling/custom_sampling/noise",
+    "output_node": false
+  },
+  "CFGGuider": {
+    "input": { "required": { "model": ["MODEL"], "positive": ["CONDITIONING"], "negative": ["CONDITIONING"], "cfg": ["FLOAT", { "default": 8 }] } },
+    "output": ["GUIDER"],
+    "name": "CFGGuider",
+    "category": "sampling/custom_sampling/guiders",
+    "output_node": false
+  },
+  "KSamplerSelect": {
+    "input": { "required": { "sampler_name": [["euler", "res_multistep"]] } },
+    "output": ["SAMPLER"],
+    "name": "KSamplerSelect",
+    "category": "sampling/custom_sampling/samplers",
+    "output_node": false
+  },
+  "ManualSigmas": {
+    "input": { "required": { "sigmas": ["STRING", { "default": "1, 0.5" }] } },
+    "output": ["SIGMAS"],
+    "name": "ManualSigmas",
+    "category": "sampling/custom_sampling/sigmas",
+    "output_node": false
+  },
+  "SamplerCustomAdvanced": {
+    "input": { "required": { "noise": ["NOISE"], "guider": ["GUIDER"], "sampler": ["SAMPLER"], "sigmas": ["SIGMAS"], "latent_image": ["LATENT"] } },
+    "output": ["LATENT", "LATENT"],
+    "name": "SamplerCustomAdvanced",
+    "category": "sampling/custom_sampling",
+    "output_node": false
+  },
+  "CreateVideo": {
+    "input": { "required": { "images": ["IMAGE"], "fps": ["FLOAT", { "default": 30 }] }, "optional": { "audio": ["AUDIO"] } },
+    "output": ["VIDEO"],
+    "name": "CreateVideo",
+    "category": "image/video",
+    "output_node": false
+  },
+  "SaveVideo": {
+    "input": { "required": { "video": ["VIDEO"], "filename_prefix": ["STRING", { "default": "video/ComfyUI" }], "format": [["auto", "mp4"]], "codec": [["auto", "h264"]] } },
+    "output": [],
+    "name": "SaveVideo",
+    "category": "image/video",
+    "output_node": true
+  }
+}

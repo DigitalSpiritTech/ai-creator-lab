@@ -96,6 +96,8 @@ Test a new workflow with a single candidate first. Cloud bills by GPU time, so a
 
 All three starter workflows ran successfully on Comfy Cloud on 2026-10-26 with the model files listed above, and then ran again inside the full three-beat ad on the same day. Nothing in this folder has been verified on a local ComfyUI or a Comfy API deployment yet.
 
+To run them on your own ComfyUI, add it under Settings, Backends. The app reads its `object_info` and shows, per workflow, the node classes and model files it is missing (for example, a ComfyUI without the LTX nodes lists `LTXVConditioning`, `LTXVPreprocess` and the others for both LTX workflows). Install what is listed, press Check, and the workflow shows as Compatible. The first finished run on that backend marks it Verified there. The model file names must match exactly, so the Cloud names above are the ones to install. Until then, those workflows run on Comfy Cloud, and each proposal says so.
+
 ## Not on Cloud yet
 
 Qwen-Image 2.1 (text to image and edit) has native nodes on Comfy Cloud but its weights were not in the Cloud library on October 27, 2026, so no workflow ships for it.

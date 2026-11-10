@@ -31,7 +31,8 @@ import { copyFile } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import sharp from "sharp";
-import { WorkflowGraphSchema, type Recipe, type WorkflowGraph } from "@/lib/catalog";
+import { COMFY_CLOUD_URL, WorkflowGraphSchema, compareRequirements, graphRequirements, type ObjectInfo, type Recipe, type WorkflowGraph } from "@/lib/catalog";
+import { fetchObjectInfo } from "@/server/catalog/backend-probe";
 import { adapterFor } from "@/server/catalog/router-adapters";
 import { createCatalogPort, RouterCatalog } from "@/server/catalog/router-catalog";
 import { tagModel } from "@/server/catalog/tagging";
@@ -256,48 +257,23 @@ async function imageDifference(a: string, b: string): Promise<number> {
   return Math.round((sum / left.length / 255) * 10_000) / 100;
 }
 
-type ObjectInfo = Record<string, { input?: { required?: Record<string, unknown>; optional?: Record<string, unknown> }; api_node?: boolean }>;
-
 /** Cloud's node catalog (a free read), or undefined when the endpoint does not answer. */
-async function fetchObjectInfo(apiKey: string, origin: string): Promise<ObjectInfo | undefined> {
+async function readObjectInfo(apiKey: string): Promise<ObjectInfo | undefined> {
   try {
-    const response = await fetch(`${origin}/api/object_info`, { headers: { "X-API-Key": apiKey } });
-    if (!response.ok) {
-      log(`object_info answered HTTP ${response.status}; node and file checks skipped`);
-      return undefined;
-    }
-    return (await response.json()) as ObjectInfo;
+    return await fetchObjectInfo({ kind: "cloud", baseUrl: COMFY_CLOUD_URL }, { apiKey });
   } catch (cause) {
     log(`object_info unavailable (${cause instanceof Error ? cause.message : String(cause)}); node and file checks skipped`);
     return undefined;
   }
 }
 
-function comboOptions(spec: unknown): string[] | undefined {
-  if (!Array.isArray(spec)) return undefined;
-  if (Array.isArray(spec[0])) return spec[0].filter((value): value is string => typeof value === "string");
-  const options = (spec[1] as { options?: unknown } | undefined)?.options;
-  return Array.isArray(options) ? options.filter((value): value is string => typeof value === "string") : undefined;
-}
-
-/** Each node class with its partner (API) flag, plus model files the Cloud library does not list. */
+/** Each node class with its partner (API) flag, plus what the Cloud library lacks (the shared backend comparison). */
 function graphFacts(graph: WorkflowGraph, info: ObjectInfo): { classes: string[]; missing: string[] } {
-  const classes = new Set<string>();
-  const missing: string[] = [];
-  for (const [id, node] of Object.entries(graph)) {
-    const entry = info[node.class_type];
-    if (!entry) {
-      missing.push(`node ${id} class ${node.class_type} is not on Cloud`);
-      continue;
-    }
-    classes.add(`${node.class_type}${entry.api_node ? " (partner/API node)" : ""}`);
-    for (const [field, value] of Object.entries(node.inputs)) {
-      if (typeof value !== "string" || !/\.(safetensors|gguf|pt|pth|bin|ckpt)$/.test(value)) continue;
-      const options = comboOptions(entry.input?.required?.[field] ?? entry.input?.optional?.[field]);
-      if (options && !options.includes(value)) missing.push(`node ${id} ${node.class_type}.${field} ${value} is not in the Cloud library`);
-    }
-  }
-  return { classes: [...classes].sort(), missing };
+  const requirements = graphRequirements(graph);
+  const result = compareRequirements(requirements, info);
+  const classes = requirements.nodes.filter((name) => info[name]).map((name) => `${name}${info[name]?.api_node ? " (partner/API node)" : ""}`);
+  const missing = [...result.nodes.map((name) => `class ${name} is not on Cloud`), ...result.models.map((file) => `${file} is not in the Cloud library`)];
+  return { classes, missing };
 }
 
 interface Session {
@@ -642,7 +618,7 @@ async function main(): Promise<void> {
     recipes: await context.generation!.recipes(),
     comfy: new Comfy({ apiKey, clientInfo: "ai-creator-lab-spike-v02" }),
   };
-  const info = await fetchObjectInfo(apiKey, origin);
+  const info = await readObjectInfo(apiKey);
   await budget.open();
   const records: StepRecord[] = [];
   let stopped: string | undefined;

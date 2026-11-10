@@ -6,7 +6,7 @@
 import { randomUUID } from "node:crypto";
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
 import { z } from "zod";
-import type { Recipe } from "@/lib/catalog";
+import type { BackendRouting, Recipe } from "@/lib/catalog";
 import type { DocumentAuthor } from "@/lib/domain/document";
 import { fail } from "@/lib/domain/failure";
 import type { ExecutorSet } from "@/server/executors";
@@ -16,6 +16,12 @@ import type { Store } from "@/server/store";
 export interface GenerationContext {
   executors: ExecutorSet;
   recipes(): Promise<Recipe[]>;
+  /**
+   * The backend list and key status that decide where each recipe runs (the default backend, the
+   * Comfy Cloud fallback, or a refusal). Absent in contexts without backends (most tests, scripts):
+   * then a recipe runs wherever its executor points, as before backends existed.
+   */
+  routing?: () => BackendRouting;
   /** A flat paid cap in USD replacing the spend policy (scripts and tests); defaults to the monthly budget policy. */
   allowanceUsd?: () => number;
   /** The operator ceiling; defaults to GENERATION_ALLOWANCE_USD. Tests inject it. */
