@@ -9,12 +9,12 @@ AI Creator Lab is an open-source studio for creators who make short vertical con
 ## Vocabulary
 
 - Workspace: everything on this install. Single user for now.
-- App: a guided way of working. The first App is UGC Creator. A Microdrama App comes later.
+- App: a guided way of working. The first App is UGC Creator; the second is Social Post. A Microdrama App comes later.
 - Project: one effort created from an App, for example "Bottle launch, October". A project holds its own assets, scripts, and content pieces, and links to Library items.
 - Library: named, approved things you reuse across projects. Three types for now: Character (bible plus face and body references), Product (name, link, claims, images), Set (a location with reference images). Library replaces what other tools call elements or canon.
 - Assets: every generated or uploaded file, with where it came from. Filter by type, project, recipe, or approval.
 - Archive: assets you rejected or retired. Restorable. "Delete everywhere" is a separate, confirmed action that removes the file and breaks every reference to it.
-- Content piece: the thing you are making inside a project. The first type is Ad. Post comes later.
+- Content piece: the thing you are making inside a project. Two types for now: Ad (made in UGC Creator) and Social post (made in Social Post: stills in 1:1, 4:5, 9:16, and 16:9 plus the caption, hashtags, and call to action, no video). Each content type is a plugin.
 - Reference sheet: a single landscape image, made per project from a Library character's face and body references, showing a dominant portrait plus full-body front and back views in that project's wardrobe on a neutral grey background. Once approved it is the one character reference every still in the project uses, and the reference that video models with a reference mode will read later.
 - Script: the plan for a content piece, saved and versioned as an asset. Beats are talking, b-roll, or text card.
 - Shot: one beat's production: candidate stills, an approved still, candidate clips, an approved clip.
@@ -23,7 +23,7 @@ AI Creator Lab is an open-source studio for creators who make short vertical con
 
 ## Navigation
 
-Left rail: Projects, Assets, Library, Archive, Settings. Inside a project: Chat (left), Workspace (right) with tabs for Script, Shots, Assets, and Export.
+Left rail: Projects, Assets, Library, Archive, Settings. Inside a project: Chat (left), Workspace (right) with the content type's tabs: for an Ad, Documents, Script, Shots, Assets, and Export; for a Social post, Post, Stills, and Export.
 
 Settings: Comfy API key, Anthropic API key, monthly budget in USD with a reset day (add to this month when a step needs more; the operator ceiling `GENERATION_ALLOWANCE_USD` is shown read-only), default recipe per capability, data directory, theme.
 

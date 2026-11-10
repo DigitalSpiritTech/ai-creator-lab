@@ -115,3 +115,4 @@ October 30, morning: buffer for submission form issues only.
 - 2026-10-26: Chat-first UI on Claude is primary; MCP front door is a stretch for the 29th.
 - 2026-10-26: Not targeting the Open Weights Only category; LTX is the video default anyway. Body reference uses athleticwear so everything stays SFW.
 - 2026-10-26: Local ffmpeg assembly for the MVP; Remotion later.
+- 2026-11-10: Social Post (F13) ships as the second App and the first content type added purely as a plugin. Plugin content pieces keep core's envelope and slots with a plugin-owned body; plugin tools are prefixed with the plugin id so the 33 core names stay stable. Every record that matters carries an owner (one default owner until Teams).

@@ -115,3 +115,14 @@ The automated tests cover the probe and placement with a recorded object_info an
 4. Click Make default on it, then propose a clip. The card should say "Runs on Comfy Cloud because <name> cannot run it (missing nodes ...)". Propose a Z-Image face. The card should name your backend and show the run as free.
 5. Approve the Z-Image proposal (it costs no credits on your own ComfyUI). When it finishes, the Z-Image row should read Verified with today's date on that backend. Record the run in docs/VERIFICATION.md.
 6. Make Comfy Cloud the default again, or remove the backend.
+
+## A social post (a few credits, or none with the mock recipes)
+
+The acceptance smoke makes a social post with the mock executor; this check is the part only a browser shows. Start the app with `MOCK_RECIPES=1` to try it without credits.
+
+1. Projects: create a project from Social Post. The workspace shows Post, Stills, and Export, and nothing from the Ad.
+2. Post tab: save the brief, then the copy with a caption, two hashtags, a call to action, and a visual line. Save it again with a change; Copy history lists two versions, and Restore on the first brings it back as a third.
+3. Stills tab: press Propose stills on 4:5. A proposal card appears in the chat with the recipe, prompt, references (the linked product photo or character, if any), and the cost. Nothing runs until you approve it there.
+4. When the candidates arrive, approve one. The others go to the Archive, and archiving the approved one is refused.
+5. Export tab: the 4:5 still downloads, Copy text copies the caption, call to action, and hashtags, and the other three ratios are named as missing.
+6. In the chat, ask the assistant for a square version. It should propose 1:1 with `social_post_propose_still`, never offer a script or a clip. Record any real run in docs/VERIFICATION.md.
