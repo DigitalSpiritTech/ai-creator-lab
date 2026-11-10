@@ -17,6 +17,8 @@
  * @packageDocumentation
  */
 
+import { createHash, timingSafeEqual } from "node:crypto";
+
 type Env = Record<string, string | undefined>;
 
 export function isReadOnly(env: Env = process.env): boolean {
@@ -55,14 +57,15 @@ export const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export const READ_ONLY_MESSAGE = "This is a read-only demo: you can look at every project, asset and export, but nothing can be changed or generated here. Run AI Creator Lab on your own computer to make your own.";
 
-/** Whether an Authorization header carries the judging password (any user name). Constant-time compare. */
+/**
+ * Whether an Authorization header carries the judging password (any user name). Compares SHA-256
+ * digests with `timingSafeEqual`, so the time taken says nothing about the length or the content.
+ */
 export function authorized(header: string | null, password: string): boolean {
   if (!header?.startsWith("Basic ")) return false;
   let decoded: string;
-  try { decoded = atob(header.slice(6)); } catch { return false; }
+  try { decoded = Buffer.from(header.slice(6), "base64").toString("utf8"); } catch { return false; }
   const given = decoded.slice(decoded.indexOf(":") + 1);
-  if (given.length !== password.length) return false;
-  let diff = 0;
-  for (let i = 0; i < given.length; i++) diff |= given.charCodeAt(i) ^ password.charCodeAt(i);
-  return diff === 0;
+  const digest = (value: string) => createHash("sha256").update(value, "utf8").digest();
+  return timingSafeEqual(digest(given), digest(password));
 }

@@ -8,9 +8,9 @@
  * @packageDocumentation
  */
 import { randomBytes } from "node:crypto";
-import { type AuthFile, readAuthFile, updateAuthFile } from "@/server/auth/auth-file";
+import { type AuthFile, MAX_FAILED_ATTEMPTS, readAuthFile, updateAuthFile } from "@/server/auth/auth-file";
 import { isNetworkExposed } from "@/server/auth/network";
-import { type FailureLimiter, createFailureLimiter } from "@/server/auth/rate-limit";
+import { type FailureStore, createFailureLimiter } from "@/server/auth/rate-limit";
 import {
   digest,
   digestsEqual,
@@ -91,8 +91,12 @@ export interface SinglePasswordOptions {
   dataDir: () => string;
   env?: () => Env;
   now?: () => number;
-  limiter?: FailureLimiter;
+  /** Failure limit settings; failures are kept in the auth file unless `failureStore` says otherwise. */
+  limits?: { maxFailures?: number; windowMs?: number; delayMs?: number };
+  failureStore?: FailureStore;
   sleep?: (ms: number) => Promise<void>;
+  /** The password check; replaceable so tests can count how many guesses reach it. */
+  verify?: typeof verifyPassword;
 }
 
 /**
@@ -104,10 +108,14 @@ export interface SinglePasswordOptions {
 export function createSinglePasswordProvider(options: SinglePasswordOptions): AuthProvider {
   const env = options.env ?? (() => process.env);
   const now = options.now ?? Date.now;
-  const limiter = options.limiter ?? createFailureLimiter({ now });
-  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
+  const verify = options.verify ?? verifyPassword;
   const read = () => readAuthFile(options.dataDir());
   const update = (change: (file: AuthFile) => AuthFile) => updateAuthFile(options.dataDir(), change);
+  const fileFailures: FailureStore = {
+    load: () => read().failedAttempts,
+    save: (failures) => void update((file) => ({ ...file, failedAttempts: failures.slice(-MAX_FAILED_ATTEMPTS) })),
+  };
+  const limiter = createFailureLimiter({ ...options.limits, now, sleep: options.sleep, store: options.failureStore ?? fileFailures });
 
   const live = (file: AuthFile) => {
     const time = now();
@@ -125,11 +133,12 @@ export function createSinglePasswordProvider(options: SinglePasswordOptions): Au
     return { file: { ...file, sessions: [...live(file), session].slice(-MAX_SESSIONS) }, session, token };
   };
 
-  const limited = (): SignInFailure | null => {
-    const retryAfterSeconds = limiter.retryAfterSeconds();
-    return retryAfterSeconds > 0
-      ? { ok: false, reason: "rate_limited", message: `Too many failed attempts. Try again in ${retryAfterSeconds} seconds.`, retryAfterSeconds }
-      : null;
+  /** Runs one counted attempt; only a wrong password or setup code stays counted as a failure. */
+  const limitedAttempt = async (run: () => Promise<SignInResult>): Promise<SignInResult> => {
+    const outcome = await limiter.attempt(run, (result) => result.ok || result.reason !== "invalid");
+    if (!outcome.blocked) return outcome.value;
+    const retryAfterSeconds = outcome.retryAfterSeconds;
+    return { ok: false, reason: "rate_limited", message: `Too many failed attempts. Try again in ${retryAfterSeconds} seconds.`, retryAfterSeconds };
   };
 
   const authenticate = (request: Request): Session | null => {
@@ -137,12 +146,6 @@ export function createSinglePasswordProvider(options: SinglePasswordOptions): Au
     if (!token || token.length > 128) return null;
     const id = digest(token);
     return live(read()).find((session) => digestsEqual(session.id, id)) ?? null;
-  };
-
-  const fail = async (message: string): Promise<SignInFailure> => {
-    limiter.recordFailure();
-    if (limiter.delayMs > 0) await sleep(limiter.delayMs);
-    return { ok: false, reason: "invalid", message };
   };
 
   return {
@@ -162,41 +165,41 @@ export function createSinglePasswordProvider(options: SinglePasswordOptions): Au
 
     authenticate,
 
-    async setUp(input) {
-      const blocked = limited();
-      if (blocked) return blocked;
-      const file = read();
-      if (file.password) return { ok: false, reason: "already_configured", message: "A password is already set. Sign in instead." };
-      const pending = file.setup;
-      if (!pending || !digestsEqual(pending.codeDigest, digest(normalizeSetupCode(input.setupCode)))) {
-        return fail("That setup code does not match the one in the server log.");
-      }
-      const password = await hashPassword(input.password);
-      let opened: { session: Session; token: string } | undefined;
-      const written = update((current) => {
-        // Re-checked against the file as written now, so two racing setups cannot both win.
-        if (current.password || !current.setup || current.setup.codeDigest !== pending.codeDigest) return current;
-        const result = openSession({ version: 1, sessions: [], password: { ...password, setAt: new Date(now()).toISOString() } });
-        opened = result;
-        return result.file;
+    setUp(input) {
+      return limitedAttempt(async () => {
+        const file = read();
+        if (file.password) return { ok: false, reason: "already_configured", message: "A password is already set. Sign in instead." };
+        const pending = file.setup;
+        if (!pending || !digestsEqual(pending.codeDigest, digest(normalizeSetupCode(input.setupCode)))) {
+          return { ok: false, reason: "invalid", message: "That setup code does not match the one in the server log." };
+        }
+        const password = await hashPassword(input.password);
+        let opened: { session: Session; token: string } | undefined;
+        const written = update((current) => {
+          // Re-checked against the file as written now, so two racing setups cannot both win.
+          if (current.password || !current.setup || current.setup.codeDigest !== pending.codeDigest) return current;
+          const result = openSession({ ...current, setup: undefined, sessions: [], password: { ...password, setAt: new Date(now()).toISOString() } });
+          opened = result;
+          return result.file;
+        });
+        if (!opened || !written.password) return { ok: false, reason: "already_configured", message: "A password is already set. Sign in instead." };
+        return { ok: true, session: opened.session, token: opened.token };
       });
-      if (!opened || !written.password) return { ok: false, reason: "already_configured", message: "A password is already set. Sign in instead." };
-      return { ok: true, session: opened.session, token: opened.token };
     },
 
-    async signIn(input) {
-      const blocked = limited();
-      if (blocked) return blocked;
-      const file = read();
-      if (!file.password) return { ok: false, reason: "not_configured", message: "No password is set yet. Use the setup code from the server log." };
-      if (!(await verifyPassword(input.password, file.password))) return fail("That password is not right.");
-      let opened: { session: Session; token: string } | undefined;
-      update((current) => {
-        const result = openSession(current);
-        opened = result;
-        return result.file;
+    signIn(input) {
+      return limitedAttempt(async () => {
+        const file = read();
+        if (!file.password) return { ok: false, reason: "not_configured", message: "No password is set yet. Use the setup code from the server log." };
+        if (!(await verify(input.password, file.password))) return { ok: false, reason: "invalid", message: "That password is not right." };
+        let opened: { session: Session; token: string } | undefined;
+        update((current) => {
+          const result = openSession(current);
+          opened = result;
+          return result.file;
+        });
+        return { ok: true, session: opened!.session, token: opened!.token };
       });
-      return { ok: true, session: opened!.session, token: opened!.token };
     },
 
     signOut(request) {

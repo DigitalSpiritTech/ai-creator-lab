@@ -7,7 +7,7 @@
  */
 import { z } from "zod";
 import { assertSignedIn } from "@/server/auth";
-import { acceptedHosts, isNetworkExposed } from "@/server/auth/network";
+import { acceptedHosts, isNetworkExposed, requestProtocol } from "@/server/auth/network";
 import { READ_ONLY_MESSAGE, READ_ONLY_METHODS, isReadOnly, publicHost } from "@/server/demo";
 import { ServiceFailureSchema } from "@/lib/domain/failure";
 
@@ -56,9 +56,9 @@ export function assertTrustedOrigin(request: Request): void {
   const site = request.headers.get("sec-fetch-site");
   // Next.js can normalize request.url to localhost; the validated Host preserves
   // the actual browser origin (including 127.0.0.1 and the chosen port).
-  // Behind a TLS proxy the server sees http inside while the browser speaks https. The header
-  // only shapes the origin the browser must match; a browser page cannot set it.
-  const protocol = exposed && request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() === "https" ? "https:" : url.protocol;
+  // Behind a TLS proxy the server sees http inside while the browser speaks https; the proxy's
+  // X-Forwarded-Proto is believed only when a proxy is named (see `requestProtocol`).
+  const protocol = requestProtocol(request);
   const expectedOrigin = host ? new URL(`${protocol}//${host}`).origin : url.origin;
   // A link to the app from another site (a README, a chat) is a top-level navigation: the page
   // loads in its own tab and the other site reads nothing. Every other cross-site request, a

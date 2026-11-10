@@ -558,8 +558,9 @@ async function authCheck(): Promise<void> {
       check(Date.now() < deadline, `the network server did not start:\n${output}`);
       const ready = await fetch(`${base}/api/auth/session`).catch(() => null);
       if (ready?.ok) {
-        const status = (await ready.json()) as { required: boolean; configured: boolean; authenticated: boolean };
-        check(status.required && !status.configured && !status.authenticated, `HOST=0.0.0.0 asks for a password that is not set yet (${JSON.stringify(status)})`);
+        const status = (await ready.json()) as { required: boolean; authenticated: boolean; configured?: boolean };
+        check(status.required && !status.authenticated, `HOST=0.0.0.0 asks for a password (${JSON.stringify(status)})`);
+        check(!("configured" in status), "the public status does not say whether a password is set");
         break;
       }
       await new Promise((wait) => setTimeout(wait, 250));
@@ -586,6 +587,7 @@ async function authCheck(): Promise<void> {
     check(signedOut.ok, "sign-out answers");
     check((await fetch(`${base}/api/projects`, { headers: { cookie } })).status === 401, "the signed-out session no longer opens the API");
     check(!output.includes(password), "the password never reaches the server log");
+    check(output.includes("Set STUDIO_ALLOWED_HOSTS"), "with HOST=0.0.0.0 and no allowed hosts, the log says how to let other computers in");
     console.log("[auth] HOST=0.0.0.0: first visit asks for a password, the API refuses unauthenticated calls, sessions open and close");
   } finally {
     const exited = new Promise((done) => server.once("exit", done));

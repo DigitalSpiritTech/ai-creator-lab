@@ -28,7 +28,6 @@ export function authStatus(request: Request): AuthStatus {
   const required = provider.required(request);
   return {
     required,
-    configured: provider.configured(),
     authenticated: required ? provider.authenticate(request) !== null : false,
     readOnly: isReadOnly(),
   };

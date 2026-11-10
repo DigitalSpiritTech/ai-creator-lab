@@ -8,8 +8,9 @@
  * outside the proxy matcher. The read-only demo (`STUDIO_READ_ONLY=1`) stays public by design.
  * @packageDocumentation
  */
+import { networkInterfaces } from "node:os";
 import { dataDirectory } from "@/server/data-dir";
-import { isNetworkExposed } from "@/server/auth/network";
+import { allowedHostsHint, isNetworkExposed, requestProtocol } from "@/server/auth/network";
 import { hostedMode } from "@/server/demo";
 import { type AuthProvider, SESSION_COOKIE, SESSION_DAYS, createSinglePasswordProvider } from "@/server/auth/provider";
 
@@ -60,10 +61,9 @@ export function assertSignedIn(request: Request): void {
   if (!provider.authenticate(request)) throw signInRequired();
 }
 
-/** Whether the browser reached the app over https (directly, or through a TLS proxy). */
+/** Whether the browser reached the app over https (directly, or through a named TLS proxy). */
 export function isSecureRequest(request: Request): boolean {
-  if (new URL(request.url).protocol === "https:") return true;
-  return request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase() === "https";
+  return requestProtocol(request) === "https:";
 }
 
 /** The Set-Cookie value for a new session: HttpOnly, SameSite=Strict, Secure over https. */
@@ -80,6 +80,16 @@ export function announceAccess(log: (line: string) => void = console.log): void 
   if (hostedMode() || !isNetworkExposed()) return;
   if (authProvider().configured()) log("[auth] This studio is reachable from the network: every page and API call needs the app password.");
   else announceSetupCode(log);
+  const hint = allowedHostsHint(process.env, localAddresses());
+  if (hint) log(hint);
+}
+
+/** This machine's non-internal IPv4 addresses, for the startup hint. */
+function localAddresses(): string[] {
+  return Object.values(networkInterfaces())
+    .flat()
+    .filter((entry) => !!entry && entry.family === "IPv4" && !entry.internal)
+    .map((entry) => entry!.address);
 }
 
 /**

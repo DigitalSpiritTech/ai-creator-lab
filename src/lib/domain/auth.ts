@@ -18,8 +18,6 @@ const Password = z
 export const AuthStatusSchema = z.object({
   /** Whether this server asks for the app password (it is reachable from the network). */
   required: z.boolean(),
-  /** Whether a password has been set. */
-  configured: z.boolean(),
   authenticated: z.boolean(),
   readOnly: z.boolean(),
 });

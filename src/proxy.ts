@@ -10,6 +10,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_HEADER, SIGN_IN_PATH, authProvider, isPublicPath, signInRequired } from "@/server/auth";
 import { READ_ONLY_MESSAGE, READ_ONLY_METHODS, authorized, isReadOnly, judgePassword } from "@/server/demo";
+import { requestProtocol } from "@/server/auth/network";
 import { assertTrustedOrigin, errorResponse } from "@/server/http";
 
 export function proxy(request: NextRequest) {
@@ -48,8 +49,7 @@ export function proxy(request: NextRequest) {
  * (0.0.0.0), so the target is built from the Host header, which `assertTrustedOrigin` has checked.
  */
 function redirect(request: NextRequest, path: string): NextResponse {
-  const forwarded = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const protocol = forwarded === "https" || forwarded === "http" ? `${forwarded}:` : request.nextUrl.protocol;
+  const protocol = requestProtocol(request);
   const host = request.headers.get("host") ?? request.nextUrl.host;
   return NextResponse.redirect(new URL(path, `${protocol}//${host}`), { status: 307, headers: { "Cache-Control": "no-store" } });
 }
@@ -62,4 +62,5 @@ function signInRedirect(request: NextRequest): NextResponse {
   return redirect(request, next === "/" ? SIGN_IN_PATH : `${SIGN_IN_PATH}?next=${encodeURIComponent(next)}`);
 }
 
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
+// Only the hashed build files skip the proxy; there is no public/ folder or favicon to exempt.
+export const config = { matcher: ["/((?!_next/static/).*)"] };

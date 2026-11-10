@@ -13,10 +13,18 @@ import { after, afterEach, before, describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
 import { NextRequest } from "next/server";
 import { AUTH_FILE, readAuthFile } from "@/server/auth/auth-file";
-import { acceptedHosts, configuredHosts, isLoopbackHostname, isNetworkExposed, normalizeHostname } from "@/server/auth/network";
+import {
+  acceptedHosts,
+  allowedHostsHint,
+  configuredHosts,
+  isLoopbackHostname,
+  isNetworkExposed,
+  normalizeHostname,
+  requestProtocol,
+} from "@/server/auth/network";
+import { authorized } from "@/server/demo";
 import { digest, hashPassword, newSetupCode, normalizeSetupCode, verifyPassword } from "@/server/auth/password";
 import { SESSION_COOKIE, createSinglePasswordProvider } from "@/server/auth/provider";
-import { createFailureLimiter } from "@/server/auth/rate-limit";
 import { safeNextPath } from "@/lib/domain/auth";
 
 // Route modules import `server-only`; outside the React server build it would throw on import.
@@ -78,6 +86,30 @@ describe("network policy", () => {
     assert.ok(acceptedHosts({ HOST: "192.168.1.20" }).includes("192.168.1.20"));
   });
 
+  test("X-Forwarded-Proto counts only behind a named proxy, or on loopback", () => {
+    const forwarded = (url: string) => new Request(url, { headers: { "x-forwarded-proto": "https" } });
+    assert.equal(requestProtocol(forwarded("http://0.0.0.0:3000/"), { HOST: "0.0.0.0" }), "http:", "exposed directly: anyone could send it");
+    assert.equal(requestProtocol(forwarded("https://0.0.0.0:3000/"), { HOST: "0.0.0.0" }), "http:", "Next.js copies the header into the URL scheme; not trusted either");
+    assert.equal(requestProtocol(forwarded("http://0.0.0.0:3000/"), { HOST: "0.0.0.0", STUDIO_ALLOWED_HOSTS: "studio.example.com" }), "https:");
+    assert.equal(requestProtocol(forwarded("http://demo.example.com/"), { STUDIO_READ_ONLY: "1", STUDIO_PUBLIC_HOST: "demo.example.com" }), "https:");
+    assert.equal(requestProtocol(forwarded("http://127.0.0.1:3000/"), {}), "https:", "a local TLS proxy on loopback");
+    assert.equal(requestProtocol(new Request("http://0.0.0.0:3000/"), { HOST: "0.0.0.0" }), "http:");
+  });
+
+  test("a wildcard bind with no allowed hosts gets a startup hint naming STUDIO_ALLOWED_HOSTS", () => {
+    const hint = allowedHostsHint({ HOST: "0.0.0.0" }, ["192.168.1.20"]);
+    assert.match(hint ?? "", /STUDIO_ALLOWED_HOSTS=192\.168\.1\.20/);
+    assert.equal(allowedHostsHint({ HOST: "0.0.0.0", STUDIO_ALLOWED_HOSTS: "studio.lan" }, []), null);
+    assert.equal(allowedHostsHint({ HOST: "192.168.1.20" }, []), null, "a specific HOST is accepted on its own");
+    assert.equal(allowedHostsHint({}, []), null);
+  });
+
+  test("the judging password check compares digests: right password only, any length", () => {
+    const basic = (secret: string) => "Basic " + Buffer.from(`judge:${secret}`).toString("base64");
+    assert.equal(authorized(basic("correct-horse-battery"), "correct-horse-battery"), true);
+    for (const wrong of ["", "correct-horse-batter", "correct-horse-battery!", "x".repeat(500)]) assert.equal(authorized(basic(wrong), "correct-horse-battery"), false, wrong);
+  });
+
   test("the next path after sign-in stays on this site", () => {
     assert.equal(safeNextPath("/projects/abc?tab=shots"), "/projects/abc?tab=shots");
     for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/.//evil.example", "/%2e//evil.example", "/a/..//evil.example", "", null, "/login?next=/x", "projects"]) assert.equal(safeNextPath(bad), "/", String(bad));
@@ -108,12 +140,18 @@ describe("single-password provider", () => {
   const exposed = { HOST: "0.0.0.0" };
   const request = (cookie?: string) => new Request("http://0.0.0.0:3000/api/projects", { headers: { host: "localhost:3000", ...(cookie ? { cookie } : {}) } });
 
-  function provider(dataDir: string, env: Record<string, string> = exposed, extra: { now?: () => number; maxFailures?: number } = {}) {
+  function provider(
+    dataDir: string,
+    env: Record<string, string> = exposed,
+    extra: { now?: () => number; maxFailures?: number; delayMs?: number; sleep?: (ms: number) => Promise<void>; verify?: typeof verifyPassword } = {},
+  ) {
     return createSinglePasswordProvider({
       dataDir: () => dataDir,
       env: () => env,
       now: extra.now,
-      limiter: createFailureLimiter({ delayMs: 0, maxFailures: extra.maxFailures, now: extra.now }),
+      limits: { delayMs: extra.delayMs ?? 0, maxFailures: extra.maxFailures },
+      sleep: extra.sleep,
+      verify: extra.verify,
     });
   }
 
@@ -179,7 +217,68 @@ describe("single-password provider", () => {
     assert.ok((await auth.signIn({ password: "a long enough password" })).ok);
   });
 
-  test("a damaged auth file locks rather than opens", async () => {
+  test("parallel wrong sign-ins: at most maxFailures reach the password check, one at a time, each held for the delay", async () => {
+    const dir = tempDir();
+    const setup = provider(dir);
+    await setup.setUp({ setupCode: setup.issueSetupCode()!, password: "a long enough password" });
+    let checks = 0;
+    let running = 0;
+    let overlap = 0;
+    const delays: number[] = [];
+    const auth = provider(dir, exposed, {
+      maxFailures: 5,
+      delayMs: 1_000,
+      sleep: async (ms) => {
+        delays.push(ms);
+        await new Promise((done) => setImmediate(done));
+      },
+      verify: async (password, stored) => {
+        checks++;
+        running++;
+        overlap = Math.max(overlap, running);
+        try {
+          return await verifyPassword(password, stored);
+        } finally {
+          running--;
+        }
+      },
+    });
+    const results = await Promise.all(Array.from({ length: 30 }, (_, index) => auth.signIn({ password: `wrong guess ${index}` })));
+    assert.equal(checks, 5, "only the counted attempts are checked");
+    assert.equal(overlap, 1, "checked one at a time");
+    assert.deepEqual(delays, [1_000, 1_000, 1_000, 1_000, 1_000], "every failure holds its turn");
+    assert.equal(results.filter((result) => !result.ok && result.reason === "invalid").length, 5);
+    assert.equal(results.filter((result) => !result.ok && result.reason === "rate_limited").length, 25);
+    const limited = await auth.signIn({ password: "a long enough password" });
+    assert.equal(!limited.ok && limited.reason, "rate_limited", "the right password waits too");
+    assert.equal(checks, 5);
+  });
+
+  test("parallel wrong setup codes are capped the same way", async () => {
+    const dir = tempDir();
+    const auth = provider(dir, exposed, { maxFailures: 3 });
+    const code = auth.issueSetupCode()!;
+    const results = await Promise.all(Array.from({ length: 20 }, () => auth.setUp({ setupCode: newSetupCode(), password: "a long enough password" })));
+    assert.equal(results.filter((result) => !result.ok && result.reason === "invalid").length, 3);
+    assert.equal(results.filter((result) => !result.ok && result.reason === "rate_limited").length, 17);
+    assert.equal((await auth.setUp({ setupCode: code, password: "a long enough password" })).ok, false, "even the right code waits");
+  });
+
+  test("failures are kept in the auth file, so a restart does not reset the limit; a success is not counted", async () => {
+    const dir = tempDir();
+    const clock = () => Date.parse("2026-11-09T12:00:00Z");
+    const first = provider(dir, exposed, { now: clock, maxFailures: 3 });
+    await first.setUp({ setupCode: first.issueSetupCode()!, password: "a long enough password" });
+    assert.equal(readAuthFile(dir).failedAttempts.length, 0, "the successful setup is uncounted");
+    assert.ok((await first.signIn({ password: "a long enough password" })).ok);
+    assert.equal(readAuthFile(dir).failedAttempts.length, 0, "a successful sign-in is uncounted");
+    for (let attempt = 0; attempt < 3; attempt++) await first.signIn({ password: "wrong guess" });
+    const restarted = provider(dir, exposed, { now: clock, maxFailures: 3 });
+    const limited = await restarted.signIn({ password: "a long enough password" });
+    assert.equal(!limited.ok && limited.reason, "rate_limited");
+  });
+
+  test("a damaged auth file locks rather than opens, and is never overwritten", async () => {
     const dir = tempDir();
     writeFileSync(join(dir, AUTH_FILE), "{ not json");
     const auth = provider(dir);
@@ -187,6 +286,7 @@ describe("single-password provider", () => {
     assert.equal(auth.issueSetupCode(), null, "no setup code over a damaged file");
     assert.equal((await auth.signIn({ password: "anything at all" })).ok, false);
     assert.equal(readAuthFile(dir).sessions.length, 0);
+    assert.equal(readFileSync(join(dir, AUTH_FILE), "utf8"), "{ not json");
   });
 });
 
@@ -269,7 +369,7 @@ describe("acceptance: HOST=0.0.0.0, no password set", () => {
     assert.ok(passes(proxy(browser("/login"))));
     assert.ok(passes(proxy(browser("/api/auth/session"))));
     const status = await (routes.session.GET(browser("/api/auth/session"))).json();
-    assert.deepEqual(status, { required: true, configured: false, authenticated: false, readOnly: false });
+    assert.deepEqual(status, { required: true, authenticated: false, readOnly: false }, "whether a password is set is not public");
     assert.ok(logged.some((line) => /setup code/.test(line)), "the code is printed to the server log");
   });
 
@@ -323,7 +423,7 @@ describe("acceptance: HOST=0.0.0.0, no password set", () => {
     const next = (right.headers.get("set-cookie") ?? "").split(";")[0]!;
     assert.ok(passes(proxy(browser("/api/projects", { cookie: next }))));
     const status = await routes.session.GET(browser("/api/auth/session", { cookie: next })).json();
-    assert.deepEqual(status, { required: true, configured: true, authenticated: true, readOnly: false });
+    assert.deepEqual(status, { required: true, authenticated: true, readOnly: false });
   });
 
   test("the session cookie is Secure behind an https proxy", async () => {
