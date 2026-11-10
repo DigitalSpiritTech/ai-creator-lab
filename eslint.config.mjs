@@ -18,7 +18,7 @@ function restrict(allowed) {
         patterns: [
           APP_ALIAS,
           ...(denied.length ? [{ group: denied, message: "This package may not depend on that one (see CONTRIBUTING.md, Where code lives)." }] : []),
-          { group: ["../../*/src/*", "../../../packages/*"], message: "Import another package by its name." },
+          { group: ["../**/src/**", "**/packages/*/src/**"], message: "Import another package by its name." },
         ],
       },
     ],
