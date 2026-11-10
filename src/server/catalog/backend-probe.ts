@@ -133,8 +133,17 @@ export async function fetchObjectInfo(backend: Pick<Backend, "kind" | "baseUrl">
   throw new ProbeError(`does not publish object_info (HTTP ${lastStatus ?? 404}), so its nodes and models cannot be checked before a run.`);
 }
 
-/** Compares every workflow recipe with one backend's `object_info`. */
-export async function compareWorkflowRecipes(recipes: readonly Recipe[], info: ObjectInfo, workflowsDir: string): Promise<{ checked: string[]; missing: Record<string, RecipeMissing> }> {
+/**
+ * Compares every workflow recipe with one backend's `object_info`. With `partnerNodesBlock` (every
+ * backend but Comfy Cloud) a partner node in the graph rules the recipe out: it would bill the
+ * Comfy account signed in to that server, outside this app's budget.
+ */
+export async function compareWorkflowRecipes(
+  recipes: readonly Recipe[],
+  info: ObjectInfo,
+  workflowsDir: string,
+  partnerNodesBlock = false,
+): Promise<{ checked: string[]; missing: Record<string, RecipeMissing> }> {
   const checked: string[] = [];
   const missing: Record<string, RecipeMissing> = {};
   for (const recipe of recipes) {
@@ -147,7 +156,10 @@ export async function compareWorkflowRecipes(recipes: readonly Recipe[], info: O
     }
     const result = compareRequirements(graphRequirements(graph), info);
     checked.push(recipe.id);
-    if (result.nodes.length || result.models.length) missing[recipe.id] = { nodes: result.nodes.slice(0, 200), models: result.models.slice(0, 200) };
+    const partnerNodes = partnerNodesBlock ? result.partnerNodes.slice(0, 200) : [];
+    if (result.nodes.length || result.models.length || partnerNodes.length) {
+      missing[recipe.id] = { nodes: result.nodes.slice(0, 200), models: result.models.slice(0, 200), partnerNodes };
+    }
   }
   return { checked, missing };
 }
@@ -164,13 +176,13 @@ export async function probeBackend(backend: Backend, recipes: readonly Recipe[],
       for (const recipe of recipes) {
         if (recipe.kind !== "router") continue;
         checked.push(recipe.id);
-        if (!listed.has(recipe.model)) missing[recipe.id] = { nodes: [], models: [recipe.model] };
+        if (!listed.has(recipe.model)) missing[recipe.id] = { nodes: [], models: [recipe.model], partnerNodes: [] };
       }
       return { at: now(), ok: true, nodeClasses: listed.size, checked, missing };
     }
     if (!isWorkflowBackend(backend)) throw new ProbeError("is not a workflow backend.");
     const info = await fetchObjectInfo(backend, options);
-    const { checked, missing } = await compareWorkflowRecipes(recipes, info, options.workflowsDir);
+    const { checked, missing } = await compareWorkflowRecipes(recipes, info, options.workflowsDir, backend.kind !== "cloud");
     return { at: now(), ok: true, nodeClasses: Object.keys(info).length, checked, missing };
   } catch (cause) {
     const reason = cause instanceof ProbeError ? cause.message : "could not be checked.";

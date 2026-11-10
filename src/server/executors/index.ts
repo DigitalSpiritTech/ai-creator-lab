@@ -2,13 +2,13 @@
  * Executors and the factory that wires them to the user's Comfy key.
  * @packageDocumentation
  */
-import { type Backend, backendUsable, isComfyHost, isWorkflowBackend, type Recipe } from "@/lib/catalog";
+import { type Backend, COMFY_CLOUD_URL, backendUsable, isComfyHost, isWorkflowBackend, normalizeBackendUrl, runsFreeOn, type Recipe } from "@/lib/catalog";
 import type { JobStorePort } from "@/lib/domain/job";
 import { quoteRouter } from "@/server/executors/allowance";
 import { MockExecutor } from "@/server/executors/mock";
 import { createRouterModels, RouterExecutor } from "@/server/executors/router";
 import type { Executor } from "@/server/executors/types";
-import { createBackendClient, createWorkflowClient, WorkflowExecutor, type WorkflowClient, type WorkflowTarget } from "@/server/executors/workflow";
+import { createBackendClient, WorkflowExecutor, type WorkflowClient, type WorkflowTarget } from "@/server/executors/workflow";
 
 export * from "@/server/executors/types";
 export { MockExecutor } from "@/server/executors/mock";
@@ -70,8 +70,26 @@ function workflowTargets(config: ExecutorConfig, apiKey: string | undefined): ((
       client = build(backend.kind === "cloud" ? null : backend.baseUrl, key, backend);
       clients.set(cacheKey, client);
     }
-    return { client, label: backend.label, free: backend.kind === "comfyui" };
+    return { client, label: backend.label, freeFor: (recipeId) => runsFreeOn(recipeId, backend) };
   };
+}
+
+/**
+ * The client for jobs saved before backends existed (no `backendId`): COMFY_BASE_URL, or Comfy Cloud
+ * when it is blank. The key goes only to Comfy Cloud or a Comfy-hosted address, the same rule the
+ * backend clients follow, so a self-hosted proxy named there never receives it.
+ */
+export function legacyClient(
+  apiKey: string | undefined,
+  env: Record<string, string | undefined> = process.env,
+  build: (baseUrl: string | null, apiKey: string | undefined) => WorkflowClient = createBackendClient,
+): WorkflowClient | undefined {
+  const raw = env.COMFY_BASE_URL?.trim();
+  if (!raw) return apiKey ? build(null, apiKey) : undefined;
+  const parsed = normalizeBackendUrl(raw);
+  const url = parsed.ok ? parsed.url : raw;
+  if (url === COMFY_CLOUD_URL) return apiKey ? build(null, apiKey) : undefined;
+  return build(url, isComfyHost(url) ? apiKey : undefined);
 }
 
 /** Creates the mock executor always, and the Router and Workflow executors when a Comfy key is set. */
@@ -87,7 +105,7 @@ export function createExecutors(config: ExecutorConfig): ExecutorSet {
         schemaFor: config.schemaFor,
       })
     : undefined;
-  const defaultClient = apiKey || process.env.COMFY_BASE_URL?.trim() ? createWorkflowClient(apiKey) : undefined;
+  const defaultClient = legacyClient(apiKey);
   const targets = workflowTargets(config, apiKey);
   const workflow =
     defaultClient || targets

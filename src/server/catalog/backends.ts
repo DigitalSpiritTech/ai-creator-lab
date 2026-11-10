@@ -79,7 +79,8 @@ export function listBackends(store: Store, options: { env?: Env; now?: number } 
         const current = stored.get(entry.id);
         // Built-ins sort before added backends; the index keeps their order stable.
         if (!current) store.backends.put(fresh(entry, index));
-        else if (current.baseUrl !== entry.baseUrl || current.kind !== entry.kind || !current.builtIn) {
+        // Jobs bound to the entry keep polling its old address; re-point it once they finish.
+        else if ((current.baseUrl !== entry.baseUrl || current.kind !== entry.kind || !current.builtIn) && unfinishedOn(store, entry.id).length === 0) {
           store.backends.put({ ...current, ...entry, builtIn: true, lastProbe: null, verified: {}, updatedAt: now });
         }
       });

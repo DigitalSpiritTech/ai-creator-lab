@@ -84,11 +84,16 @@ export function isComfyHost(url: string): boolean {
   }
 }
 
-/** What a backend lacks for one recipe. */
+/**
+ * What keeps one recipe off a backend: node classes and model files it lacks, and, on any backend
+ * but Comfy Cloud, partner (API) nodes the graph uses. A partner node bills the Comfy account
+ * signed in to that ComfyUI, outside this app's budget, so it rules the recipe out there.
+ */
 export const RecipeMissingSchema = z
   .object({
     nodes: z.array(z.string().min(1).max(200)).max(200),
     models: z.array(z.string().min(1).max(300)).max(200),
+    partnerNodes: z.array(z.string().min(1).max(200)).max(200).default([]),
   })
   .strict();
 export type RecipeMissing = z.infer<typeof RecipeMissingSchema>;

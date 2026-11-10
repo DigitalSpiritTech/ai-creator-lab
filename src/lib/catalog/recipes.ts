@@ -114,6 +114,10 @@ export const WorkflowRecipeSchema = z.object({
   kind: z.literal("workflow"),
   /** File name under `workflows/`. */
   file: z.string().regex(/^[\w.-]+\.api\.json$/),
+  /**
+   * Legacy: written as "cloud" by the catalog and kept so job snapshots saved before backends parse
+   * unchanged. Nothing reads it; where a run goes is `backendId` (see `@/lib/catalog/availability`).
+   */
   target: z.enum(["cloud", "any"]),
   /**
    * The backend this run is bound to, set on the snapshot a proposal and its jobs carry (never in the

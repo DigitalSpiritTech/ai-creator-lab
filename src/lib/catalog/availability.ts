@@ -27,8 +27,8 @@ export type RecipeBackendStatus =
   | { status: "compatible" }
   /** Not known: never probed, the probe failed, or the recipe was added after the last probe. */
   | { status: "unchecked"; reason: string }
-  /** The last probe found the backend lacks these. */
-  | { status: "unavailable"; nodes: string[]; models: string[] }
+  /** The last probe found the backend lacks these, or the recipe uses partner nodes there. */
+  | { status: "unavailable"; nodes: string[]; models: string[]; partnerNodes: string[] }
   /** This kind of recipe does not run on this kind of backend (a workflow on Router, say). */
   | { status: "not_applicable" };
 
@@ -45,7 +45,10 @@ export function recipeStatusOn(recipe: RecipeFacts, backend: Backend): RecipeBac
   if (!runsOn(recipe, backend)) return { status: "not_applicable" };
   const probe = backend.lastProbe;
   const missing = probe?.ok ? probe.missing[recipe.id] : undefined;
-  if (missing && (missing.nodes.length || missing.models.length)) return { status: "unavailable", nodes: missing.nodes, models: missing.models };
+  const partnerNodes = missing?.partnerNodes ?? [];
+  if (missing && (missing.nodes.length || missing.models.length || partnerNodes.length)) {
+    return { status: "unavailable", nodes: missing.nodes, models: missing.models, partnerNodes };
+  }
   // The catalog's verified date is a run on Comfy Cloud (workflows) or on Router (hosted models).
   const catalogVerified = backend.kind === "cloud" || backend.kind === "router" ? recipe.verified : null;
   const date = [backend.verified[recipe.id], catalogVerified].filter((value): value is string => !!value).sort().at(-1);
@@ -66,12 +69,26 @@ function list(names: string[], max = 6): string {
   return names.length > max ? `${shown} and ${names.length - max} more` : shown;
 }
 
-/** "missing nodes A, B; missing models x.safetensors" for an unavailable status. */
+/** "missing nodes A, B; missing models x.safetensors; uses partner node P ..." for an unavailable status. */
 export function describeMissing(status: Extract<RecipeBackendStatus, { status: "unavailable" }>): string {
   const parts: string[] = [];
   if (status.nodes.length) parts.push(`missing node${status.nodes.length === 1 ? "" : "s"} ${list(status.nodes)}`);
   if (status.models.length) parts.push(`missing model${status.models.length === 1 ? "" : "s"} ${list(status.models)}`);
+  if (status.partnerNodes.length) {
+    const one = status.partnerNodes.length === 1;
+    parts.push(`uses partner node${one ? "" : "s"} ${list(status.partnerNodes)}, which bill${one ? "s" : ""} the Comfy account signed in there`);
+  }
   return parts.join("; ");
+}
+
+/**
+ * Whether a run on this backend costs no Comfy credits: only a self-hosted ComfyUI whose last probe
+ * checked the recipe and found nothing missing and no partner node. An unprobed backend reserves the
+ * recipe's ceiling like Cloud, because a partner node in the graph would bill the account there.
+ */
+export function runsFreeOn(recipeId: string, backend: Pick<Backend, "kind" | "lastProbe">): boolean {
+  const probe = backend.lastProbe;
+  return backend.kind === "comfyui" && !!probe?.ok && probe.checked.includes(recipeId) && !probe.missing[recipeId];
 }
 
 export type Placement =

@@ -25,12 +25,13 @@ import {
   normalizeBackendUrl,
   placeRecipe,
   recipeStatusOn,
+  runsFreeOn,
 } from "@/lib/catalog";
-import type { GenerationProposal, Job } from "@/lib/domain/job";
-import { fetchObjectInfo, objectInfoRequests, probeAndSave, probeBackend } from "@/server/catalog/backend-probe";
+import { type GenerationProposal, type Job, createJob } from "@/lib/domain/job";
+import { compareWorkflowRecipes, fetchObjectInfo, objectInfoRequests, probeAndSave, probeBackend } from "@/server/catalog/backend-probe";
 import { addBackend, backendRouting, builtInBackends, listBackends, markVerifiedRun, removeBackend, updateBackend } from "@/server/catalog/backends";
 import { defaultRecipes, recipeAvailability, recipesFor } from "@/server/catalog/defaults";
-import { createExecutors } from "@/server/executors";
+import { createExecutors, legacyClient } from "@/server/executors";
 import type { CloudJobHandle, WorkflowClient, WorkflowHandle } from "@/server/executors/workflow";
 import { importImage } from "@/server/media/images";
 import { callTool, type ToolContext } from "@/server/tools";
@@ -252,7 +253,7 @@ describe("probe", () => {
     const router = listBackends(store(), { env: {} }).find((backend) => backend.id === "router")!;
     const probe = await probeBackend(router, await recipes(), { workflowsDir, routerModels: async () => ["vertexai/gemini-nano-banana-2.1", "kling/kling-v3-omni"] });
     assert.equal(probe.ok, true);
-    assert.deepEqual(probe.missing["router-nano-banana-pro-edit"], { nodes: [], models: ["vertexai/gemini-3-pro-image"] });
+    assert.deepEqual(probe.missing["router-nano-banana-pro-edit"], { nodes: [], models: ["vertexai/gemini-3-pro-image"], partnerNodes: [] });
     assert.equal(probe.missing["router-kling-3-omni-i2v"], undefined);
   });
 });
@@ -402,7 +403,7 @@ describe("acceptance: a local ComfyUI without the LTX nodes", () => {
     assert.equal(proposal.backendId, local.id);
     assert.equal(proposal.recipeTitle, "Z-Image Turbo on Studio PC");
     assert.equal(proposal.estimate.kind, "free");
-    assert.match(proposal.estimate.note, /^Runs on Studio PC\./);
+    assert.equal(proposal.estimate.note, "Runs on Studio PC. Your own ComfyUI: no Comfy credits.", "the backend is named once");
     const submitted = await tool<{ results: { outcome: string; assetIds: string[] }[] }>("submit_proposal", { proposal, wait: true });
     assert.equal(submitted.results[0].outcome, "completed", JSON.stringify(submitted.results[0]));
     assert.equal(submitted.results[0].assetIds.length, 1);
@@ -467,8 +468,78 @@ describe("placement", () => {
 
   test("Cloud as the default with a probe that lacks the recipe refuses rather than moving elsewhere", async () => {
     const zImage = await workflowRecipe("z-image-turbo-t2i");
-    const probed: Backend = { ...cloud, lastProbe: { at: 1, ok: true, nodeClasses: 1, checked: [zImage.id], missing: { [zImage.id]: { nodes: ["KSampler"], models: [] } } } };
+    const probed: Backend = { ...cloud, lastProbe: { at: 1, ok: true, nodeClasses: 1, checked: [zImage.id], missing: { [zImage.id]: { nodes: ["KSampler"], models: [], partnerNodes: [] } } } };
     const placed = placeRecipe(zImage, { backends: [probed, { ...lan, default: false }], hasComfyKey: true });
     assert.ok(!placed.ok && /cannot run on Comfy Cloud: missing node KSampler/.test(placed.reason));
+  });
+});
+
+describe("QA fixes", () => {
+  test("a partner (API) node rules a recipe out on a self-hosted backend, with the reason, but not on Cloud", async () => {
+    const zImage = await workflowRecipe("z-image-turbo-t2i");
+    // The graph is unchanged; only the backend flags its sampler as a partner node.
+    const flagged: ObjectInfo = { ...LOCAL_NO_LTX, KSampler: { ...LOCAL_NO_LTX.KSampler, api_node: true } };
+    const local = await compareWorkflowRecipes([zImage], flagged, workflowsDir, true);
+    assert.deepEqual(local.missing[zImage.id], { nodes: [], models: [], partnerNodes: ["KSampler"] });
+    const cloud = await compareWorkflowRecipes([zImage], flagged, workflowsDir, false);
+    assert.equal(cloud.missing[zImage.id], undefined, "on Cloud a partner node bills the key under the budget, so it stays allowed");
+
+    const studio = store();
+    const added = addBackend(studio, { kind: "comfyui", label: "Studio PC", baseUrl: LOCAL_URL }, { env: {} });
+    const saved = await probeAndSave(studio, added.id, [zImage], { workflowsDir, fetch: fakeFetch(flagged).impl, env: {} });
+    assert.equal(recipeStatusOn(zImage, saved).status, "unavailable");
+    assert.equal(runsFreeOn(zImage.id, saved), false);
+    updateBackend(studio, added.id, { default: true }, { env: {} });
+    const placement = placeRecipe(zImage, backendRouting(studio, false, { env: {} }));
+    assert.ok(!placement.ok && /uses partner node KSampler, which bills the Comfy account signed in there/.test(placement.reason), JSON.stringify(placement));
+  });
+
+  test("a self-hosted run is free only after a probe cleared the recipe; unprobed, it reserves the ceiling", async () => {
+    const studio = store();
+    const added = addBackend(studio, { kind: "comfyui", label: "Studio PC", baseUrl: LOCAL_URL }, { env: {} });
+    const zImage = await workflowRecipe("z-image-turbo-t2i");
+    const executors = createExecutors({
+      jobs: studio.jobs,
+      mediaRoot: studio.dataDir,
+      workflowsDir,
+      backends: () => listBackends(studio, { env: {} }),
+      clientFor: () => new FakeBackendClient(null),
+    });
+    const bound = { ...zImage, backendId: added.id };
+    const estimate = () => executors.forRecipe(bound)!.estimate({ requestId: randomUUID(), projectId: randomUUID(), recipe: bound, input: { prompt: "A portrait.", images: [] } });
+    assert.equal((await estimate()).kind, "quoted", "unprobed: a partner node could be in the graph, so the ceiling is reserved");
+    await probeAndSave(studio, added.id, [zImage], { workflowsDir, fetch: fakeFetch(LOCAL_NO_LTX).impl, env: {} });
+    assert.equal((await estimate()).kind, "free");
+  });
+
+  test("the COMFY_BASE_URL entry keeps its address while jobs bound to it are unfinished", async () => {
+    const studio = store();
+    const now = clock();
+    const project = seedProject(studio, now);
+    listBackends(studio, { env: { COMFY_BASE_URL: LOCAL_URL } });
+    const recipe = { ...(await workflowRecipe("z-image-turbo-t2i")), backendId: "env" };
+    studio.jobs.add(createJob({ id: randomUUID(), requestId: randomUUID(), projectId: project.id, request: { recipe, input: { prompt: "x", images: [] } } }, now()));
+    const moved = listBackends(studio, { env: { COMFY_BASE_URL: "http://127.0.0.1:9999" } }).find((backend) => backend.id === "env");
+    assert.equal(moved?.baseUrl, LOCAL_URL, "the in-flight job still polls the server it was sent to");
+    assert.ok(listBackends(studio, { env: {} }).some((backend) => backend.id === "env"), "nor is it removed while the job runs");
+  });
+
+  test("the legacy client (jobs saved before backends) sends the key only to Cloud or a Comfy host", () => {
+    const built: [string | null, string | undefined][] = [];
+    const build = (baseUrl: string | null, apiKey: string | undefined) => {
+      built.push([baseUrl, apiKey]);
+      return new FakeBackendClient(null);
+    };
+    legacyClient(KEY, {}, build);
+    legacyClient(KEY, { COMFY_BASE_URL: "http://127.0.0.1:8189/" }, build);
+    legacyClient(KEY, { COMFY_BASE_URL: "https://acme.run.comfy.app" }, build);
+    legacyClient(KEY, { COMFY_BASE_URL: "https://cloud.comfy.org" }, build);
+    assert.equal(legacyClient(undefined, {}, build), undefined, "no key and no address: no client");
+    assert.deepEqual(built, [
+      [null, KEY],
+      [LOCAL_URL, undefined],
+      ["https://acme.run.comfy.app", KEY],
+      [null, KEY],
+    ]);
   });
 });

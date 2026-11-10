@@ -131,8 +131,11 @@ export function createBackendClient(baseUrl: string | null, apiKey: string | und
 export interface WorkflowTarget {
   client: WorkflowClient;
   label: string;
-  /** A self-hosted ComfyUI spends no Comfy credits, so its runs estimate as free. */
-  free: boolean;
+  /**
+   * Whether this recipe runs here for no Comfy credits: a self-hosted ComfyUI whose last probe
+   * cleared it (no partner node). Anything else reserves the recipe's ceiling.
+   */
+  freeFor(recipeId: string): boolean;
 }
 
 const RECOVERY_WINDOW_MS = 23 * 60 * 60 * 1000;
@@ -354,7 +357,7 @@ export class WorkflowExecutor implements Executor {
       const recipe = this.recipeOf(request);
       const plan = planWorkflow(recipe, absoluteInput(request.input, this.mediaRoot), await this.loadGraph(recipe), 0);
       const target = recipe.backendId ? this.targets?.(recipe.backendId) : undefined;
-      if (target?.free) return { kind: "free", note: `Runs on ${target.label}, your own ComfyUI: no Comfy credits.` };
+      if (target?.freeFor(recipe.id)) return { kind: "free", note: "Your own ComfyUI: no Comfy credits." };
       if (recipe.ceilingUsd === undefined) return { kind: "unquoted", ceilingUsd: null, note: recipe.costHint };
       const usd = scaleByLength(recipe.ceilingUsd, plan.values.length, recipe.defaults.length ?? recipe.sidecar.limits.length?.default);
       return { kind: "quoted", usd, credits: usdToCredits(usd), source: "hint", note: recipe.costHint };
