@@ -29,7 +29,9 @@ import { type PluginDefinition, createPluginRegistry, definePluginTool, toolPref
 import { serverPlugins } from "@/plugins/server";
 import { DATABASE_FILE, openStore } from "@/server/store";
 import { MIGRATIONS } from "@/server/store/migrations";
-import { type ToolContext, callTool, createGenerationContext } from "@/server/tools";
+import { type ToolContext, callTool, createGenerationContext, pluginScope } from "@/server/tools";
+import type { Store } from "@/server/store";
+import { createProject } from "@creator-lab/core/domain/project";
 import { pluginPort } from "@/server/tools/plugins";
 import { insertPiece } from "@/server/tools/pieces";
 import { clock, generateAssets, ridgelineProduct, seedProject, tempDir, tempStore } from "./support/domain-fixtures";
@@ -51,6 +53,19 @@ const memoPlugin: PluginDefinition = {
   pieces: [{ pieceType: "memo", body: MemoBodySchema }],
 };
 serverPlugins.registerPlugin(memoPlugin);
+// A second plugin, so the port tests can try to reach a neighbour's pieces and projects.
+serverPlugins.registerPlugin({
+  id: "note-pad",
+  label: "Note pad",
+  contentTypes: [{ id: "note", label: "Note", app: { id: "note-maker", label: "Note Maker" }, description: "A note with a picture.", pieceType: "note", defaultPanel: "note-pad.edit" }],
+  panels: [{ id: "note-pad.edit", contentType: "note", title: "Edit" }],
+  pieces: [{ pieceType: "note", body: MemoBodySchema }],
+});
+
+/** A project made in the memo App (or another), for `ownerId`. */
+function appProject(store: Store, now: () => number, appId = "memo-maker", ownerId = "local") {
+  return store.projects.create(createProject({ name: `A ${appId} project`, appId }, randomUUID(), now(), { ownerId }));
+}
 
 function setup() {
   const context = tempStore();
@@ -202,9 +217,10 @@ describe("stored pieces", () => {
   });
 
   test("a piece body is a document: list its versions and restore one, checked by the plugin's schema", async () => {
-    const { store, now, tools, project } = setup();
+    const { store, now, tools } = setup();
+    const project = appProject(store, now);
     const piece = insertPiece(tools, memo(project.id, now()));
-    const port = pluginPort(tools, new Set(["memo"]), callTool);
+    const port = pluginPort(tools, pluginScope("memo-pad"), callTool);
     port.savePiece(revisePiece(piece, { body: { text: "Still cold at five." } }, now()));
     assert.throws(() => port.savePiece(revisePiece(store.pieces.getRequired(piece.id), { body: { text: "" } }, now())), failure("invalid", /text/));
     const listed = await callTool(tools, "list_document_versions", { kind: "piece", subjectId: piece.id });
@@ -218,24 +234,58 @@ describe("stored pieces", () => {
     assert.deepEqual(store.pieces.getRequired(piece.id).body, { text: "Cold by noon." });
   });
 
-  test("the port scopes a plugin to its own piece types and owner, and never reaches the gate or deletion", async () => {
-    const { store, now, tools, project } = setup();
+  test("the port scopes a plugin to its own piece types, Apps, owner, and roster, and never reaches the gate or deletion", async () => {
+    const { store, now, tools, project: adProject } = setup();
+    const project = appProject(store, now);
     const piece = insertPiece(tools, memo(project.id, now()));
-    const port = pluginPort(tools, new Set(["memo"]), callTool);
+    const scope = pluginScope("memo-pad");
+    const port = pluginPort(tools, scope, callTool);
     assert.equal(port.piece(piece.id).id, piece.id);
     assert.deepEqual(port.pieces(project.id, "memo").map((entry) => entry.id), [piece.id]);
-    assert.throws(() => pluginPort(tools, new Set(["jingle"]), callTool).piece(piece.id), failure("not_found", /could not be found/));
-    assert.throws(() => pluginPort({ ...tools, ownerId: "team-a" }, new Set(["memo"]), callTool).piece(piece.id), failure("not_found", /could not be found/));
-    assert.throws(() => pluginPort({ ...tools, ownerId: "team-a" }, new Set(["memo"]), callTool).project(project.id), failure("not_found", /project could not be found/));
+    assert.throws(() => pluginPort(tools, pluginScope("note-pad"), callTool).piece(piece.id), failure("not_found", /could not be found/));
+    assert.throws(() => pluginPort({ ...tools, ownerId: "team-a" }, scope, callTool).piece(piece.id), failure("not_found", /could not be found/));
+    assert.throws(() => pluginPort({ ...tools, ownerId: "team-a" }, scope, callTool).project(project.id), failure("not_found", /project could not be found/));
     assert.throws(() => port.pieces(project.id, "jingle"), failure("invalid", /does not keep jingle/));
     assert.throws(() => port.createPiece({ ...memo(project.id, now()), type: "jingle" }), failure("not_found", /could not be found/));
-    for (const refused of ["submit_proposal", "delete_asset_everywhere"]) {
+    assert.throws(() => port.createPiece(memo(adProject.id, now())), failure("invalid", /another App/), "no memo planted in an Ad project");
+    assert.throws(() => port.pieces(adProject.id, "memo"), failure("invalid", /another App/));
+    for (const refused of ["submit_proposal", "delete_asset_everywhere", "rerender_proposal"]) {
       await assert.rejects(port.callTool(refused, {}), failure("invalid", /cannot call/));
     }
     const state = await port.callTool<{ project: { id: string } }>("get_project_state", { projectId: project.id });
     assert.equal(state.project.id, project.id);
     await assert.rejects(port.callTool("get_project_state", { projectId: randomUUID() }), failure("not_found", /project/));
     assert.equal(store.pieces.listByProject(project.id).length, 1);
+
+    // QA's cases: a neighbour plugin's piece, its candidates, an Ad project, another owner's project.
+    const noteProject = appProject(store, now, "note-maker");
+    const note = insertPiece(tools, { ...memo(noteProject.id, now()), type: "note", title: "A note" });
+    const noteCandidates = await generateAssets(store, now, { projectId: noteProject.id, target: { kind: "piece", contentId: note.id, slot: "4:5" }, count: 2 });
+    const [noteAsset] = noteCandidates.assetIds;
+    const refusedCall = async (name: string, input: Record<string, unknown>, pattern = /could not be found|another App|cannot|only at its own/) =>
+      assert.rejects(port.callTool(name, input), (error) => pattern.test(toFailure(error).message), `${name} ${JSON.stringify(input)} is refused`);
+    await refusedCall("approve", { kind: "slot", contentId: note.id, slot: "4:5", assetId: noteAsset });
+    await refusedCall("list_document_versions", { kind: "piece", subjectId: note.id });
+    await refusedCall("restore_document_version", { kind: "piece", subjectId: note.id, version: 1 });
+    await refusedCall("propose_candidates", { projectId: noteProject.id, capability: "text_to_image", recipeId: "mock-text-to-image", prompt: "A bottle", count: 1, target: { kind: "piece", contentId: note.id, slot: "4:5" } });
+    await refusedCall("propose_candidates", { projectId: project.id, capability: "text_to_image", recipeId: "mock-text-to-image", prompt: "A bottle", count: 1, target: { kind: "piece", contentId: note.id, slot: "4:5" } });
+    await refusedCall("propose_candidates", { projectId: project.id, capability: "text_to_image", recipeId: "mock-text-to-image", prompt: "A bottle", count: 1, target: { kind: "shot", contentId: randomUUID(), beatIndex: 1, slot: "still" } });
+    await refusedCall("archive_asset", { assetId: noteAsset });
+    await refusedCall("regenerate_with", { assetId: noteAsset, recipeId: "mock-text-to-image" });
+    await refusedCall("save_script", { projectId: adProject.id, title: "Cup holder", beats: [] }, /cannot call save_script/);
+    await refusedCall("get_project_state", { projectId: adProject.id }, /another App/);
+    const theirs = appProject(store, now, "memo-maker", "team-a");
+    await refusedCall("get_project_state", { projectId: theirs.id }, /could not be found/);
+    assert.equal(store.assets.getRequired(noteAsset).state.state, "active", "the neighbour's candidate was not archived");
+    assert.equal(store.pieces.getRequired(note.id).slots["4:5"].state, "open", "nor approved");
+
+    // Its own piece works through the same calls.
+    const own = await port.callTool<{ target: unknown }>("propose_candidates", { projectId: project.id, capability: "text_to_image", recipeId: "mock-text-to-image", prompt: "A bottle", count: 1, target: { kind: "piece", contentId: piece.id, slot: "4:5" } });
+    assert.deepEqual(own.target, { kind: "piece", contentId: piece.id, slot: "4:5" });
+    const made = await generateAssets(store, now, { projectId: project.id, target: { kind: "piece", contentId: piece.id, slot: "4:5" } });
+    await port.callTool("approve", { kind: "slot", contentId: piece.id, slot: "4:5", assetId: made.assetIds[0] });
+    assert.equal(store.pieces.getRequired(piece.id).slots["4:5"].state, "approved");
+    assert.ok(scope.tools.has("get_project_state") && !scope.tools.has("save_script") && !scope.tools.has("submit_proposal"));
   });
 
   test("unlinking a Library item is refused while an approved slot was made from its images", async () => {

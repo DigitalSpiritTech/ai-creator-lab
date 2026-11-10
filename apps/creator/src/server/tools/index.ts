@@ -37,7 +37,7 @@ import { getProjectState, saveBriefTool } from "@/server/tools/project";
 import { type Tool, type ToolContext, toJsonSchemaTools } from "@/server/tools/registry";
 import { planShots, resetShots, saveScript, setCutOrder } from "@/server/tools/script";
 import { extractVoiceSampleTool, generateVoiceOver } from "@/server/tools/voice";
-import { pluginTool } from "@/server/tools/plugins";
+import { type PortScope, manifestOf, pluginTool, scopeOf } from "@/server/tools/plugins";
 import { serverPlugins } from "@/plugins/server";
 
 export { createToolContext, type GenerationContext, type Tool, type ToolContext } from "@/server/tools/registry";
@@ -102,7 +102,15 @@ export const INTERNAL_TOOLS: readonly Tool[] = [submitProposal, rerenderProposal
 export const AGENT_TOOLS: readonly Tool[] = TOOLS.filter((tool) => tool.name !== "delete_asset_everywhere");
 
 /** The tools installed content plugins register, in registration order. */
-export const PLUGIN_TOOLS: readonly Tool[] = serverPlugins.tools().map((tool) => pluginTool(tool, serverPlugins, callTool));
+export const PLUGIN_TOOLS: readonly Tool[] = serverPlugins.tools().map((tool) => pluginTool(tool, () => pluginScope(tool.plugin), callTool));
+
+/**
+ * What a plugin's port may reach: its own piece types, its own Apps' projects, and the roster tools
+ * the assistant is offered for its content types.
+ */
+export function pluginScope(pluginId: string, registry: Pick<PluginRegistry, "plugins" | "contentType" | "tools"> = serverPlugins): PortScope {
+  return scopeOf(manifestOf(registry, pluginId), (contentTypeId) => agentToolsFor(contentTypeId, registry).map((tool) => tool.name));
+}
 
 /** Every tool a route, the assistant, or an MCP client may name: the core roster plus plugin tools. */
 export const ROSTER_TOOLS: readonly Tool[] = [...TOOLS, ...PLUGIN_TOOLS];
