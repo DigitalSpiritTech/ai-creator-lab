@@ -7,7 +7,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { supportsDrawtext } from "@/server/assembly/render";
-import { type MediaToolSource, ffprobePath, resolveMediaTool } from "@creator-lab/executors/media";
+import { type MediaToolSource, resolveMediaTool } from "@creator-lab/executors/media";
 import { captionFontPath } from "@/server/assembly/captions";
 import { childEnv } from "@creator-lab/executors/process";
 
@@ -20,6 +20,8 @@ export interface VideoToolsReport {
   captions: boolean;
   /** Where the paths came from, for the hint under the report. */
   source: MediaToolSource;
+  /** Why a bundled binary was not used (it failed its checksum), or null. */
+  warning: string | null;
   message: string;
   checkedAt: number;
 }
@@ -36,8 +38,9 @@ async function version(binary: string): Promise<string | null> {
 
 /** Runs the two binaries and the drawtext check; never throws. */
 export async function checkVideoToolsReport(now = Date.now()): Promise<VideoToolsReport> {
-  const { path: ffmpeg, source } = resolveMediaTool("ffmpeg");
-  const ffprobe = ffprobePath();
+  const { path: ffmpeg, source, warning: ffmpegWarning } = resolveMediaTool("ffmpeg");
+  const { path: ffprobe, warning: ffprobeWarning } = resolveMediaTool("ffprobe");
+  const warning = [ffmpegWarning, ffprobeWarning].filter(Boolean).join(" ") || null;
   const [ffmpegVersion, ffprobeVersion] = await Promise.all([version(ffmpeg), version(ffprobe)]);
   const drawtext = ffmpegVersion ? await supportsDrawtext() : false;
   const font = !!captionFontPath();
@@ -51,7 +54,9 @@ export async function checkVideoToolsReport(now = Date.now()): Promise<VideoTool
   } else {
     message = `FFmpeg ${ffmpegVersion} and ffprobe ${ffprobeVersion} are ready; captions are available.`;
   }
+  if (warning) message = `${warning} ${message}`;
   return {
+    warning,
     ffmpeg: { path: ffmpeg, version: ffmpegVersion },
     ffprobe: { path: ffprobe, version: ffprobeVersion },
     captions: drawtext && font,
