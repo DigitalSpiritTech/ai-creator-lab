@@ -7,7 +7,7 @@ description: Define capabilities, recipes, slot sidecars, and starter workflows 
 
 ## Capabilities (MVP)
 
-`text_to_image`, `image_edit` (one to N reference images, records max), `image_to_video`, `first_last_to_video`, `text_to_video`. Later: `references_to_video`, `video_reference_to_video`, `audio_reference_to_video`, `text_to_speech`, `upscale_image`, `upscale_video`, `text_generation` (Comfy Cloud runs Qwen3-VL through the core Load CLIP and Generate Text nodes; output is text, inputs are prompt, system prompt, and optional image, video, or audio; use for review gates, not conversation).
+`text_to_image`, `image_edit` (one to N reference images, records max), `image_to_video`, `first_last_to_video`, `text_to_video`. Later: `references_to_video`, `video_reference_to_video`, `audio_reference_to_video`, `text_to_speech`, `speech_to_text` (a take to words with start and end times; both Whisper recipes are planned, see `packages/recipes/src/transcription.ts`), `upscale_image`, `upscale_video`, `text_generation` (Comfy Cloud runs Qwen3-VL through the core Load CLIP and Generate Text nodes; output is text, inputs are prompt, system prompt, and optional image, video, or audio; use for review gates, not conversation).
 
 A step in the creative flow asks for a capability and a set of semantic inputs. The catalog returns recipes that satisfy it. The user or the default setting picks one.
 

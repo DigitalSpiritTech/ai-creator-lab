@@ -126,6 +126,16 @@ Each step decides what the shot should show once (the beat, your character, the 
 
 Which model a step uses, first match wins: the one you pick for this run, this project's choice, the default in Settings, then the app's starter default. A project's choice never changes other projects.
 
+### One continuous take with b-roll cut in
+
+The export above joins one clip per beat. The other way to build the same ad, on the Export tab's Build menu, is "Take then cutaways": the creator says the whole script in one continuous take, and the b-roll is cut over the lines it belongs to, the way an editor would cut a real UGC video. The delivery never restarts between beats.
+
+1. Make the talking take. One clip from the first talking beat's approved still in which the creator says every line in order, as long as the beats added up. Approve one.
+2. Transcribe the take. A speech to text run finds each word and when it is said, then each beat's line is placed on the take.
+3. Draft the edit decision list. Each b-roll beat gets a window from its first word to the next line, and each beat's on-screen text becomes a caption over the same stretch. The list is a document in the Documents tab ("Edit list"), with times in seconds on the take: move a window, change where a caption starts, add or remove one, and save. Every save keeps the previous version.
+4. Export. The take's sound is kept exactly as it is, the picture in each window is that beat's approved clip, and the captions are burned in at their times. Edit the list and export again as often as you like: nothing is regenerated and nothing is spent.
+
+Transcription runs through the same proposal card and monthly budget as every generation. Two recipes are planned for it, Whisper on Comfy Router and open-weights Whisper on Comfy Cloud, and neither is verified yet: Router's catalog had no Whisper model when the app was built, and no Cloud node for transcribing with word timestamps has been confirmed. Until one is, `list_recipes` shows both with what they are waiting for, and transcription runs on the mock recipe only (`MOCK_RECIPES=1`), which the tests and the acceptance smoke use.
 ## A Quick Ad
 
 For an ad in a few minutes, press Quick Ad on Projects (or ask the assistant for one). Write two lines: what you're selling, and who it's for. The studio saves the brief and a one-beat talking script, then asks for three approvals: one frame, one four-second talking clip, and the export, each on the Quick Ad tab. Every generation still shows its card in the chat and waits for Approve and generate. With a Library character (locked face) and a product with a photo linked to the project, the frame is composed from them; otherwise it is made from your two lines. On Comfy Router the whole Quick Ad reserves under 1 USD from the catalog's price ceilings (about 0.79 USD composed, 0.89 USD from text). [docs/QUICKSTART.md](docs/QUICKSTART.md) walks through it from a fresh install.
@@ -214,7 +224,7 @@ Where things live:
 
 The repository is an npm workspace. Run every script from the repository root (it stays the working directory, so `.env.local`, the `.data` folder, and the workflows resolve there).
 
-- `apps/creator/` the Next.js app: pages (Projects, Gallery, Assets, Library, Archive, Settings) in `src/app/`, the HTTP routes under `src/app/api/`, the UI in `src/components/`, and in `src/server/` storage (`store`), the typed tool set (`tools`), the assistant (`agent`), ffmpeg assembly (`assembly`), media, auth, and the MCP server. `src/plugins/` lists the installed plugins. `scripts/` holds the acceptance smoke, the MCP entry, and the real-provider checks.
+- `apps/creator/` the Next.js app: pages (Projects, Gallery, Assets, Library, Archive, Settings) in `src/app/`, the HTTP routes under `src/app/api/`, the UI in `src/components/`, and in `src/server/` storage (`store`), the typed tool set (`tools`), the assistant (`agent`), ffmpeg assembly (`assembly`: the component join in `graph.ts` and `render.ts`, take then cutaways in `cutaway.ts`, `cutaway-render.ts`, and `edl.ts`), media, auth, and the MCP server. `src/plugins/` lists the installed plugins. `scripts/` holds the acceptance smoke, the MCP entry, and the real-provider checks.
 - `packages/core/` domain contracts and Zod schemas, the pure catalog types, the spend policy, and the plugin registry.
 - `packages/recipes/` the starter recipe catalog, `workflows/` (starter workflows and sidecars), Router adapters, and the per-model prompt renderers.
 - `packages/executors/` the Router, workflow, and mock executors, the allowance and spend settlement, the Router and Comfy clients, the backend probe, and the chained-recording stitch and seam check (`stitch.ts`).

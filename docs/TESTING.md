@@ -138,3 +138,12 @@ The acceptance smoke makes a 10 s chained recording on the mock; this check is w
 5. Stop the server while a segment runs, start it again: the recording carries on from that segment and nothing is generated twice.
 6. Try to delete the approved still everywhere while it runs: it is refused, and the asset's usage names the chained recording.
 7. On real models (H3, LTX, Kling), record each run in docs/VERIFICATION.md with the credits before and after, the segment count, and what the seams looked and sounded like.
+## Take then cutaways (no credits with the mock recipes)
+
+The acceptance smoke and `tests/assembly-cutaways.test.ts` cover the render; this check is the part only a browser shows. Start the app with `MOCK_RECIPES=1`: transcription has no runnable real recipe yet (both Whisper recipes are planned), so the mock is the only way through today.
+
+1. In an Ad with approved stills (and approved clips on the b-roll beats), open the Export tab and pick Build: Take then cutaways.
+2. Make the talking take, approve the proposal in the chat, then approve the take. Transcribe the take the same way, then press Draft the edit decision list.
+3. Documents tab: open "Edit list". Move one b-roll window two seconds later and save; Versions shows version 2.
+4. Export tab: Export 1080 x 1920. The b-roll appears at the new time, the creator's sound plays through unchanged, and the captions appear as each line starts. No job tile appears: nothing is generated.
+5. A real transcription run (Whisper on Router or on Cloud, once one is written and verified) gets a row in docs/VERIFICATION.md.
