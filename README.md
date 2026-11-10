@@ -124,6 +124,18 @@ Each step decides what the shot should show once (the beat, your character, the 
 
 Which model a step uses, first match wins: the one you pick for this run, this project's choice, the default in Settings, then the app's starter default. A project's choice never changes other projects.
 
+## A social post
+
+Not every piece needs video. On Projects, create a project from Social Post instead of UGC Creator. A social post is a set of stills plus its copy, in up to four aspect ratios: 1:1 (square), 4:5 (feed portrait), 9:16 (story or reel cover), and 16:9 (wide).
+
+1. Brief. Same four questions as an ad: what you promote, who it is for, where it runs, the tone.
+2. Library. Reuse your Library: link Avery Lane and the Ridgeline bottle (ask the assistant, or link them from the Library). Linked characters and products are the stills' references, so the bottle and the face stay the same as in your ads.
+3. Copy. On the Post tab (or in the chat) write the caption with the hook first, three to eight hashtags, a call to action, and a visual line that describes the picture, for example "The bottle in a car cup holder, morning light through the windshield." Every save is a version; the Copy history lists them and Restore brings one back.
+4. Stills. On the Stills tab, press Propose stills on a ratio (start with 4:5). The proposal card appears in the chat with the recipe, the prompt, and the estimated cost, and nothing runs until you approve it there, under the same monthly budget as everything else. Approve one candidate per ratio; the others go to the Archive.
+5. Export. The Export tab lists the approved still for each ratio with a Download button, and the copy as one block of text to paste (Copy text, or Download as text). Ratios without an approved still are named so you can go back for them.
+
+Social Post is the first content type added as a plugin (`packages/content-social-post`): the app shell did not change to make room for it. See CONTRIBUTING.md, Adding a content type.
+
 ## Example outputs
 
 `docs/examples/` holds one complete run with the open-weights starter recipes: the face and body references, the reference sheet, the product photo, two start frames, and the finished 18 second ad with voice-overs and captions. The creator and the product are invented.
@@ -198,6 +210,7 @@ The repository is an npm workspace. Run every script from the repository root (i
 - `packages/executors/` the Router, workflow, and mock executors, the allowance and spend settlement, the Router and Comfy clients, and the backend probe.
 - `packages/ui/` the shared shadcn/ui primitives.
 - `packages/content-ugc-ad/` the UGC Ad content type (its steps and workspace panels) as a plugin.
+- `packages/content-social-post/` the Social Post content type as a plugin: its steps, its tools (`social_post_save_copy`, `social_post_propose_still`, `social_post_export`), its assistant, and its three workspace panels.
 - `assets/fonts/` the caption font.
 - `tests/` offline tests with fixtures for every package.
 - `docs/` the product description (`PRODUCT.md`), the plan (`PLAN.md`), the task board (`TASKS.md`), the log of every real run (`VERIFICATION.md`), the demo script (`DEMO.md`), and post drafts (`POSTS.md`).

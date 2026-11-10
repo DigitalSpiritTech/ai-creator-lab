@@ -73,6 +73,22 @@ export async function uploadImage(file: File, projectId?: string | null, options
   return parse(await fetch(`/api/uploads${options.as ? `?as=${options.as}` : ""}`, { method: "POST", body: form }));
 }
 
+/** Whether a tool output is a generation proposal (the shape every spending tool returns). */
+export function isProposal(value: unknown): value is GenerationProposal {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<Record<keyof GenerationProposal, unknown>>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.projectId === "string" &&
+    typeof candidate.recipeId === "string" &&
+    typeof candidate.count === "number" &&
+    typeof candidate.estimate === "object" &&
+    candidate.estimate !== null &&
+    typeof candidate.target === "object" &&
+    candidate.target !== null
+  );
+}
+
 export function assetUrl(id: string, options: { poster?: boolean; download?: boolean } = {}): string {
   const query = [options.poster ? "poster" : "", options.download ? "download" : ""].filter(Boolean).join("&");
   return `/api/assets/${id}${query ? `?${query}` : ""}`;

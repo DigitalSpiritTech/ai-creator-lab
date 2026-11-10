@@ -20,9 +20,9 @@ describe("migrations", () => {
   test("an empty directory migrates to the latest version with WAL, foreign keys, and media folders", () => {
     const { store, dir, cleanup } = tempStore();
     cleanups.push(cleanup);
-    assert.equal(SCHEMA_VERSION, 6);
+    assert.equal(SCHEMA_VERSION, 8);
     const pragma = (sql: string) => Object.values(store.database.prepare(sql).get()!)[0];
-    assert.equal(pragma("PRAGMA user_version"), 6);
+    assert.equal(pragma("PRAGMA user_version"), SCHEMA_VERSION);
     assert.equal(pragma("PRAGMA journal_mode"), "wal");
     assert.equal(pragma("PRAGMA foreign_keys"), 1);
     const tables = store.database
@@ -39,6 +39,7 @@ describe("migrations", () => {
       "exports",
       "jobs",
       "library_items",
+      "plugin_pieces",
       "project_links",
       "project_preferences",
       "projects",
@@ -138,7 +139,7 @@ describe("migrations", () => {
 
       const store = openStore(dir);
       cleanups.push(() => store.close());
-      assert.equal(Object.values(store.database.prepare("PRAGMA user_version").get()!)[0], 6, name);
+      assert.equal(Object.values(store.database.prepare("PRAGMA user_version").get()!)[0], SCHEMA_VERSION, name);
       for (const table of ["backends", "project_preferences"]) {
         assert.ok(store.database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table), `${name}: ${table} exists`);
       }
@@ -162,7 +163,7 @@ describe("migrations", () => {
     cleanups.push(cleanup);
     const now = clock();
     const project = seedProject(store, now);
-    store.database.prepare("UPDATE projects SET data = json_set(data, '$.appId', 'other') WHERE id = ?").run(project.id);
+    store.database.prepare("UPDATE projects SET data = json_set(data, '$.appId', 'Not An App') WHERE id = ?").run(project.id);
     assert.throws(() => store.projects.get(project.id));
   });
 });

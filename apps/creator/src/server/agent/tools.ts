@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 import type { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/messages";
-import { AGENT_TOOLS, toolsToJsonSchema } from "@/server/tools";
+import { AGENT_TOOLS, agentToolsFor, toolsToJsonSchema } from "@/server/tools";
 
 const PROPOSAL_NOTE = "Returns a proposal (recipe, prompt, references, count, estimated cost); nothing is generated until the user approves it on the card.";
 
@@ -155,12 +155,17 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
   ].join(" "),
 };
 
-/** The `tools` array for the assistant: the roster, with model-facing descriptions. */
-export function agentTools(): AnthropicTool[] {
-  return toolsToJsonSchema(AGENT_TOOLS).map((tool) => ({ ...tool, description: AGENT_TOOL_DESCRIPTIONS[tool.name] ?? tool.description }));
+/**
+ * The `tools` array for the assistant, with model-facing descriptions: the whole roster, or with a
+ * content type the tools offered in its projects (`agentToolsFor`). Plugin tools keep their own
+ * descriptions.
+ */
+export function agentTools(contentTypeId?: string): AnthropicTool[] {
+  const tools = contentTypeId === undefined ? AGENT_TOOLS : agentToolsFor(contentTypeId);
+  return toolsToJsonSchema(tools).map((tool) => ({ ...tool, description: AGENT_TOOL_DESCRIPTIONS[tool.name] ?? tool.description }));
 }
 
-/** Names the assistant may call; anything else is refused without running. */
-export function agentToolNames(): Set<string> {
-  return new Set(AGENT_TOOLS.map((tool) => tool.name));
+/** Names the assistant may call (in a project of `contentTypeId`); anything else is refused without running. */
+export function agentToolNames(contentTypeId?: string): Set<string> {
+  return new Set((contentTypeId === undefined ? AGENT_TOOLS : agentToolsFor(contentTypeId)).map((tool) => tool.name));
 }

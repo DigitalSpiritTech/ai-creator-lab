@@ -32,7 +32,7 @@ import {
 import { bibleContent, productContent } from "@creator-lab/core/domain/document";
 import type { Store } from "@/server/store";
 import { recordDocument } from "@/server/tools/documents";
-import { defineTool } from "@/server/tools/registry";
+import { defineTool, ownerOf } from "@/server/tools/registry";
 import { archiveUnselected, checkRevision, jobSiblings, libraryItemAssetIds, requireActiveAsset } from "@/server/tools/shared";
 
 function requireCharacter(store: Store, id: string): CharacterItem {
@@ -72,7 +72,7 @@ export const saveCharacterBible = defineTool({
         checkRevision(current.revision, input.revision, "character");
         character = store.library.update(reviseCharacterBible(current, input.bible, time)) as CharacterItem;
       } else {
-        character = store.library.create(createCharacter(newId(), input.bible, time)) as CharacterItem;
+        character = store.library.create(createCharacter(newId(), input.bible, time, ownerOf(context))) as CharacterItem;
       }
       recordDocument(context, "bible", character.id, bibleContent(character));
       if (!input.projectId) return { character, link: null };
@@ -132,7 +132,7 @@ export const saveProduct = defineTool({
         checkRevision(current.revision, input.revision, "product");
         product = store.library.update(updateProduct(current, input.product, time)) as ProductItem;
       } else {
-        product = store.library.create(createProduct(newId(), input.product, time)) as ProductItem;
+        product = store.library.create(createProduct(newId(), input.product, time, ownerOf(context))) as ProductItem;
       }
       recordDocument(context, "product", product.id, productContent(product));
       if (!input.projectId) return { product, link: null };
@@ -203,6 +203,13 @@ export const unlinkLibraryItem = defineTool({
           }
         }
       }
+      for (const piece of store.pieces.listByProject(input.projectId)) {
+        for (const [slot, state] of Object.entries(piece.slots)) {
+          if (state.state === "approved" && [...ancestry(store, state.assetId)].some((id) => held.has(id))) {
+            fail("invalid", `The approved ${slot} in "${piece.title}" was made from ${libraryItemName(item)}'s images. Replace or archive it before unlinking.`);
+          }
+        }
+      }
       store.library.unlink(input.projectId, input.itemId);
       return { projectId: input.projectId, itemId: input.itemId, unlinked: true as const };
     }),
@@ -233,11 +240,12 @@ export const createSetTool = defineTool({
     })
     .strict(),
   output: z.object({ set: SetItemSchema, link: ProjectLinkSchema.nullable() }),
-  run: ({ store, now, newId }, input) =>
-    store.transaction(() => {
+  run: (context, input) =>
+    context.store.transaction(() => {
+      const { store, now, newId } = context;
       const time = now();
       for (const assetId of input.set.imageAssetIds ?? []) requireActiveAsset(store, assetId, ["image"]);
-      const set = store.library.create(createSet(newId(), input.set, time)) as SetItem;
+      const set = store.library.create(createSet(newId(), input.set, time, ownerOf(context))) as SetItem;
       if (!input.projectId) return { set, link: null };
       store.projects.getRequired(input.projectId);
       return { set, link: store.library.link(linkToProject(input.projectId, set, time)) };

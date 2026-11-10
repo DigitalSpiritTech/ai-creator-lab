@@ -16,6 +16,7 @@ import {
   wordCount,
 } from "./common";
 import { fail } from "./failure";
+import { DEFAULT_OWNER_ID, OwnerIdSchema, ownerField } from "./owner";
 
 export const CharacterLookSchema = z
   .object({
@@ -71,6 +72,7 @@ export type CharacterBible = z.infer<typeof CharacterBibleSchema>;
 
 const itemBase = {
   id: IdSchema,
+  ...ownerField,
   archived: z.boolean(),
   brokenAssetIds: z.array(IdSchema).default([]),
   revision: RevisionSchema,
@@ -141,9 +143,10 @@ export function libraryItemName(item: LibraryItem): string {
   return item.kind === "character" ? item.bible.name : item.name;
 }
 
-export function createCharacter(id: string, fields: CharacterBibleFields, now: number): CharacterItem {
+export function createCharacter(id: string, fields: CharacterBibleFields, now: number, ownerId: string = DEFAULT_OWNER_ID): CharacterItem {
   return CharacterItemSchema.parse({
     id,
+    ownerId: OwnerIdSchema.parse(ownerId),
     kind: "character",
     archived: false,
     brokenAssetIds: [],
@@ -199,9 +202,10 @@ export function setCharacterReference(
   });
 }
 
-export function createProduct(id: string, fields: ProductFields, now: number): ProductItem {
+export function createProduct(id: string, fields: ProductFields, now: number, ownerId: string = DEFAULT_OWNER_ID): ProductItem {
   return ProductItemSchema.parse({
     id,
+    ownerId: OwnerIdSchema.parse(ownerId),
     kind: "product",
     archived: false,
     brokenAssetIds: [],
@@ -216,9 +220,10 @@ export function updateProduct(item: ProductItem, fields: ProductFields, now: num
   return ProductItemSchema.parse({ ...nextRevision(item, now), ...ProductFieldsSchema.parse(fields) });
 }
 
-export function createSet(id: string, fields: SetFields, now: number): SetItem {
+export function createSet(id: string, fields: SetFields, now: number, ownerId: string = DEFAULT_OWNER_ID): SetItem {
   return SetItemSchema.parse({
     id,
+    ownerId: OwnerIdSchema.parse(ownerId),
     kind: "set",
     archived: false,
     brokenAssetIds: [],

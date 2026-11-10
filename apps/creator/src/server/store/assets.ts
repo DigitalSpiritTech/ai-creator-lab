@@ -3,6 +3,7 @@
  * @packageDocumentation
  */
 import type { DatabaseSync } from "node:sqlite";
+import type { z } from "zod";
 import { type Asset, type AssetKind, AssetSchema, type AssetState } from "@creator-lab/core/domain/asset";
 import { fail } from "@creator-lab/core/domain/failure";
 import { decode, decodeAll, encode, writeRevision } from "@/server/store/connection";
@@ -73,7 +74,7 @@ export function assetRepository(database: DatabaseSync) {
     return row ? decode(row, AssetSchema) : undefined;
   }
 
-  function insert(asset: Asset): Asset {
+  function insert(asset: z.input<typeof AssetSchema>): Asset {
     const { record, json } = encode(AssetSchema, asset);
     database
       .prepare("INSERT INTO assets(id, project_id, job_id, data) VALUES (?, ?, ?, ?)")
@@ -81,7 +82,7 @@ export function assetRepository(database: DatabaseSync) {
     return record;
   }
 
-  /** Saves the next revision. Identity, file, and provenance are immutable. */
+  /** Saves the next revision. Identity, owner, file, and provenance are immutable. */
   function update(next: Asset): Asset {
     const { record, json } = encode(AssetSchema, next);
     const current = getRequired(record.id);
@@ -89,6 +90,7 @@ export function assetRepository(database: DatabaseSync) {
       current.relativePath !== record.relativePath ||
       current.sha256 !== record.sha256 ||
       current.projectId !== record.projectId ||
+      current.ownerId !== record.ownerId ||
       JSON.stringify(current.provenance) !== JSON.stringify(record.provenance)
     ) {
       fail("invalid", "An asset's file and provenance cannot change.");

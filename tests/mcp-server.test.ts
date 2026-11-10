@@ -9,7 +9,7 @@ import { afterEach, describe, test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { APPROVE_AND_GENERATE, createMcpServer, mcpPermissions } from "@/server/mcp/server";
-import { INTERNAL_TOOLS, TOOLS, type ToolContext, createGenerationContext } from "@/server/tools";
+import { INTERNAL_TOOLS, ROSTER_TOOLS, TOOLS, type ToolContext, createGenerationContext } from "@/server/tools";
 import { clock, generateAssets, seedProject, tempStore } from "./support/domain-fixtures";
 
 const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));
@@ -46,7 +46,9 @@ describe("MCP server", () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
     assert.ok(TOOLS.length >= 22);
-    const expected = TOOLS.filter((tool) => tool.name !== "delete_asset_everywhere").map((tool) => tool.name);
+    // The 33 core tools first, then the installed plugins' tools.
+    const expected = ROSTER_TOOLS.filter((tool) => tool.name !== "delete_asset_everywhere").map((tool) => tool.name);
+    assert.deepEqual(expected.slice(0, TOOLS.length - 1), TOOLS.filter((tool) => tool.name !== "delete_asset_everywhere").map((tool) => tool.name));
     assert.equal(tools.length, expected.length + 1);
     assert.deepEqual(tools.map((tool) => tool.name), [...expected, APPROVE_AND_GENERATE]);
     for (const internal of INTERNAL_TOOLS) assert.equal(tools.some((tool) => tool.name === internal.name), false);

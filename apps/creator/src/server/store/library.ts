@@ -3,6 +3,7 @@
  * @packageDocumentation
  */
 import type { DatabaseSync } from "node:sqlite";
+import type { z } from "zod";
 import { fail } from "@creator-lab/core/domain/failure";
 import {
   type LibraryItem,
@@ -34,7 +35,7 @@ export function libraryRepository(database: DatabaseSync) {
     return decodeAll(rows, LibraryItemSchema);
   }
 
-  function create(item: LibraryItem): LibraryItem {
+  function create(item: z.input<typeof LibraryItemSchema>): LibraryItem {
     const { record, json } = encode(LibraryItemSchema, item);
     database.prepare("INSERT INTO library_items(id, kind, data) VALUES (?, ?, ?)").run(record.id, record.kind, json);
     return record;

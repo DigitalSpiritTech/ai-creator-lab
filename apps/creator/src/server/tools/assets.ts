@@ -8,6 +8,7 @@ import { IdSchema, RecipeIdSchema, text } from "@creator-lab/core/domain/common"
 import { ContentPieceSchema, approveCandidate } from "@creator-lab/core/domain/content";
 import { fail } from "@creator-lab/core/domain/failure";
 import { CharacterLinkSchema, approveReferenceSheet } from "@creator-lab/core/domain/library";
+import { PluginPieceSchema, SlotKeySchema, approvePieceCandidate } from "@creator-lab/core/domain/piece";
 import { productContent } from "@creator-lab/core/domain/document";
 import type { ProductItem } from "@creator-lab/core/domain/library";
 import { AssetUsageSchema } from "@creator-lab/core/domain/usage";
@@ -18,17 +19,21 @@ import { archiveUnselected, jobSiblings, requireActiveAsset } from "@/server/too
 
 const ApproveInputSchema = z
   .object({
-    kind: z.enum(["still", "clip", "voice", "sheet"]).describe("still, clip, or voice (a voice-over take) for a beat's shot; sheet for a project's character reference sheet."),
+    kind: z
+      .enum(["still", "clip", "voice", "sheet", "slot"])
+      .describe("still, clip, or voice (a voice-over take) for a beat's shot; sheet for a project's character reference sheet; slot for a named slot of a plugin content piece (such as a 4:5 still)."),
     assetId: IdSchema,
-    contentId: IdSchema.optional().describe("Required for still and clip."),
-    beatIndex: z.number().int().positive().optional().describe("Required for still and clip; beats start at 1."),
+    contentId: IdSchema.optional().describe("Required for still, clip, voice, and slot."),
+    beatIndex: z.number().int().positive().optional().describe("Required for still, clip, and voice; beats start at 1."),
+    slot: SlotKeySchema.optional().describe("Required for slot: the piece's slot key, such as 4:5."),
     projectId: IdSchema.optional().describe("Required for sheet."),
     characterId: IdSchema.optional().describe("Required for sheet."),
     archiveSiblings: z.boolean().default(true),
   })
   .strict()
   .superRefine((input, context) => {
-    const needed = input.kind === "sheet" ? (["projectId", "characterId"] as const) : (["contentId", "beatIndex"] as const);
+    const needed =
+      input.kind === "sheet" ? (["projectId", "characterId"] as const) : input.kind === "slot" ? (["contentId", "slot"] as const) : (["contentId", "beatIndex"] as const);
     for (const key of needed) {
       if (input[key] === undefined) context.addIssue({ code: "custom", message: `${key} is required for ${input.kind}.`, path: [key] });
     }
@@ -37,11 +42,13 @@ const ApproveInputSchema = z
 export const approve = defineTool({
   name: "approve",
   description:
-    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), a beat's voice-over take, or a project's character reference sheet (needs a wardrobe). The other candidates are archived with the reason 'not selected' unless archiveSiblings is false.",
+    "Approve one candidate: a beat's still, a beat's clip (needs an approved still), a beat's voice-over take, a project's character reference sheet (needs a wardrobe), or a named slot of a plugin content piece (kind slot, such as its 4:5 still). The other candidates are archived with the reason 'not selected' unless archiveSiblings is false.",
   input: ApproveInputSchema,
   output: z.object({
     content: ContentPieceSchema.nullable(),
     link: CharacterLinkSchema.nullable(),
+    /** The plugin content piece, for kind slot. */
+    piece: PluginPieceSchema.nullable().default(null),
     archivedAssetIds: z.array(IdSchema),
   }),
   run: ({ store, now }, input) =>
@@ -55,6 +62,14 @@ export const approve = defineTool({
         if (saved.kind !== "character") fail("storage", "The saved link is not a character link.");
         const archivedAssetIds = input.archiveSiblings ? archiveUnselected(store, jobSiblings(store, asset), time) : [];
         return { content: null, link: saved, archivedAssetIds };
+      }
+      if (input.kind === "slot") {
+        const asset = requireActiveAsset(store, input.assetId, ["image", "video", "audio"]);
+        const piece = store.pieces.getRequired(input.contentId!);
+        const result = approvePieceCandidate(piece, input.slot!, asset.id, time);
+        const saved = result.piece === piece ? piece : store.pieces.update(result.piece);
+        const archivedAssetIds = input.archiveSiblings ? archiveUnselected(store, result.siblingIds, time) : [];
+        return { content: null, link: null, piece: saved, archivedAssetIds };
       }
       const kinds = input.kind === "still" ? (["image"] as const) : input.kind === "voice" ? (["audio"] as const) : (["video", "storyboard"] as const);
       const asset = requireActiveAsset(store, input.assetId, [...kinds]);

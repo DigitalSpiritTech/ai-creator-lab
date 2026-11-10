@@ -13,6 +13,7 @@ import {
   text,
 } from "./common";
 import { fail } from "./failure";
+import { ownerField } from "./owner";
 
 /**
  * `export` is an assembled ad; it plays like a video but is never a shot candidate. `audio` is a
@@ -104,6 +105,8 @@ export function isPlayable(kind: AssetKind): boolean {
 export const AssetSchema = z
   .object({
     id: IdSchema,
+    /** The project's owner for project assets; the uploader's for Library uploads. */
+    ...ownerField,
     /** Null for Library uploads made outside any project. */
     projectId: IdSchema.nullable(),
     kind: AssetKindSchema,

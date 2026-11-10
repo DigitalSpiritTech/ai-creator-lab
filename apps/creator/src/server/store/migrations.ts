@@ -168,6 +168,53 @@ export const MIGRATIONS: readonly string[] = [
     data TEXT NOT NULL CHECK (json_valid(data) AND json_extract(data, '$.projectId') = project_id)
   );
   `,
+  // Version 7: owner context (v0.2 F8). Projects, Library items, assets, jobs, and document versions
+  // name their owner; every existing row belongs to the default owner, "local". Projects also get
+  // an optional parent and the origin of an inbound context (none for existing projects). The
+  // indexes let a later multi-owner install list one owner's records without reading every row.
+  `
+  UPDATE projects SET data = json_set(data,
+      '$.ownerId', coalesce(json_extract(data, '$.ownerId'), 'local'),
+      '$.parentProjectId', json_extract(data, '$.parentProjectId'),
+      '$.origin', json(coalesce(json_extract(data, '$.origin'), 'null')));
+  UPDATE library_items SET data = json_set(data, '$.ownerId', coalesce(json_extract(data, '$.ownerId'), 'local'));
+  UPDATE assets SET data = json_set(data, '$.ownerId', coalesce(json_extract(data, '$.ownerId'), 'local'));
+  UPDATE jobs SET data = json_set(data, '$.ownerId', coalesce(json_extract(data, '$.ownerId'), 'local'));
+  UPDATE document_versions SET data = json_set(data, '$.ownerId', coalesce(json_extract(data, '$.ownerId'), 'local'));
+  CREATE INDEX projects_owner ON projects(json_extract(data, '$.ownerId'));
+  CREATE INDEX projects_parent ON projects(json_extract(data, '$.parentProjectId'));
+  CREATE INDEX library_items_owner ON library_items(json_extract(data, '$.ownerId'));
+  CREATE INDEX assets_owner ON assets(json_extract(data, '$.ownerId'));
+  `,
+  // Version 8: content pieces of plugin content types (v0.2 F8 and F13). Core keeps the
+  // envelope and the named slots; the plugin owns the body. Document history gains the piece kind
+  // (a piece's body), so the table is rebuilt with the wider kind check;
+  // nothing references it, and every row is copied as it was.
+  `
+  CREATE TABLE plugin_pieces (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id),
+    type TEXT NOT NULL,
+    data TEXT NOT NULL CHECK (${jsonOwnId}
+      AND json_extract(data, '$.projectId') = project_id
+      AND json_extract(data, '$.type') = type)
+  );
+  CREATE INDEX plugin_pieces_project ON plugin_pieces(project_id, type);
+  CREATE TABLE document_versions_next (
+    kind TEXT NOT NULL CHECK (kind IN ('brief', 'bible', 'product', 'piece')),
+    subject_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    data TEXT NOT NULL CHECK (json_valid(data)
+      AND json_extract(data, '$.kind') = kind
+      AND json_extract(data, '$.subjectId') = subject_id
+      AND json_extract(data, '$.version') = version),
+    PRIMARY KEY (kind, subject_id, version)
+  );
+  INSERT INTO document_versions_next(kind, subject_id, version, data)
+    SELECT kind, subject_id, version, data FROM document_versions;
+  DROP TABLE document_versions;
+  ALTER TABLE document_versions_next RENAME TO document_versions;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

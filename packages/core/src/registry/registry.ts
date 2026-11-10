@@ -1,6 +1,6 @@
 /**
- * The plugin registry: content types, steps, recipes, prompt renderers, and UI panels, all added
- * through one `registerPlugin` call per plugin. The app builds one registry from its installed
+ * The plugin registry: content types, steps, recipes, prompt renderers, UI panels, domain tools,
+ * piece body schemas, and assistants, all added through one `registerPlugin` call per plugin. The app builds one registry from its installed
  * plugins; the project shell, the tools layer, and the recipe catalog read from it, so a new
  * content type needs a plugin package and an entry in the installed list, not a change to them.
  *
@@ -16,6 +16,7 @@ import { z } from "zod";
 import type { Recipe } from "../catalog/recipes";
 import type { PromptStyle } from "../catalog/prompt-style";
 import type { ShotSpec, ShotSpecKind } from "../domain/shot-spec";
+import type { ContentAssistantDefinition, PieceTypeDefinition, PluginToolDefinition } from "./contributions";
 import {
   type ContentType,
   type Panel,
@@ -24,6 +25,7 @@ import {
   PluginManifestSchema,
   type ResolvedContentType,
   type Step,
+  ToolNameSchema,
 } from "./schema";
 
 /** Renders one kind of shot spec as a prompt, or explains why it cannot. Pure; never throws on content. */
@@ -41,9 +43,26 @@ export interface PromptRendererContribution {
 /** Every registered renderer, by style. Each (style, kind) pair has exactly one owner. */
 export type RendererTable = { [S in PromptStyle]?: { render: ShotRenderers; limit?: number } };
 
-/** What a plugin registers: the Zod-checked manifest plus its prompt renderers. */
+/**
+ * What a plugin registers: the Zod-checked manifest plus its server contributions (prompt
+ * renderers, domain tools, piece body schemas, and assistants). The browser registers the manifest
+ * alone; the server registers the same plugin with its contributions.
+ */
 export interface PluginDefinition extends PluginManifestInput {
   renderers?: PromptRendererContribution[];
+  tools?: PluginToolDefinition[];
+  pieces?: PieceTypeDefinition[];
+  assistants?: ContentAssistantDefinition[];
+}
+
+/** A registered plugin tool and the plugin that added it. */
+export interface RegisteredTool extends PluginToolDefinition {
+  plugin: string;
+}
+
+/** The prefix a plugin's tool names start with: its id in snake case (`memo_pad_` for `memo-pad`). */
+export function toolPrefix(pluginId: string): string {
+  return `${pluginId.replaceAll("-", "_")}_`;
 }
 
 /** Types a plugin definition without registering it (plugin packages export one of these). */
@@ -79,6 +98,12 @@ export interface PluginRegistry<C = unknown> {
   /** Recipes from plugins, in registration order. */
   recipes(): Recipe[];
   renderers(): RendererTable;
+  /** Plugin tools in registration order; with a content type, only its own. */
+  tools(contentTypeId?: string): RegisteredTool[];
+  /** The body schema registered for a piece type. */
+  pieceType(pieceType: string): (PieceTypeDefinition & { plugin: string }) | undefined;
+  /** The assistant registered for a content type, if any. */
+  assistant(contentTypeId: string): ContentAssistantDefinition | undefined;
 }
 
 function duplicates(values: readonly string[]): string[] {
@@ -106,6 +131,9 @@ export function createPluginRegistry<C = unknown>(): PluginRegistry<C> {
   const components = new Map<string, C>();
   const recipes: Recipe[] = [];
   const renderers: RendererTable = {};
+  const tools: RegisteredTool[] = [];
+  const pieceTypes = new Map<string, PieceTypeDefinition & { plugin: string }>();
+  const assistants = new Map<string, ContentAssistantDefinition>();
 
   function fail(plugin: string, message: string): never {
     throw new Error(`Plugin ${plugin}: ${message}`);
@@ -124,7 +152,7 @@ export function createPluginRegistry<C = unknown>(): PluginRegistry<C> {
 
   return {
     registerPlugin(definition) {
-      const { renderers: contributions = [], ...data } = definition;
+      const { renderers: contributions = [], tools: toolDefinitions = [], pieces = [], assistants: assistantDefinitions = [], ...data } = definition;
       const parsed = PluginManifestSchema.safeParse(data);
       if (!parsed.success) fail(String(definition.id), z.prettifyError(parsed.error));
       const manifest = parsed.data;
@@ -171,6 +199,27 @@ export function createPluginRegistry<C = unknown>(): PluginRegistry<C> {
         }
       }
 
+      const prefix = toolPrefix(id);
+      const ownTypes = new Set(typeIds);
+      for (const tool of toolDefinitions) {
+        if (!ToolNameSchema.safeParse(tool.name).success || !tool.name.startsWith(prefix) || tool.name === prefix) {
+          fail(id, `tool ${tool.name} must be named ${prefix}<action> in lowercase snake case.`);
+        }
+        if (!ownTypes.has(tool.contentType)) fail(id, `tool ${tool.name} names content type ${tool.contentType}, which this plugin does not register.`);
+        if (tool.input.def.type !== "object") fail(id, `tool ${tool.name} must take an object input.`);
+      }
+      for (const repeated of duplicates([...tools.map((tool) => tool.name), ...toolDefinitions.map((tool) => tool.name)])) fail(id, `tool ${repeated} is registered twice.`);
+      const ownPieceTypes = new Set(manifest.contentTypes.map((type) => type.pieceType));
+      for (const piece of pieces) {
+        if (!ownPieceTypes.has(piece.pieceType)) fail(id, `piece type ${piece.pieceType} is not the piece type of one of this plugin's content types.`);
+      }
+      for (const repeated of duplicates([...pieceTypes.keys(), ...pieces.map((piece) => piece.pieceType)])) fail(id, `piece type ${repeated} is registered twice.`);
+      for (const assistant of assistantDefinitions) {
+        if (!ownTypes.has(assistant.contentType)) fail(id, `the assistant for ${assistant.contentType} must be for one of this plugin's content types.`);
+        if (!assistant.systemPrompt.trim()) fail(id, `the assistant for ${assistant.contentType} needs a system prompt.`);
+      }
+      for (const repeated of duplicates(assistantDefinitions.map((assistant) => assistant.contentType))) fail(id, `content type ${repeated} has two assistants.`);
+
       // Everything checked: commit.
       manifests.push(manifest);
       for (const type of manifest.contentTypes) {
@@ -180,6 +229,9 @@ export function createPluginRegistry<C = unknown>(): PluginRegistry<C> {
       for (const panel of manifest.panels) panels.set(panel.id, panel);
       steps.push(...manifest.steps);
       recipes.push(...manifest.recipes);
+      tools.push(...toolDefinitions.map((tool) => ({ ...tool, plugin: id })));
+      for (const piece of pieces) pieceTypes.set(piece.pieceType, { ...piece, plugin: id });
+      for (const assistant of assistantDefinitions) assistants.set(assistant.contentType, assistant);
       for (const contribution of contributions) {
         const existing = renderers[contribution.promptStyle];
         renderers[contribution.promptStyle] = {
@@ -209,5 +261,8 @@ export function createPluginRegistry<C = unknown>(): PluginRegistry<C> {
     panelComponent: (panelId) => components.get(panelId),
     recipes: () => [...recipes],
     renderers: () => Object.fromEntries(Object.entries(renderers).map(([style, entry]) => [style, { ...entry, render: { ...entry.render } }])) as RendererTable,
+    tools: (contentTypeId) => tools.filter((tool) => contentTypeId === undefined || tool.contentType === contentTypeId),
+    pieceType: (pieceType) => pieceTypes.get(pieceType),
+    assistant: (contentTypeId) => assistants.get(contentTypeId),
   };
 }

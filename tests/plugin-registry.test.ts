@@ -132,8 +132,8 @@ describe("plugin registry", () => {
 });
 
 describe("UGC Ad as a registered content type", () => {
-  test("is the one installed content type, made in UGC Creator, with the five workspace panels", () => {
-    assert.deepEqual(appChoices(), [{ id: "ugc-creator", label: "UGC Creator", contentTypes: ["ad"] }]);
+  test("is the first installed content type, made in UGC Creator, with the five workspace panels", () => {
+    assert.deepEqual(appChoices()[0], { id: "ugc-creator", label: "UGC Creator", contentTypes: ["ad"] });
     assert.equal(appLabel("ugc-creator"), "UGC Creator");
     const ad = appPlugins.contentTypeForApp("ugc-creator");
     assert.ok(ad);

@@ -192,6 +192,62 @@ describe("projects and tools", () => {
     assert.equal(invalid.status, 400);
   });
 
+  test("creates projects only in an installed App, under a valid parent, and seeds one from an inbound context", async () => {
+    const unknownApp = await routes.projects.POST(json("/api/projects", { name: "Jingle", appId: "jingle-maker" }));
+    assert.equal(unknownApp.status, 400);
+    assert.match(((await unknownApp.json()) as { error: string }).error, /no installed App "jingle-maker"/);
+
+    const parentId = await createProject("Autumn campaign");
+    const child = await routes.projects.POST(json("/api/projects", { name: "Cup holder ad", parentProjectId: parentId }));
+    assert.equal(child.status, 201);
+    const { project } = (await child.json()) as { project: { id: string; ownerId: string; parentProjectId: string } };
+    assert.equal(project.parentProjectId, parentId);
+    assert.equal(project.ownerId, "local");
+    const orphan = await routes.projects.POST(json("/api/projects", { name: "Orphan", parentProjectId: randomUUID() }));
+    assert.equal(orphan.status, 404);
+
+    const cycle = await routes.project.PATCH(json(`/api/projects/${parentId}`, { parentProjectId: project.id }, "PATCH"), params({ id: parentId }));
+    assert.equal(cycle.status, 400);
+    const moved = await routes.project.PATCH(json(`/api/projects/${project.id}`, { parentProjectId: null }, "PATCH"), params({ id: project.id }));
+    assert.equal(moved.status, 200);
+    assert.equal(((await moved.json()) as { project: { parentProjectId: string | null } }).project.parentProjectId, null);
+
+    const brief = { productSummary: "Ridgeline 32 oz insulated bottle", audience: "Commuters", platforms: ["TikTok"], tone: "Warm and direct" };
+    const seeded = await routes.projects.POST(json("/api/projects", { name: "From example", inbound: { brief, source: { kind: "gallery", ref: "ridgeline-bottle-launch" } } }));
+    assert.equal(seeded.status, 201);
+    const body = (await seeded.json()) as { project: { brief: { tone: string }; origin: { kind: string } }; links: unknown[] };
+    assert.equal(body.project.brief.tone, "Warm and direct");
+    assert.equal(body.project.origin.kind, "gallery");
+    assert.deepEqual(body.links, []);
+  });
+
+  test("a tool that names only a content piece is held to the piece's project on a project route", async () => {
+    const post = async (name: string) => {
+      const response = await routes.projects.POST(json("/api/projects", { name, appId: "social-post" }));
+      assert.equal(response.status, 201);
+      return ((await response.json()) as { project: { id: string } }).project.id;
+    };
+    const mine = await post("My post");
+    const theirs = await post("Another post");
+    const tool = (projectId: string, name: string, input: Record<string, unknown>) =>
+      routes.tools.POST(json(`/api/projects/${projectId}/tools/${name}`, input), params({ id: projectId, name }));
+    const saved = await tool(theirs, "social_post_save_copy", { projectId: theirs, copy: { caption: "Cold at five.", visual: "A bottle on a desk." } });
+    assert.equal(saved.status, 200);
+    const contentId = ((await saved.json()) as { post: { id: string } }).post.id;
+    for (const [name, input] of [
+      ["social_post_export", { contentId }],
+      ["social_post_propose_still", { contentId, aspectRatio: "4:5" }],
+      ["approve", { kind: "slot", contentId, slot: "4:5", assetId: randomUUID() }],
+      ["list_document_versions", { kind: "piece", subjectId: contentId }],
+    ] as const) {
+      const refused = await tool(mine, name, input);
+      assert.equal(refused.status, 400, name);
+      assert.match(((await refused.json()) as { error: string }).error, /belongs to another project/, name);
+    }
+    const own = await tool(theirs, "list_document_versions", { kind: "piece", subjectId: contentId });
+    assert.equal(own.status, 200);
+  });
+
   test("runs roster tools, refuses the gate tool and other projects' input", async () => {
     const id = await createProject("Avery tests");
     const brief = { productSummary: "Ridgeline 32 oz insulated bottle", audience: "Commuters", platforms: ["TikTok"], tone: "Warm and direct" };

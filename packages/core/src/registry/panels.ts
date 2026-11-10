@@ -19,10 +19,12 @@ export interface PanelHost {
   notify(tone: NoticeTone, text: string): void;
   /**
    * Runs a roster tool for this project (`POST /api/projects/<id>/tools/<name>`) and returns its
-   * output; an expected failure rejects with its message. Spending tools return a proposal that
-   * still goes through the gate in the chat panel.
+   * output; an expected failure rejects with its message. A spending tool returns a proposal, which
+   * the host also shows as a card in the chat panel: only the gate there submits it.
    */
   callTool<T = unknown>(name: string, input: Record<string, unknown>): Promise<T>;
+  /** The URL that streams an asset to an `<img>` or `<video>`, or downloads it with `download: true`. */
+  assetUrl(assetId: string, options?: { download?: boolean }): string;
 }
 
 export interface PanelProps {

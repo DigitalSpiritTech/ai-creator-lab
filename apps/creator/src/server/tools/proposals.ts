@@ -243,6 +243,12 @@ export function renderFor(recipe: Recipe, shot: ShotSpec): { prompt: string; sty
 export async function buildProposal(context: ToolContext, spec: ProposalSpec): Promise<GenerationProposal> {
   const generation = requireGeneration(context);
   context.store.projects.getRequired(spec.projectId);
+  if (spec.target.kind === "piece") {
+    // A plugin piece's slot must exist in this project, or the outputs would land nowhere.
+    const piece = context.store.pieces.get(spec.target.contentId);
+    if (!piece || piece.projectId !== spec.projectId) fail("not_found", "This content piece is not in the project.");
+    if (!piece.slots[spec.target.slot]) fail("invalid", `This ${piece.type} has no ${spec.target.slot} slot. Its slots: ${Object.keys(piece.slots).join(", ")}.`);
+  }
   const assets = referenceAssets(context, spec.projectId, spec.references);
   const picked = await proposalRecipe(context, spec, assets.filter((asset) => asset.kind !== "audio").length);
   const placed = placeForProposal(context, picked);

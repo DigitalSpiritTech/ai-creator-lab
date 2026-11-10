@@ -152,6 +152,8 @@ export async function startGeneration(
         id: (deps.newId ?? randomUUID)(),
         requestId: request.requestId,
         projectId: request.projectId,
+        // A job belongs to its project's owner, and so do the assets it makes.
+        ownerId: deps.store.projects.get(request.projectId)?.ownerId,
         request: jobRequest,
         reservedUsd: decision.reserveUsd > 0 ? decision.reserveUsd : null,
       },

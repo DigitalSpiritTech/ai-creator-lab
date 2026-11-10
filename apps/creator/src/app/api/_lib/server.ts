@@ -10,17 +10,18 @@ import { IdSchema } from "@creator-lab/core/domain/common";
 import { GenerationProposalSchema } from "@creator-lab/core/domain/job";
 import type { DocumentAuthor } from "@creator-lab/core/domain/document";
 import { errorResponse, readJson } from "@/server/http";
+import { requestOwner } from "@/server/owner";
 import { getStore, withStore } from "@/server/runtime";
 import { readSecrets } from "@/server/secrets";
 import type { Store } from "@/server/store";
 import {
   type GenerationContext,
   type ToolContext,
-  TOOLS,
   type ToolResult,
   callTool,
   createGenerationContext,
   createToolContext,
+  isRosterTool,
 } from "@/server/tools";
 
 
@@ -40,8 +41,9 @@ export function generationFor(store: Store): GenerationContext {
   return generation;
 }
 
-export function toolContextFor(store: Store, author: DocumentAuthor = "user"): ToolContext {
-  return createToolContext(store, generationFor(store), author);
+/** A tool context for a route; pass the request so the context carries the owner it acts for. */
+export function toolContextFor(store: Store, author: DocumentAuthor = "user", request?: Request): ToolContext {
+  return createToolContext(store, generationFor(store), author, requestOwner(request));
 }
 
 /** Runs a handler and turns thrown Responses, Zod errors, and service failures into safe responses. */
@@ -80,11 +82,23 @@ export function parseQuery<T extends z.ZodType>(request: Request, schema: T): z.
 export { getStore, withStore };
 
 /**
+ * The project a tool input's content piece belongs to: `contentId` (an Ad or a plugin piece), or a
+ * piece document's `subjectId`. Undefined when the input names none, or one that does not exist
+ * (the tool then reports it).
+ */
+export function projectOfInput(store: Store, input: Record<string, unknown>): string | undefined {
+  const contentId = typeof input.contentId === "string" ? input.contentId : undefined;
+  if (contentId) return store.content.get(contentId)?.projectId ?? store.pieces.get(contentId)?.projectId;
+  if (input.kind === "piece" && typeof input.subjectId === "string") return store.pieces.get(input.subjectId)?.projectId;
+  return undefined;
+}
+
+/**
  * Runs one roster tool with a JSON body. Internal tools (the spending gate) are not reachable here.
  * With `projectId`, an input that names a different project is refused.
  */
 export async function runToolRequest(request: Request, name: string, projectId?: string): Promise<Response> {
-  if (!TOOLS.some((tool) => tool.name === name)) return Response.json({ error: "There is no such tool." }, { status: 404 });
+  if (!isRosterTool(name)) return Response.json({ error: "There is no such tool." }, { status: 404 });
   const body = await readJson(request, 64 * 1024);
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
     return Response.json({ error: "Send the tool input as a JSON object." }, { status: 400 });
@@ -94,7 +108,13 @@ export async function runToolRequest(request: Request, name: string, projectId?:
     return Response.json({ error: "This input belongs to another project." }, { status: 400 });
   }
   return withStore(async (store) => {
-    const result = await callTool(toolContextFor(store), name, input);
+    // A tool that names only a content piece (compose_still, approve, a plugin's tools) is held to
+    // the piece's project, so one project's page cannot change another's pieces.
+    const named = projectOfInput(store, input);
+    if (projectId && named && named !== projectId) {
+      return Response.json({ error: "This input belongs to another project." }, { status: 400 });
+    }
+    const result = await callTool(toolContextFor(store, "user", request), name, input);
     // A tool that finds its project from an asset (regenerate_with, refine_still) must not hand this
     // project's page a proposal for another project.
     if (projectId && result.ok) {

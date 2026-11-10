@@ -3,6 +3,7 @@
  * @packageDocumentation
  */
 import type { DatabaseSync } from "node:sqlite";
+import type { z } from "zod";
 import { fail } from "@creator-lab/core/domain/failure";
 import { type Project, ProjectSchema } from "@creator-lab/core/domain/project";
 import { decode, decodeAll, encode, writeRevision } from "@/server/store/connection";
@@ -24,7 +25,8 @@ export function projectRepository(database: DatabaseSync) {
     return decodeAll(rows, ProjectSchema);
   }
 
-  function create(project: Project): Project {
+  /** Inserts a new project; fields with defaults (owner, parent, origin) may be left out. */
+  function create(project: z.input<typeof ProjectSchema>): Project {
     const { record, json } = encode(ProjectSchema, project);
     database.prepare("INSERT INTO projects(id, data) VALUES (?, ?)").run(record.id, json);
     return record;

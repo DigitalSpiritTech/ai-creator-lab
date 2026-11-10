@@ -3,12 +3,13 @@
  * with them. The project shell imports the registry from here so the components are in place.
  *
  * A plugin package that ships its own panels exports a `Record<panelId, PanelComponent>` that is
- * registered here. UGC Ad's panels are app components because they share the project context and
- * the candidate cards.
+ * registered here (Social Post's). UGC Ad's panels are app components because they share the
+ * project context and the candidate cards.
  * @packageDocumentation
  */
 "use client";
 
+import { SOCIAL_POST_PANEL_COMPONENTS } from "@creator-lab/content-social-post/panels";
 import { UGC_AD_PANELS } from "@creator-lab/content-ugc-ad";
 import type { PanelProps } from "@creator-lab/core/registry";
 import { AssetsTab } from "@/components/project/assets-tab";
@@ -31,5 +32,6 @@ const UGC_AD_PANEL_COMPONENTS: Record<string, PanelComponent> = {
 };
 
 appPlugins.registerPanelComponents(UGC_AD_PANEL_COMPONENTS);
+appPlugins.registerPanelComponents(SOCIAL_POST_PANEL_COMPONENTS);
 
 export { appPlugins };

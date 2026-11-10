@@ -16,12 +16,14 @@ import {
 } from "@creator-lab/core/domain/conversation";
 import { ServiceError } from "@creator-lab/core/domain/failure";
 import { type GenerationProposal, GenerationProposalSchema } from "@creator-lab/core/domain/job";
-import { type LlmModel, type Usage, addUsage, anthropicModel, emptyUsage } from "@/server/agent/model";
-import { stagePrompt, systemPrompt } from "@/server/agent/prompts/creative-director";
+import { type LlmModel, type StreamParams, type Usage, addUsage, anthropicModel, emptyUsage } from "@/server/agent/model";
+import { STATE_CLOSE, STATE_OPEN, stagePrompt, systemPrompt } from "@/server/agent/prompts/creative-director";
 import { loadSnapshot, renderSnapshot } from "@/server/agent/state";
 import { PROMPT_STYLE_LABELS } from "@creator-lab/core/catalog";
 import { BACKDROP_NAMES, backdropOf } from "@creator-lab/recipes/prompts";
 import { agentToolNames, agentTools } from "@/server/agent/tools";
+import { type ProjectAssistant, pluginState, projectAssistant } from "@/server/agent/plugin-stage";
+import { serverPlugins } from "@/plugins/server";
 import { conversationsOf } from "@/server/store/conversations";
 import { type ToolContext, callTool, getTool } from "@/server/tools";
 
@@ -111,6 +113,8 @@ function resultText(context: ToolContext, projectId: string, name: string, outpu
       .join(" ");
   }
   if (name === "get_project_state") {
+    const plugin = projectAssistant(context.store, projectId);
+    if (plugin) return pluginState(context.store, projectId, plugin).lines.join("\n");
     const snapshot = loadSnapshot(context.store, projectId);
     if (snapshot) return renderSnapshot(snapshot);
   }
@@ -134,9 +138,9 @@ function refused(use: ToolUseBlock, message: string, code = "invalid"): ToolOutc
   return { ok: false, output: { code, message }, block: { type: "tool_result", tool_use_id: use.id, content: `${code}: ${message}`, is_error: true } };
 }
 
-async function runTool(context: ToolContext, projectId: string, use: ToolUseBlock, budget: TurnBudget): Promise<ToolOutcome> {
+async function runTool(context: ToolContext, projectId: string, use: ToolUseBlock, budget: TurnBudget, offered: Set<string>): Promise<ToolOutcome> {
   const tool = getTool(use.name);
-  if (!tool || !agentToolNames().has(use.name)) return refused(use, `${use.name} is not available to the assistant.`);
+  if (!tool || !offered.has(use.name)) return refused(use, `${use.name} is not available to the assistant.`);
   if (budget.toolCalls >= MAX_TOOL_CALLS) {
     return refused(use, `The limit of ${MAX_TOOL_CALLS} tool calls for one reply is reached. Do not call more tools; tell the user where things stand and what comes next.`, "budget");
   }
@@ -178,7 +182,14 @@ function cleanContent(content: ContentBlock[], keepToolUse: boolean): ContentBlo
  * The project state block for the conversation side. Within a turn the earlier blocks stay as they
  * were sent, so every round's request extends the previous one and reads it from the prompt cache.
  */
-function stateBlock(context: ToolContext, projectId: string, omittedTurns: number): ContentBlock {
+function stateBlock(context: ToolContext, projectId: string, omittedTurns: number, plugin?: ProjectAssistant): ContentBlock {
+  if (plugin) {
+    const state = pluginState(context.store, projectId, plugin);
+    const lines = [STATE_OPEN, "# Project state now", ...state.lines, "", `# Next step: ${state.heading}`, state.guidance];
+    if (omittedTurns) lines.push("", `Earlier conversation: ${omittedTurns} older turn(s) are not shown. Rely on the project state above for what was decided.`);
+    lines.push(STATE_CLOSE);
+    return { type: "text", text: lines.join("\n") };
+  }
   return { type: "text", text: stagePrompt(loadSnapshot(context.store, projectId)!, { omittedTurns }) };
 }
 
@@ -215,15 +226,20 @@ export async function* runAgentTurn(context: ToolContext, input: AgentTurnInput,
   let lastMessageId = userMessage.id;
 
   const window = windowMessages(conversations.listByProject(projectId), WINDOW_TURNS);
+  // A content type whose plugin brings its own assistant gets its prompt, state, and tools.
+  const plugin = projectAssistant(context.store, projectId);
+  const project = context.store.projects.getRequired(projectId);
+  const contentTypeId = serverPlugins.contentTypeForApp(project.appId)?.id;
   // The state is sent, not stored: it goes ahead of the user's words in the last message.
-  let lastState = stateBlock(context, projectId, window.omittedTurns);
+  let lastState = stateBlock(context, projectId, window.omittedTurns, plugin);
   let messages: ApiMessage[] = toApiMessages(window.messages);
   const last = messages.at(-1)!;
   messages = [...messages.slice(0, -1), { role: last.role, content: [...last.content.slice(0, -1), lastState, last.content.at(-1)!] }];
-  const system = systemPrompt();
+  const system: StreamParams["system"] = plugin ? [{ text: plugin.assistant.systemPrompt, cache: true }] : systemPrompt();
   let usage: Usage = emptyUsage();
   const budget: TurnBudget = { toolCalls: 0, invalid: new Map() };
-  const tools = agentTools();
+  const tools = agentTools(contentTypeId);
+  const offered = agentToolNames(contentTypeId);
   let model: LlmModel;
   try {
     model = options.model ?? anthropicModel();
@@ -293,7 +309,7 @@ export async function* runAgentTurn(context: ToolContext, input: AgentTurnInput,
         continue;
       }
       yield { type: "tool_call", id: use.id, name: use.name, input: use.input };
-      const outcome = await runTool(context, projectId, use, budget);
+      const outcome = await runTool(context, projectId, use, budget, offered);
       results.push(outcome.block);
       yield { type: "tool_result", id: use.id, name: use.name, ok: outcome.ok, output: outcome.output };
       if (outcome.proposal) yield { type: "proposal", proposal: outcome.proposal };
@@ -302,7 +318,7 @@ export async function* runAgentTurn(context: ToolContext, input: AgentTurnInput,
     conversations.append(assistant, message("user", results));
     lastMessageId = assistant.id;
     // Tool results first, then the refreshed state when the tools changed it.
-    const state = stateBlock(context, projectId, window.omittedTurns);
+    const state = stateBlock(context, projectId, window.omittedTurns, plugin);
     const changed = state.type === "text" && lastState.type === "text" && state.text !== lastState.text;
     if (changed) lastState = state;
     messages = [...messages, { role: "assistant", content: assistant.content }, { role: "user", content: changed ? [...results, state] : results }];

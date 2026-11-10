@@ -1,5 +1,5 @@
 /**
- * Version history of the brief, character bibles, and product cards. Rows are immutable; the next
+ * Version history of the brief, character bibles, product cards, and plugin piece bodies. Rows are immutable; the next
  * version is the latest plus one. Script history is kept by the script repository.
  * @packageDocumentation
  */
@@ -10,6 +10,7 @@ import {
   BriefVersionSchema,
   type DocumentAuthor,
   type DocumentContent,
+  PieceVersionSchema,
   ProductVersionSchema,
   type StoredDocumentKind,
   type StoredDocumentVersion,
@@ -21,11 +22,14 @@ const StoredVersionSchema: z.ZodType<StoredDocumentVersion> = z.discriminatedUni
   BriefVersionSchema,
   BibleVersionSchema,
   ProductVersionSchema,
+  PieceVersionSchema,
 ]);
 
 export interface DocumentEntry<K extends StoredDocumentKind> {
   kind: K;
   subjectId: string;
+  /** The owner of the saving request; the default owner when absent. */
+  ownerId?: string;
   content: DocumentContent<K>;
   author: DocumentAuthor | null;
   restoredFrom: number | null;

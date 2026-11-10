@@ -5,11 +5,12 @@ import nextTypescript from "eslint-config-next/typescript";
 const APP_ALIAS = { group: ["@/*", "@creator-lab/app-creator", "@creator-lab/app-creator/*"], message: "Packages never import the app; the app imports them." };
 
 /**
- * The package dependency direction, enforced: core <- recipes <- executors <- app, ui and content
- * plugins on core only. A package imports another only through its name, never `@/` or a path.
+ * The package dependency direction, enforced: core <- recipes <- executors <- app, ui on core, and
+ * content plugins on core and ui only (never on each other: `content-*` covers every plugin). A
+ * package imports another only through its name, never `@/` or a path.
  */
 function restrict(allowed) {
-  const all = ["core", "recipes", "executors", "ui", "content-ugc-ad"];
+  const all = ["core", "recipes", "executors", "ui", "content-*"];
   const denied = all.filter((name) => !allowed.includes(name)).flatMap((name) => [`@creator-lab/${name}`, `@creator-lab/${name}/*`]);
   return {
     "no-restricted-imports": [

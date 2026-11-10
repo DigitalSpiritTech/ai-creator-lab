@@ -1,6 +1,7 @@
 /**
  * Acceptance smoke: the whole UGC Creator flow with the mock executor, on a temporary data
- * directory, then a restart and a relocated restore. No provider is called: every proposal names a
+ * directory, then a Social Post (a plugin content type: brief, copy, a 4:5 still through the gate,
+ * approval, and export), then a restart and a relocated restore. No provider is called: every proposal names a
  * mock recipe, the operator ceiling (GENERATION_ALLOWANCE_USD) is zero, and the Comfy and Anthropic
  * keys are placeholders. A monthly budget is saved and an extension is refused at the zero ceiling.
  *
@@ -35,6 +36,8 @@ import { readAssetBytes } from "@/server/media/files";
 import { importImage } from "@/server/media/images";
 import { type Store, openStore } from "@/server/store";
 import { type ToolContext, callTool, createGenerationContext, createToolContext } from "@/server/tools";
+import { startProject } from "@/server/tools/project";
+import { SOCIAL_POST_APP, SOCIAL_POST_TOOLS } from "@creator-lab/content-social-post";
 
 // Scripts run from the repository root; the Next.js app is apps/creator.
 const ROOT = resolve(process.cwd());
@@ -45,7 +48,8 @@ const PLACEHOLDER_KEY = "acceptance-smoke-placeholder";
 
 interface Client {
   readonly label: string;
-  createProject(name: string): Promise<{ id: string }>;
+  /** Creates a project in an App (UGC Creator when absent). */
+  createProject(name: string, appId?: string): Promise<{ id: string }>;
   tool<T>(name: string, input: Record<string, unknown>, projectId?: string): Promise<T>;
   /** Submits an approved proposal and waits for every candidate; returns the new asset ids. */
   submit(projectId: string, proposal: GenerationProposal): Promise<string[]>;
@@ -284,6 +288,52 @@ async function runFlow(client: Client) {
   return { projectId, characterId, faceId: faces[1], contentId: content.id, exportId, assembled };
 }
 
+interface PostExport {
+  copyText: string;
+  stills: { aspectRatio: string; assetId: string; sha256: string }[];
+  missing: string[];
+}
+
+/** A Social Post, the plugin content type: brief, copy, a 4:5 still proposed and approved through the gate, and the export. */
+async function runSocialPost(client: Client) {
+  const project = await client.createProject("Cup holder post", SOCIAL_POST_APP.id);
+  const projectId = project.id;
+  const brief = { productSummary: "Ridgeline 32 oz insulated bottle", audience: "Commuters who drive to work", platforms: ["Instagram"], tone: "Warm and direct" };
+  await client.tool("save_brief", { projectId, brief }, projectId);
+  const copy = {
+    caption: "It fits my cup holder and it was still cold at five.",
+    hashtags: ["#commute", "hydration"],
+    callToAction: "Link in bio.",
+    visual: "A matte dark green steel bottle in a car cup holder, morning light through the windshield.",
+  };
+  const saved = await client.tool<{ post: { id: string; slots: Record<string, { state: string }> }; created: boolean }>(SOCIAL_POST_TOOLS.saveCopy, { projectId, copy }, projectId);
+  check(saved.created && Object.keys(saved.post.slots).join(",") === "1:1,4:5,9:16,16:9", "the post starts with one still slot per aspect ratio");
+  const contentId = saved.post.id;
+  step(client, "social post: brief and copy saved");
+
+  const proposal = await client.tool<GenerationProposal>(SOCIAL_POST_TOOLS.proposeStill, { contentId, aspectRatio: "4:5", recipeId: "mock-text-to-image", count: 2 }, projectId);
+  check(proposal.target.kind === "piece" && proposal.target.slot === "4:5" && proposal.aspectRatio === "4:5", "the still proposal aims at the post's 4:5 slot");
+  const stills = await client.submit(projectId, proposal);
+  check(stills.length === 2, "two 4:5 candidates were made with the mock executor");
+  const approved = await client.tool<{ piece: { slots: Record<string, { state: string }> }; archivedAssetIds: string[] }>("approve", { kind: "slot", contentId, slot: "4:5", assetId: stills[0] }, projectId);
+  check(approved.piece.slots["4:5"].state === "approved" && approved.archivedAssetIds.join() === stills[1], "one 4:5 still approved, the other archived");
+  step(client, "social post: a 4:5 still proposed, generated, and approved");
+
+  const exported = await client.tool<PostExport>(SOCIAL_POST_TOOLS.export, { contentId }, projectId);
+  check(exported.stills.length === 1 && exported.stills[0].aspectRatio === "4:5" && exported.stills[0].assetId === stills[0], "the export lists the approved 4:5 still");
+  check(exported.missing.join(",") === "1:1,9:16,16:9", "the export names the ratios still missing");
+  check(exported.copyText.endsWith("Link in bio.\n\n#commute #hydration"), "the export carries the copy as text");
+  const bytes = await client.download(exported.stills[0].assetId);
+  check(hash(bytes) === exported.stills[0].sha256, "the exported still downloads intact");
+  step(client, "social post: exported the 4:5 still and the copy");
+  return { projectId, contentId, exported };
+}
+
+async function confirmPostAfterRestart(client: Client, post: Awaited<ReturnType<typeof runSocialPost>>, how: string): Promise<void> {
+  const again = await client.tool<PostExport>(SOCIAL_POST_TOOLS.export, { contentId: post.contentId }, post.projectId);
+  check(JSON.stringify(again) === JSON.stringify(post.exported), `${how}: the social post exports the same still and copy`);
+}
+
 async function confirmAfterRestart(client: Client, flow: Awaited<ReturnType<typeof runFlow>>, how: string): Promise<void> {
   const state = await client.tool<ProjectState>("get_project_state", { projectId: flow.projectId }, flow.projectId);
   check(state.project.brief, `${how}: the brief is still there`);
@@ -315,12 +365,15 @@ async function confirmBudget(client: Client, how: string): Promise<void> {
 async function runLayer(client: Client): Promise<void> {
   try {
     const flow = await runFlow(client);
+    const post = await runSocialPost(client);
     await checkBudget(client);
     await client.restart(false);
     await confirmAfterRestart(client, flow, "after restart");
+    await confirmPostAfterRestart(client, post, "after restart");
     await confirmBudget(client, "after restart");
     await client.restart(true);
     await confirmAfterRestart(client, flow, "after relocating the data directory");
+    await confirmPostAfterRestart(client, post, "after relocating the data directory");
     await confirmBudget(client, "after relocating the data directory");
   } finally {
     await client.close();
@@ -344,10 +397,7 @@ async function toolsClient(): Promise<Client> {
   };
   return {
     label: "tools",
-    createProject: async (name) => {
-      const { createProject } = await import("@creator-lab/core/domain/project");
-      return store.projects.create(createProject({ name }, randomUUID(), Date.now()));
-    },
+    createProject: async (name, appId) => startProject(context, { name, ...(appId ? { appId } : {}) }).project,
     tool: (name, input) => call(name, input),
     submit: async (_projectId, proposal) => {
       const { results } = await call<{ results: { outcome: string; assetIds: string[]; message: string | null }[] }>("submit_proposal", { proposal, wait: true });
@@ -467,7 +517,7 @@ async function httpClient(): Promise<Client> {
   await start();
   return {
     label: "http",
-    createProject: async (name) => (await post<{ project: { id: string } }>("/api/projects", { name })).project,
+    createProject: async (name, appId) => (await post<{ project: { id: string } }>("/api/projects", { name, ...(appId ? { appId } : {}) })).project,
     tool: (name, input, projectId) => post(projectId ? `/api/projects/${projectId}/tools/${name}` : `/api/tools/${name}`, input),
     submit: async (projectId, proposal) => {
       const { results } = await post<{ results: { outcome: string; job: Job | null; message: string | null }[] }>(

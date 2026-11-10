@@ -14,6 +14,7 @@ import { contentRepository } from "@/server/store/content";
 import { documentRepository } from "@/server/store/documents";
 import { jobRepository } from "@/server/store/jobs";
 import { libraryRepository } from "@/server/store/library";
+import { pieceRepository } from "@/server/store/pieces";
 import { preferencesRepository } from "@/server/store/preferences";
 import { projectRepository } from "@/server/store/projects";
 import { scriptRepository } from "@/server/store/scripts";
@@ -35,6 +36,8 @@ export interface Store {
   readonly jobs: ReturnType<typeof jobRepository>;
   readonly scripts: ReturnType<typeof scriptRepository>;
   readonly content: ReturnType<typeof contentRepository>;
+  /** Content pieces of plugin content types: named slots plus a plugin-owned body. */
+  readonly pieces: ReturnType<typeof pieceRepository>;
   /** Version history of the brief, character bibles, and product cards. */
   readonly documents: ReturnType<typeof documentRepository>;
   /** Per-period budget extensions ("add to this month"). */
@@ -66,6 +69,7 @@ export function openStore(dataDir: string): Store {
     jobs: jobRepository(database),
     scripts: scriptRepository(database),
     content: contentRepository(database),
+    pieces: pieceRepository(database),
     documents: documentRepository(database),
     budget: budgetRepository(database),
     backends: backendRepository(database),
