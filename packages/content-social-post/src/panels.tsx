@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Asset } from "@creator-lab/core/domain/asset";
 import type { DocumentVersion } from "@creator-lab/core/domain/document";
 import type { GenerationTarget, Job } from "@creator-lab/core/domain/job";
-import type { PluginPiece } from "@creator-lab/core/domain/piece";
+import { type PluginPiece, approvedSlots } from "@creator-lab/core/domain/piece";
 import type { Brief, Project } from "@creator-lab/core/domain/project";
 import type { PanelHost, PanelProps } from "@creator-lab/core/registry";
 import { Badge } from "@creator-lab/ui/badge";
@@ -131,7 +131,9 @@ function BriefCard({ host, project, saved }: { host: PanelHost; project: Project
 }
 
 function CopyCard({ host, post, saved }: { host: PanelHost; post: PluginPiece | undefined; saved: () => Promise<void> }) {
-  const current = post ? SocialPostCopySchema.parse(post.body) : undefined;
+  // A body that no longer parses (an older shape) opens as an empty form instead of crashing the panel.
+  const parsed = post ? SocialPostCopySchema.safeParse(post.body) : undefined;
+  const current = parsed?.success ? parsed.data : undefined;
   const [copy, setCopy] = useState({
     caption: current?.caption ?? "",
     hashtags: current?.hashtags.map((tag) => `#${tag}`).join(" ") ?? "",
@@ -362,16 +364,20 @@ export function ExportPanel({ host }: PanelProps) {
   const { post, state } = usePostState(host);
   const [result, setResult] = useState<ExportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The export is prepared again only when the post, its revision, or its approved stills change,
+  // not on every reload of the project state.
+  const postId = post?.id;
+  const exportKey = post ? `${post.id}:${post.revision}:${approvedSlots(post).map((entry) => `${entry.slot}=${entry.assetId}`).join(",")}` : "";
   const prepare = useCallback(async () => {
-    if (!post) return;
+    if (!postId || !exportKey) return;
     try {
-      setResult(await host.callTool<ExportResult>(SOCIAL_POST_TOOLS.export, { contentId: post.id }));
+      setResult(await host.callTool<ExportResult>(SOCIAL_POST_TOOLS.export, { contentId: postId }));
       setError(null);
     } catch (cause) {
       setResult(null);
       setError(message(cause));
     }
-  }, [host, post]);
+  }, [host, postId, exportKey]);
   useEffect(() => {
     const timer = setTimeout(() => void prepare(), 0);
     return () => clearTimeout(timer);

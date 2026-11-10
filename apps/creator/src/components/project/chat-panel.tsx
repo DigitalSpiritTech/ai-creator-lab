@@ -36,6 +36,14 @@ export function groupSteps(items: ChatItem[]): RenderItem[] {
   return grouped;
 }
 
+/**
+ * Whether a proposal card submits on its own: only with auto-approve on, and never for a stored
+ * proposal (history) or one a plugin panel raised (it always waits for the person's click).
+ */
+export function proposalAutoApproves(autoApprove: boolean, source: Extract<ChatItem, { kind: "proposal" }>["source"]): boolean {
+  return autoApprove && source !== "history" && source !== "panel";
+}
+
 export function ChatPanel({ items, setItems }: { items: ChatItem[]; setItems: React.Dispatch<React.SetStateAction<ChatItem[]>> }) {
   const readOnly = useReadOnly();
   const { projectId, view, refresh, submitted } = useProject();
@@ -122,7 +130,7 @@ export function ChatPanel({ items, setItems }: { items: ChatItem[]; setItems: Re
                 <ProposalCard
                   key={item.id}
                   proposal={item.proposal}
-                  autoApprove={view.autoApprove && item.source !== "history"}
+                  autoApprove={proposalAutoApproves(view.autoApprove, item.source)}
                   onSubmitted={() => {
                     submitted();
                     void refresh();

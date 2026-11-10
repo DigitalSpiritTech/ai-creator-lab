@@ -26,6 +26,7 @@ import type { GenerationProposal } from "@creator-lab/core/domain/job";
 import type { PluginPiece } from "@creator-lab/core/domain/piece";
 import { createProject } from "@creator-lab/core/domain/project";
 import type { PanelHost } from "@creator-lab/core/registry";
+import { proposalAutoApproves } from "@/components/project/chat-panel";
 import { WorkspacePanels } from "@/components/project/workspace-panels";
 import { appPlugins } from "@/plugins/panels";
 import { appChoices } from "@/plugins/registry";
@@ -100,6 +101,13 @@ describe("Social Post exists only as a plugin", () => {
     const host: PanelHost = { projectId: randomUUID(), contentTypeId: SOCIAL_POST_CONTENT_TYPE, openPanel: () => undefined, refresh: async () => undefined, notify: () => undefined, callTool: () => new Promise(() => undefined), assetUrl: (id) => `/api/assets/${id}` };
     const html = renderToStaticMarkup(createElement(WorkspacePanels, { contentTypeId: SOCIAL_POST_CONTENT_TYPE, active: null, onSelect: () => undefined, host }));
     assert.match(html, /aria-selected="true"[^>]*>Post<\/button>.*>Stills<\/button>.*>Export<\/button>/);
+  });
+
+  test("a proposal a plugin panel raises always waits for a click, even with auto-approve on", () => {
+    assert.equal(proposalAutoApproves(true, "panel"), false);
+    assert.equal(proposalAutoApproves(true, "history"), false);
+    assert.equal(proposalAutoApproves(true, "assistant"), true);
+    assert.equal(proposalAutoApproves(false, "workspace"), false);
   });
 
   test("the server registers the same manifest with its tools, copy schema, and assistant", () => {

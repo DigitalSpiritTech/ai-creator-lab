@@ -13,7 +13,8 @@ export type ChatItem =
   | { kind: "user"; id: string; text: string }
   | { kind: "assistant"; id: string; text: string }
   | { kind: "tool"; id: string; activity: ToolActivity }
-  | { kind: "proposal"; id: string; proposal: GenerationProposal; source: "assistant" | "manual" | "workspace" | "history" }
+  /** `panel` is a plugin panel's proposal: it always waits for a click, even with auto-approve on. */
+  | { kind: "proposal"; id: string; proposal: GenerationProposal; source: "assistant" | "manual" | "workspace" | "panel" | "history" }
   | { kind: "notice"; id: string; tone: "error" | "warn" | "ok" | "muted"; text: string };
 
 export interface ProjectContextValue {
@@ -21,7 +22,7 @@ export interface ProjectContextValue {
   view: ProjectView;
   refresh(): Promise<void>;
   /** Shows a proposal card in the chat panel; it goes through the gate from there. */
-  propose(proposal: GenerationProposal, source: "assistant" | "manual" | "workspace"): void;
+  propose(proposal: GenerationProposal, source: "assistant" | "manual" | "workspace" | "panel"): void;
   /** Starts job polling after the gate accepted a proposal. */
   submitted(): void;
   notify(tone: "error" | "warn" | "ok" | "muted", text: string): void;

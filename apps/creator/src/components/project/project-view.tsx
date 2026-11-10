@@ -88,10 +88,11 @@ export function ProjectView({ projectId }: { projectId: string }) {
             openPanel: setPanel,
             refresh,
             notify,
-            // A panel's spending tool returns a proposal; it goes to the gate in the chat panel.
+            // A panel's spending tool returns a proposal; it goes to the gate in the chat panel and
+            // always waits for a click there, auto-approve or not.
             callTool: async <T,>(name: string, input: Record<string, unknown>) => {
               const output = await callTool<T>(name, input, projectId);
-              if (isProposal(output)) propose(output, "workspace");
+              if (isProposal(output)) propose(output, "panel");
               return output;
             },
             assetUrl: (assetId, options) => assetUrl(assetId, options),
