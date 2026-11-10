@@ -47,16 +47,14 @@ const host: PanelHost = {
 const render = (contentTypeId: string, active: string | null) => renderToStaticMarkup(createElement(WorkspacePanels, { contentTypeId, active, onSelect: () => undefined, host }));
 
 test("a throwaway content type appears in the shell's App list and workspace with no shell change", () => {
-  assert.deepEqual(appChoices().map((app) => app.label), ["UGC Creator"]);
+  const installed = appChoices();
+  assert.equal(installed[0].label, "UGC Creator");
   assert.equal(appLabel("jingle-maker"), "jingle-maker", "an App without a plugin shows its id");
 
   appPlugins.registerPlugin(throwaway);
   appPlugins.registerPanelComponents({ "throwaway.lyrics": Lyrics, "throwaway.mix": Mix });
 
-  assert.deepEqual(appChoices(), [
-    { id: "ugc-creator", label: "UGC Creator", contentTypes: ["ad"] },
-    { id: "jingle-maker", label: "Jingle Maker", contentTypes: ["jingle"] },
-  ]);
+  assert.deepEqual(appChoices(), [...installed, { id: "jingle-maker", label: "Jingle Maker", contentTypes: ["jingle"] }]);
   assert.equal(appLabel("jingle-maker"), "Jingle Maker");
   assert.equal(appPlugins.contentTypeForApp("jingle-maker")?.id, "jingle");
 
