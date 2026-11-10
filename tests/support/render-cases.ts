@@ -3,10 +3,10 @@
  * the snapshot tests in prompts-renderers.test.ts.
  * @packageDocumentation
  */
-import type { PromptStyle } from "@/lib/catalog";
-import { type ShotSpec, type ShotSpecInput, ShotSpecSchema } from "@/lib/domain/shot-spec";
-import { FACE_GARMENT } from "@/server/tools/prompts";
-import { renderPrompt } from "@/server/tools/render";
+import type { PromptStyle } from "@creator-lab/core/catalog";
+import { type ShotSpec, type ShotSpecInput, ShotSpecSchema } from "@creator-lab/core/domain/shot-spec";
+import { FACE_GARMENT } from "@creator-lab/recipes/prompts";
+import { renderPrompt } from "@creator-lab/recipes/render";
 import { RIDGELINE_APPEARANCE } from "./domain-fixtures";
 import { DARK_WARDROBE, PRODUCT, WARDROBE, fixtureBeats, fixtureBible } from "./prompt-cases";
 

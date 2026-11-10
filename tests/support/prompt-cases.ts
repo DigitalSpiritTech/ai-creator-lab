@@ -3,9 +3,9 @@
  * snapshot tests in agent-prompts.test.ts.
  * @packageDocumentation
  */
-import { type CharacterBible, CharacterBibleSchema } from "@/lib/domain/library";
-import { type Beat, BeatSchema } from "@/lib/domain/script";
-import { bodyPrompt, clipPrompt, facePrompt, productPhotoPrompt, referenceSheetPrompt, refinePrompt, stillPrompt } from "@/server/tools/prompts";
+import { type CharacterBible, CharacterBibleSchema } from "@creator-lab/core/domain/library";
+import { type Beat, BeatSchema } from "@creator-lab/core/domain/script";
+import { bodyPrompt, clipPrompt, facePrompt, productPhotoPrompt, referenceSheetPrompt, refinePrompt, stillPrompt } from "@creator-lab/recipes/prompts";
 import { averyBible, ridgelineBeats } from "./domain-fixtures";
 
 export const WARDROBE = "Olive utility jacket over a white tee";

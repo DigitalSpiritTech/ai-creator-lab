@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { describe, test } from "node:test";
-import { addCandidates, approveCandidate, planShots, syncShotsToScript } from "@/lib/domain/content";
-import { BeatInputSchema, createScript, reviseScript } from "@/lib/domain/script";
+import { addCandidates, approveCandidate, planShots, syncShotsToScript } from "@creator-lab/core/domain/content";
+import { BeatInputSchema, createScript, reviseScript } from "@creator-lab/core/domain/script";
 import { ridgelineBeats } from "./support/domain-fixtures";
 
 const NOW = 1_760_000_000_000;

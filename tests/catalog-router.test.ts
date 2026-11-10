@@ -7,8 +7,8 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { RouterCatalog, type CatalogPort } from "@/server/catalog/router-catalog";
-import { imageFields, tagModel } from "@/server/catalog/tagging";
+import { RouterCatalog, type CatalogPort } from "@creator-lab/executors/router-catalog";
+import { imageFields, tagModel } from "@creator-lab/recipes/tagging";
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`./fixtures/router/${name}`, import.meta.url), "utf8"));
 const catalog = fixture("catalog.json");

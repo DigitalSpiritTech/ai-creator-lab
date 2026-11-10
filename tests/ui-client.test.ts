@@ -22,11 +22,11 @@ import { AssetMedia } from "@/components/media/asset-media";
 import { ProductForm } from "@/components/library/product-form";
 import { MonthlyBudget, ProviderChoice } from "@/components/settings/settings-form";
 import { productFields } from "@/lib/client/library";
-import { AssetKindSchema } from "@/lib/domain/asset";
+import { AssetKindSchema } from "@creator-lab/core/domain/asset";
 import { createSseParser, encodeSse } from "@/lib/client/sse";
 import type { GenerationProposal, SettingsView, SubmitResult } from "@/lib/client/types";
-import { budgetCrossing, budgetPeriod, composeSpendPolicy } from "@/lib/domain/spend";
-import { DEFAULT_WORKSPACE_SETTINGS } from "@/lib/domain/workspace";
+import { budgetCrossing, budgetPeriod, composeSpendPolicy } from "@creator-lab/core/domain/spend";
+import { DEFAULT_WORKSPACE_SETTINGS } from "@creator-lab/core/domain/workspace";
 
 function proposal(overrides: Partial<GenerationProposal> = {}): GenerationProposal {
   return {

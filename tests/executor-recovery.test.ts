@@ -9,11 +9,11 @@ import { setTimeout as wait } from "node:timers/promises";
 import { afterEach, describe, test } from "node:test";
 import { type RunResult } from "@comfyorg/sdk";
 import sharp from "sharp";
-import type { Recipe } from "@/lib/catalog";
-import { type Job, advanceJob, createJob } from "@/lib/domain/job";
-import { MOCK_RECIPES, ROUTER_RECIPES } from "@/server/catalog/defaults";
-import { MockExecutor, RouterExecutor } from "@/server/executors";
-import type { RouterModelsPort } from "@/server/executors/router";
+import type { Recipe } from "@creator-lab/core/catalog";
+import { type Job, advanceJob, createJob } from "@creator-lab/core/domain/job";
+import { MOCK_RECIPES, ROUTER_RECIPES } from "@creator-lab/recipes/defaults";
+import { MockExecutor, RouterExecutor } from "@creator-lab/executors";
+import type { RouterModelsPort } from "@creator-lab/executors/router";
 import {
   COLLECTION_WINDOW_MS,
   type RunDeps,
@@ -23,7 +23,7 @@ import {
   chargedUsd,
   recoverAndDrain,
   startGeneration,
-} from "@/server/executors/run";
+} from "@/server/generation/run";
 import { startRecoveryOnce } from "@/server/tools/recovery";
 import { MemoryJobStore, TEST_PROJECT_ID, admitJob } from "./support/memory-job-store";
 import { clock, seedProject, tempStore } from "./support/domain-fixtures";

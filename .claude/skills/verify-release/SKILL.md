@@ -26,7 +26,7 @@ Confirm `.gitignore` covers `.env*` (except `.env.example`), `.data/`, `*.sqlite
 1. Fresh install: clone or unzip into an empty directory, `npm ci`, run the four commands, `npm run build && npm start`, create a project with the mock executor, run brief to assembly, restart, confirm the project is still there. Record it in `docs/VERIFICATION.md`.
 2. Real run: one complete ad on real accounts with the invented persona, recorded with cost and durations.
 3. README: setup works as written on a machine without the repo's history; pricing numbers are dated; the maintainer section is present; no private names; license and third-party notices present (MIT for the app, shadcn attribution, font license, LTX and Comfy credits).
-4. `workflows/README.md` lists every workflow with its verification date.
+4. `packages/recipes/workflows/README.md` lists every workflow with its verification date.
 5. Competition packet: public repository link, license visible, demo under two minutes, social post with the required hashtag linking the demo, form answers drafted. Recheck the official page for any requirement changes on submission day.
 
 ## Reporting

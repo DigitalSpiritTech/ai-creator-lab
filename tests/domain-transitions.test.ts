@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { describe, test } from "node:test";
-import { type Asset, AssetSchema, archiveAsset, markAssetDeleted, restoreAsset } from "@/lib/domain/asset";
+import { type Asset, AssetSchema, archiveAsset, markAssetDeleted, restoreAsset } from "@creator-lab/core/domain/asset";
 import {
   type ContentPiece,
   addCandidates,
@@ -11,10 +11,10 @@ import {
   planShots,
   selectCandidate,
   updateCut,
-} from "@/lib/domain/content";
-import { ServiceError, toFailure } from "@/lib/domain/failure";
-import { advanceJob, createJob } from "@/lib/domain/job";
-import { MOCK_RECIPES } from "@/server/catalog/defaults";
+} from "@creator-lab/core/domain/content";
+import { ServiceError, toFailure } from "@creator-lab/core/domain/failure";
+import { advanceJob, createJob } from "@creator-lab/core/domain/job";
+import { MOCK_RECIPES } from "@creator-lab/recipes/defaults";
 import {
   type CharacterLink,
   approveReferenceSheet,
@@ -23,11 +23,11 @@ import {
   linkToProject,
   reviseCharacterBible,
   setCharacterReference,
-} from "@/lib/domain/library";
-import { createProject, saveBrief } from "@/lib/domain/project";
-import { createScript } from "@/lib/domain/script";
-import { assertArchivable, findAssetUsage, planDeleteEverywhere } from "@/lib/domain/usage";
-import { DEFAULT_WORKSPACE_SETTINGS, effectiveAllowanceUsd, updateWorkspaceSettings } from "@/lib/domain/workspace";
+} from "@creator-lab/core/domain/library";
+import { createProject, saveBrief } from "@creator-lab/core/domain/project";
+import { createScript } from "@creator-lab/core/domain/script";
+import { assertArchivable, findAssetUsage, planDeleteEverywhere } from "@creator-lab/core/domain/usage";
+import { DEFAULT_WORKSPACE_SETTINGS, effectiveAllowanceUsd, updateWorkspaceSettings } from "@creator-lab/core/domain/workspace";
 import { averyBible, ridgelineBeats } from "./support/domain-fixtures";
 
 const NOW = 1_760_000_000_000;

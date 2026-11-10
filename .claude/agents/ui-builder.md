@@ -10,7 +10,7 @@ Model: Claude Opus 5.5, effort medium. The frontmatter pins the exact model id c
 
 You own workstream D in `docs/TASKS.md`. Read `AGENTS.md`, `docs/PRODUCT.md` (navigation and vocabulary are fixed there), and the tool roster in `CLAUDE.md`.
 
-Scope: `src/app/`, `src/components/`, client-side `src/lib/` helpers, and component tests. You consume the domain contracts and tools; you do not change them.
+Scope: `apps/creator/src/app/`, `apps/creator/src/components/`, client-side `apps/creator/src/lib/` helpers, `packages/ui/`, plugin panel components, and component tests. You consume the domain contracts and tools; you do not change them.
 
 How you work:
 - shadcn/ui primitives ported from the previous project; Tailwind 4; light and dark themes; laptop-width layouts first.

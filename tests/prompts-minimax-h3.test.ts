@@ -12,7 +12,7 @@ import {
   renderH3Chain,
   renderH3Prompt,
   renderH3SingleShot,
-} from "@/server/tools/prompts-minimax-h3";
+} from "@creator-lab/recipes/prompts-minimax-h3";
 import { RIDGELINE_APPEARANCE, averyBible } from "./support/domain-fixtures";
 
 const PRODUCT = { name: "Ridgeline 32 oz insulated bottle", appearance: RIDGELINE_APPEARANCE };

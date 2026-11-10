@@ -1,0 +1,14 @@
+{
+  "name": "@creator-lab/recipes",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "description": "The starter recipe catalog, workflow files and their slot sidecars, Router adapters, and the per-model prompt renderers.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@creator-lab/core": "0.0.1",
+    "zod": "4.6.7"
+  }
+}

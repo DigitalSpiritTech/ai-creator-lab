@@ -1,0 +1,15 @@
+{
+  "name": "@creator-lab/core",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "description": "Domain contracts, the pure catalog types, the spend policy, and the plugin registry. No I/O, no React.",
+  "exports": {
+    "./catalog": "./src/catalog/index.ts",
+    "./registry": "./src/registry/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  }
+}

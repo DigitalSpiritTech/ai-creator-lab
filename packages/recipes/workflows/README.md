@@ -1,0 +1,105 @@
+# Starter workflows
+
+This folder is `packages/recipes/workflows/` in the repository (it was `workflows/` at the root before the repository became an npm workspace).
+
+These are API-format ComfyUI workflows, each with a small sidecar file that tells AI Creator Lab which node inputs to fill. All of them use open weights hosted on Comfy Cloud, and each was run there on the date shown. Most were built from the official ComfyUI workflow templates (converted to API format against Cloud's node definitions, with prompt enhancers and style LoRAs switched off and the sizes, lengths and seeds exposed as slots).The dates and costs come from `docs/VERIFICATION.md`.
+
+| Workflow | Capability | Needs on Cloud | Verified |
+| --- | --- | --- | --- |
+| `z-image-turbo-t2i.api.json` | text_to_image | z_image_turbo_bf16, qwen_3_4b, ae.safetensors (all in the Cloud library) | 2026-10-26, 1024x1024, about 2 to 3 credits |
+| `qwen-image-edit-2511-2ref.api.json` | image_edit (2 references) | qwen_image_edit_2511_bf16, qwen_2.5_vl_7b_fp8_scaled, qwen_image_vae, Qwen-Image-Edit-2511-Lightning-4steps LoRA | 2026-10-26, 768x1344, about 7 credits |
+| `qwen-image-edit-2511-1ref.api.json` | image_edit (1 reference: body from a face, refine) | same as the two-reference graph | 2026-10-27, 768x1344, about 6 credits |
+| `qwen-image-edit-2511-3ref.api.json` | image_edit (3 references: sheet, product, set) | same as the two-reference graph | 2026-10-27, 768x1344, about 6 credits |
+| `qwen-image-2512-t2i.api.json` | text_to_image | qwen_image_2512_fp8_e4m3fn, qwen_2.5_vl_7b_fp8_scaled, qwen_image_vae, Qwen-Image-2512-Lightning-4steps LoRA | 2026-10-27, 992x1760, about 3 credits |
+| `flux-2-dev-t2i.api.json` | text_to_image | flux2_dev_fp8mixed, mistral_3_small_flux2_bf16, flux2-vae | 2026-10-27, 864x1536, about 12 credits (20 steps) |
+| `flux-2-dev-edit-1ref.api.json`, `-2ref`, `-3ref` | image_edit (1 to 3 references, chained ReferenceLatent) | same as FLUX.2 text to image | 2026-10-27 (one and three references), 864x1536, about 16 credits |
+| `krea-2-turbo-t2i.api.json` | text_to_image | krea2_turbo_fp8_scaled, qwen3vl_4b_fp8_scaled, qwen_image_vae | 2026-10-27, 768x1344, about 3 credits (8 steps) |
+| `krea-2-turbo-style-reference.api.json` | image_edit (1 reference: style, not identity) | Krea 2 Turbo plus the krea2_style_reference LoRA | 2026-10-27, 768x1344, about 4 credits |
+| `minimax-h3-t2i.api.json` | text_to_image | minimax_h3_fl2va_pruned_int8_convrot, qwen3vl_32b_minimax_h3_nvfp4_awq, minimax_h3_video_vae_fp16 | 2026-10-27, 768x1344, about 6 credits |
+| `wan-2.2-t2v.api.json` | text_to_video | wan2.2_t2v high and low noise 14B fp8, umt5_xxl fp8, wan_2.1_vae, lightx2v 4-step LoRAs | 2026-10-27, 720x1280, 81 frames at 16 fps, about 20 credits |
+| `wan-2.2-i2v.api.json` | image_to_video | wan2.2_i2v high and low noise 14B fp8, same encoders, lightx2v i2v 4-step LoRAs | 2026-10-27, 720x1280, 81 frames, about 22 credits |
+| `wan-2.2-flf2v.api.json` | first_last_to_video | the i2v experts with the lightx2v LoRAs | 2026-10-27, 720x1280, 81 frames, about 23 credits |
+| `minimax-h3-t2v.api.json` | text_to_video (with sound) | minimax_h3_fl2va, qwen3vl_32b_minimax_h3, video and audio VAEs, fl2v turbo 8-step LoRA | 2026-10-27, 736x1312, 124 frames at 24 fps, about 20 credits |
+| `minimax-h3-i2v.api.json` | image_to_video (with sound) | same | 2026-10-27, 736x1312, 124 frames, about 21 credits |
+| `minimax-h3-flf2v.api.json` | first_last_to_video (with sound) | same | 2026-10-27, 736x1312, 124 frames, about 23 credits |
+| `minimax-h3-multiframe.api.json` | references_to_video (3 references, with sound): image1 is the identity and first frame, image2 and image3 are keyframes pinned at `image2Frame` and `image3Frame` (frames at 24 fps) | minimax_h3_ref2va_pruned_int8_convrot, qwen3vl_32b_minimax_h3_nvfp4_awq, minimax_h3_video_vae_int8_convrot, minimax_h3_audio_vae_fp32 (20 steps, no turbo LoRA, the template default) | not yet run; converted by hand from the official multi-frame template, first run in the v0.2 spike (`docs/TASKS.md` B25) |
+| `ltx-2.5-i2v.api.json` | image_to_video | ltx-2.5-22b-distilled-transformer-comfy-int8-convrot, gemma4-12b-with-proj-ltx-2.5-bf16, ltx-2.5 video and audio VAEs | 2026-10-26, 576x1024, 121 frames, 24 fps, audio, about 10 credits |
+| `wan-2.2-s2v.api.json` | speech_to_video (lip sync) | wan2.2_s2v_14B_fp8_scaled, umt5_xxl, wan_2.1_vae, wav2vec2_large_english_fp16, the lightx2v 4-step LoRA | 2026-10-28, 720x1280, 49 and 65 frames at 16 fps from 2.7 s and 3.6 s takes, about 12 credits |
+| `chatterbox-turbo-tts.api.json` | text_to_speech (voice clone) | the FL_ChatterboxTurboTTS custom node, model downloaded on first run | 2026-10-28, a 13-word line in 4.0 s, FLAC 24 kHz mono, about 4 credits |
+| `qwen3-tts-voice-clone.api.json` | text_to_speech (voice clone) | the FB_Qwen3TTSVoiceClone custom node, 1.7B model | 2026-10-28, the same line in 4.0 s, about 2 credits |
+
+Running these needs a Comfy Cloud plan with API access. Without one, use the hosted Router models, which need only credits.
+
+## Open a workflow in ComfyUI or Comfy Cloud
+
+1. Open ComfyUI on your machine, or open Comfy Cloud in your browser.
+2. Choose File, then Open, and pick the `.api.json` file from this folder. You can also drag the file onto the canvas.
+3. The graph appears with its nodes and settings. On Comfy Cloud the model files above are already in the library. On a local ComfyUI you must have the same model files installed under the same names.
+
+If a node shows a missing model, the name in the file does not match a model in your library. Pick the model you have in that node's dropdown, run it once to check it works, and export again (below).
+
+## Change a workflow and export it again
+
+1. Edit the graph in ComfyUI: swap a model, change steps, add a LoRA, change the sampler.
+2. Run it once in ComfyUI to confirm it produces what you expect.
+3. Export it in API format: File, then Export (API). The normal Save and Export formats are not the same thing and will not work here. The API format is a flat list of nodes keyed by id.
+4. Save the exported file in this folder, replacing the old `.api.json` or under a new name.
+5. Keep the node ids that the sidecar points at, or update the sidecar to match (next section). If you added or removed nodes, ComfyUI may have renumbered them.
+
+## The sidecar format
+
+For every workflow `name.api.json` there is a `name.slots.json` next to it. The sidecar says what the workflow does and where the app should put each value. Here is the real sidecar for the text-to-image workflow, `z-image-turbo-t2i.slots.json`:
+
+```json
+{
+  "workflow": "z-image-turbo-t2i.api.json",
+  "capability": "text_to_image",
+  "openWeights": true,
+  "outputNode": "9",
+  "slots": {
+    "prompt": { "node": "4", "input": "text" },
+    "width": { "node": "6", "input": "width" },
+    "height": { "node": "6", "input": "height" },
+    "seed": { "node": "8", "input": "seed" }
+  },
+  "limits": {
+    "sizes": [[1024, 1024], [1024, 576], [576, 1024], [896, 1152], [1152, 896], [896, 1120], [1120, 896]],
+    "multipleOf": 32
+  },
+  "notes": "Z-Image Turbo, 8 steps, CFG 1. Model files verified present on Comfy Cloud 2026-10-26."
+}
+```
+
+What each field means:
+
+- `workflow`: the API-format file this sidecar belongs to.
+- `capability`: what the workflow can do for a step. The starter set uses `text_to_image`, `image_edit`, `image_to_video`, `first_last_to_video`, `text_to_video`, and `text_to_speech`.
+- `openWeights`: true when the models are open weights.
+- `outputNode`: the id of the node whose output is the finished image or video.
+- `slots`: the values the app fills in. Each slot names a node id and an input name on that node. Common slots are `prompt`, `width`, `height`, `seed`, and for edits and video the input images (`image`, `image1`, `image2`). Image slots carry `"kind": "image"`; a voice sample for a text-to-speech workflow is a slot with `"kind": "audio"` on a `LoadAudio` node (the voice-clone sidecars call it `voice`, and Qwen3-TTS also takes `refText`, the words in the sample). A slot can also be a list when one value must be written to several nodes; the video workflow does this for `length`, which sets the frame count in two places. Video also has `imageStrength`.
+- `limits`: the sizes the workflow is known to handle, and rules such as `multipleOf`. The edit workflow also records `maxReferences` and the video workflow a frame count rule (8n+1) and the frame rate.
+- `notes`: free text shown with the recipe.
+
+### The rule: node ids must match
+
+Every `node` and `input` in the sidecar must exist in the `.api.json` file, and `outputNode` must be a real node id. When the app loads the catalog it checks each sidecar against its graph, and a sidecar that does not match is skipped with a problem message instead of being offered as a recipe. After any re-export, open the `.api.json`, find the node ids for your prompt, size, seed, input images, and output, and make the sidecar agree.
+
+## Add your own workflow
+
+1. Build or adapt a workflow in ComfyUI and run it once.
+2. Export it with Export (API) and save it here as `my-workflow.api.json`.
+3. Copy one of the existing `.slots.json` files to `my-workflow.slots.json`, set `workflow` and `capability`, and fill `slots` with the node ids from your file. Set `outputNode`.
+4. Restart the app. Workflows that are not part of the starter set load as unverified, and they show that label until you have run them yourself.
+5. In Settings, choose it as the default recipe for its capability, or pick it by hand on a proposal.
+
+Test a new workflow with a single candidate first. Cloud bills by GPU time, so an unfamiliar workflow can cost more than you expect.
+
+## Verification
+
+All three starter workflows ran successfully on Comfy Cloud on 2026-10-26 with the model files listed above, and then ran again inside the full three-beat ad on the same day. Nothing in this folder has been verified on a local ComfyUI or a Comfy API deployment yet.
+
+To run them on your own ComfyUI, add it under Settings, Backends. The app reads its `object_info` and shows, per workflow, the node classes and model files it is missing (for example, a ComfyUI without the LTX nodes lists `LTXVConditioning`, `LTXVPreprocess` and the others for both LTX workflows). Install what is listed, press Check, and the workflow shows as Compatible. The first finished run on that backend marks it Verified there. The model file names must match exactly, so the Cloud names above are the ones to install. Until then, those workflows run on Comfy Cloud, and each proposal says so.
+
+## Not on Cloud yet
+
+Qwen-Image 2.1 (text to image and edit) has native nodes on Comfy Cloud but its weights were not in the Cloud library on October 27, 2026, so no workflow ships for it.

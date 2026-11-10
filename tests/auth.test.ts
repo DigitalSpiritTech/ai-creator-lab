@@ -25,7 +25,7 @@ import {
 import { authorized } from "@/server/demo";
 import { digest, hashPassword, newSetupCode, normalizeSetupCode, verifyPassword } from "@/server/auth/password";
 import { SESSION_COOKIE, createSinglePasswordProvider } from "@/server/auth/provider";
-import { safeNextPath } from "@/lib/domain/auth";
+import { safeNextPath } from "@creator-lab/core/domain/auth";
 
 // Route modules import `server-only`; outside the React server build it would throw on import.
 const empty = pathToFileURL(resolve("node_modules/server-only/empty.js")).href;

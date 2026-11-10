@@ -1,6 +1,33 @@
 # Contributing
 
-Thanks for helping with AI Creator Lab. Read `AGENTS.md` for the working agreements (stack, code conventions, safety rules, definition of done) before you change anything. This page covers branches, pull requests, and releases.
+Thanks for helping with AI Creator Lab. Read `AGENTS.md` for the working agreements (stack, code conventions, safety rules, definition of done) before you change anything. This page covers where code lives, branches, pull requests, and releases.
+
+## Where code lives
+
+The repository is an npm workspace (`npm ci` at the root installs everything). Run every script from the root: it stays the working directory, so `.env.local`, the `.data` folder, the caption font in `assets/`, and the workflows resolve there.
+
+| Package                                         | What lives there                                                                                                                                                                                             | May import             |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| `packages/core` (`@creator-lab/core`)           | Domain contracts (`src/domain/`), the pure catalog types (`src/catalog/`), the spend policy (`src/domain/spend.ts`), and the plugin registry (`src/registry/`). No I/O, no React.                              | nothing else           |
+| `packages/recipes` (`@creator-lab/recipes`)     | The starter recipe catalog (`defaults.ts`), the workflow files and slot sidecars (`workflows/`) and their loader, Router adapters, and the per-model prompt renderers (`prompts*.ts`, `render.ts`).            | core                   |
+| `packages/executors` (`@creator-lab/executors`) | The Router, workflow, and mock executors, the allowance and spend settlement, the Router catalog and Comfy clients, the backend probe, ffmpeg and ffprobe paths, and `childEnv()`. Server only.               | core, recipes          |
+| `packages/ui` (`@creator-lab/ui`)               | The shared shadcn/ui primitives and generic client components (theme provider and toggle).                                                                                                                  | core                   |
+| `packages/content-ugc-ad`                       | The UGC Ad content type as a plugin: the Ad, its 13 steps with their tools, and its five workspace panels (by id).                                                                                            | core, ui               |
+| `apps/creator` (`@creator-lab/app-creator`)     | The Next.js app: routes and pages, app components, the store, the tools layer, generation orchestration (`src/server/generation/run.ts`), the assistant, assembly, media, auth, the MCP server, the installed plugin list (`src/plugins/`), and `scripts/`. | everything above       |
+
+Packages ship TypeScript source with no build step: each `package.json` `exports` points at `.ts` files, Next.js compiles them (`transpilePackages`), and `tsx` runs them in tests and scripts. Import another package by name (`@creator-lab/core/domain/job`, `@creator-lab/executors`); `@/` paths are for the app only. ESLint refuses an import that breaks the direction in the table, and anything a client component imports must stay free of keys, `node:` modules, and the executors.
+
+`tests/` at the root holds the offline tests for every package; `npm test` runs them all.
+
+### Adding a content type
+
+A content type (an Ad, a Social Post) is a plugin package. The shell (the Projects page, the project header, and the workspace tabs) reads content types and panels from the registry, so it needs no change.
+
+1. Create `packages/content-<name>/` with a `package.json` named `@creator-lab/content-<name>` that depends on `@creator-lab/core` (and `@creator-lab/ui` if it ships panels), and `exports` for `.` (the definition) and, if it has its own panels, `./panels`.
+2. In `src/index.ts`, export `definePlugin({ id, label, contentTypes, steps, panels, recipes })` from `@creator-lab/core/registry`. Panel ids are `<plugin id>.<name>`; every step and panel names a registered content type; the content type's `defaultPanel` is one of its own panels. Keep this entry data only, because it reaches the browser.
+3. In `src/panels.tsx` (`"use client"`), export `Record<panelId, ComponentType<PanelProps>>`. A panel gets a `host` (`projectId`, `openPanel`, `refresh`, `notify`, and `callTool` for the roster tools) and imports nothing from the app. Build it from `@creator-lab/ui`.
+4. Add the definition to `INSTALLED_PLUGINS` in `apps/creator/src/plugins/installed.ts`, the panels to `apps/creator/src/plugins/panels.tsx`, and the package to `transpilePackages` in `apps/creator/next.config.ts` and to the app's `dependencies`. Prompt renderers (keyed by `promptStyle`) go in `SERVER_PLUGINS` in `apps/creator/src/plugins/server.ts` so they stay out of the browser.
+5. Add a test like `tests/plugin-shell.test.ts`, then run `npm install` and the checks below.
 
 ## Branches
 

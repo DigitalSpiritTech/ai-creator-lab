@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { describe, test } from "node:test";
-import { AssetSchema } from "@/lib/domain/asset";
-import { createCharacter, setCharacterReference } from "@/lib/domain/library";
+import { AssetSchema } from "@creator-lab/core/domain/asset";
+import { createCharacter, setCharacterReference } from "@creator-lab/core/domain/library";
 import { averyBible } from "./support/domain-fixtures";
 
 const NOW = 1_760_000_000_000;

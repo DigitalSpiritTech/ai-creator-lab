@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { PROMPT_LIMIT, backdropOf, faceLockPrompt, facePrompt, kreaFacePrompt } from "@/server/tools/prompts";
+import { PROMPT_LIMIT, backdropOf, faceLockPrompt, facePrompt, kreaFacePrompt } from "@creator-lab/recipes/prompts";
 import { averyBible } from "./support/domain-fixtures";
 
 const EXPECTED = {

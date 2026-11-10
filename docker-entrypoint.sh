@@ -29,4 +29,5 @@ else
   echo "Starting the studio with the app password (sign in at https://$STUDIO_PUBLIC_HOST/login)."
 fi
 export HOST=0.0.0.0
-exec npx next start --hostname 0.0.0.0 --port "${PORT:-3000}"
+# The Next.js app is apps/creator; the working directory stays the repository root (/app).
+exec npx next start apps/creator --hostname 0.0.0.0 --port "${PORT:-3000}"

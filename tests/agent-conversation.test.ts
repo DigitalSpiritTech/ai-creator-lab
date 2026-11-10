@@ -10,8 +10,8 @@ import {
   ConversationMessageSchema,
   toApiMessages,
   windowMessages,
-} from "@/lib/domain/conversation";
-import { createProject } from "@/lib/domain/project";
+} from "@creator-lab/core/domain/conversation";
+import { createProject } from "@creator-lab/core/domain/project";
 import { DATABASE_FILE, SCHEMA_VERSION, openStore } from "@/server/store";
 import { MIGRATIONS } from "@/server/store/migrations";
 import { conversationsOf } from "@/server/store/conversations";

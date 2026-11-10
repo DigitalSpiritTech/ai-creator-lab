@@ -4,8 +4,8 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { adapterFor, adapterRecipes } from "@/server/catalog/router-adapters";
-import { buildRouterBody } from "@/server/executors/router-body";
+import { adapterFor, adapterRecipes } from "@creator-lab/recipes/router-adapters";
+import { buildRouterBody } from "@creator-lab/executors/router-body";
 
 const png = { base64: "AAAA", mime: "image/png" };
 

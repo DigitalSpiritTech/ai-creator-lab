@@ -7,9 +7,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, test } from "node:test";
-import type { Recipe } from "@/lib/catalog";
-import { toFailure } from "@/lib/domain/failure";
-import { advanceJob, createJob, type GenerationProposal, type Job } from "@/lib/domain/job";
+import type { Recipe } from "@creator-lab/core/catalog";
+import { toFailure } from "@creator-lab/core/domain/failure";
+import { advanceJob, createJob, type GenerationProposal, type Job } from "@creator-lab/core/domain/job";
 import {
   type BudgetPeriod,
   type SpendPolicy,
@@ -20,11 +20,11 @@ import {
   extendBudget,
   periodExtensionUsd,
   spendWarning,
-} from "@/lib/domain/spend";
-import { MOCK_RECIPES } from "@/server/catalog/defaults";
-import { MockExecutor } from "@/server/executors";
-import { PAID_GENERATION_OFF } from "@/server/executors/allowance";
-import { addBudgetExtension, currentSpendPolicy, windowTotals } from "@/server/executors/spend";
+} from "@creator-lab/core/domain/spend";
+import { MOCK_RECIPES } from "@creator-lab/recipes/defaults";
+import { MockExecutor } from "@creator-lab/executors";
+import { PAID_GENERATION_OFF } from "@creator-lab/executors/allowance";
+import { addBudgetExtension, currentSpendPolicy, windowTotals } from "@creator-lab/executors/spend";
 import { AGENT_TOOLS, INTERNAL_TOOLS, TOOLS, callTool } from "@/server/tools";
 import { buildProposal } from "@/server/tools/proposals";
 import type { ToolContext } from "@/server/tools/registry";

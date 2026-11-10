@@ -5,7 +5,7 @@ import { CREATIVE_DIRECTOR_PROMPT, agentTools, loadSnapshot, nextStage, systemPr
 import { AGENT_TOOL_DESCRIPTIONS } from "@/server/agent/tools";
 import { stagePrompt } from "@/server/agent/prompts/creative-director";
 import { AGENT_TOOLS, INTERNAL_TOOLS, TOOLS, type ToolContext, callTool, toolsToJsonSchema } from "@/server/tools";
-import { PROMPT_LIMIT, backdropFor, backdropOf, facePrompt, onlyDescribedObjects, withoutProductName } from "@/server/tools/prompts";
+import { PROMPT_LIMIT, backdropFor, backdropOf, facePrompt, onlyDescribedObjects, withoutProductName } from "@creator-lab/recipes/prompts";
 import { averyBible, clock, seedProject, tempStore } from "./support/domain-fixtures";
 import { fixtureBible, promptCases } from "./support/prompt-cases";
 

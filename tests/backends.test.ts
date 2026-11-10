@@ -26,14 +26,14 @@ import {
   placeRecipe,
   recipeStatusOn,
   runsFreeOn,
-} from "@/lib/catalog";
-import { type GenerationProposal, type Job, createJob } from "@/lib/domain/job";
-import { compareWorkflowRecipes, fetchObjectInfo, objectInfoRequests, probeAndSave, probeBackend } from "@/server/catalog/backend-probe";
-import { availableRecipes } from "@/server/catalog/availability";
-import { addBackend, backendRouting, builtInBackends, listBackends, markVerifiedRun, removeBackend, updateBackend } from "@/server/catalog/backends";
-import { defaultRecipes, recipeAvailability, recipesFor } from "@/server/catalog/defaults";
-import { createExecutors, legacyClient } from "@/server/executors";
-import type { CloudJobHandle, WorkflowClient, WorkflowHandle } from "@/server/executors/workflow";
+} from "@creator-lab/core/catalog";
+import { type GenerationProposal, type Job, createJob } from "@creator-lab/core/domain/job";
+import { compareWorkflowRecipes, fetchObjectInfo, objectInfoRequests, probeBackend } from "@creator-lab/executors/backend-probe";
+import { availableRecipes } from "@creator-lab/executors/availability";
+import { addBackend, backendRouting, builtInBackends, listBackends, markVerifiedRun, probeAndSave, removeBackend, updateBackend } from "@/server/catalog/backends";
+import { defaultRecipes, recipeAvailability, recipesFor } from "@creator-lab/recipes/defaults";
+import { createExecutors, legacyClient } from "@creator-lab/executors";
+import type { CloudJobHandle, WorkflowClient, WorkflowHandle } from "@creator-lab/executors/workflow";
 import { importImage } from "@/server/media/images";
 import { callTool, type ToolContext } from "@/server/tools";
 import { boundForSubmit } from "@/server/tools/proposals";
@@ -41,7 +41,7 @@ import { clock, seedProject, tempStore } from "./support/domain-fixtures";
 
 delete process.env.COMFY_BASE_URL;
 
-const workflowsDir = fileURLToPath(new URL("../workflows/", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows/", import.meta.url));
 const LOCAL_NO_LTX: ObjectInfo = JSON.parse(readFileSync(new URL("./fixtures/comfyui/object_info-local-no-ltx.json", import.meta.url), "utf8"));
 const KEY = "comfy-test-key-backends-91c2";
 const LOCAL_URL = "http://127.0.0.1:8189";

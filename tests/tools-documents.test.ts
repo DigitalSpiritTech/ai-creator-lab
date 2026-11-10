@@ -10,17 +10,17 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, test } from "node:test";
-import type { DocumentVersion } from "@/lib/domain/document";
-import type { GenerationProposal } from "@/lib/domain/job";
-import { createCharacter, createProduct } from "@/lib/domain/library";
-import { createProject, saveBrief } from "@/lib/domain/project";
+import type { DocumentVersion } from "@creator-lab/core/domain/document";
+import type { GenerationProposal } from "@creator-lab/core/domain/job";
+import { createCharacter, createProduct } from "@creator-lab/core/domain/library";
+import { createProject, saveBrief } from "@creator-lab/core/domain/project";
 import { loadSnapshot, renderSnapshot } from "@/server/agent/state";
 import { DATABASE_FILE, openStore } from "@/server/store";
 import { MIGRATIONS } from "@/server/store/migrations";
 import { type ToolContext, callTool, createGenerationContext } from "@/server/tools";
 import { averyBible, clock, generateAssets, ridgelineBeats, ridgelineProduct, seedProject, tempDir, tempStore } from "./support/domain-fixtures";
 
-const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   while (cleanups.length) cleanups.pop()!();

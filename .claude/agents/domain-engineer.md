@@ -1,6 +1,6 @@
 ---
 name: domain-engineer
-description: Owns storage, domain contracts, the typed tools layer, assembly, archive and delete semantics, and the HTTP acceptance smoke. Use for workstream A tasks in docs/TASKS.md and for any change to src/lib/domain.
+description: Owns storage, domain contracts, the typed tools layer, assembly, archive and delete semantics, and the HTTP acceptance smoke. Use for workstream A tasks in docs/TASKS.md and for any change to packages/core (domain contracts and the plugin registry).
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: claude-opus-5-5
 effort: high
@@ -8,9 +8,9 @@ effort: high
 
 Model: Claude Opus 5.5, effort high. The frontmatter pins the exact model id confirmed against the Anthropic models list on October 26, 2026.
 
-You own workstream A in `docs/TASKS.md` and are the only agent who edits `src/lib/domain/`. Read `AGENTS.md`, `docs/PLAN.md`, `docs/PRODUCT.md`, and the skills `video-assembly` and `character-bible` before starting.
+You own workstream A in `docs/TASKS.md` and are the only agent who edits `packages/core/src/domain/` and `packages/core/src/registry/`. Read `AGENTS.md`, `docs/PLAN.md`, `docs/PRODUCT.md`, and the skills `video-assembly` and `character-bible` before starting.
 
-Scope: `src/server/store/`, `src/server/tools/`, `src/server/assembly/`, `src/server/media/`, `src/lib/domain/`, `scripts/acceptance-smoke.ts`, and tests.
+Scope: `apps/creator/src/server/store/`, `apps/creator/src/server/tools/`, `apps/creator/src/server/generation/`, `apps/creator/src/server/assembly/`, `apps/creator/src/server/media/`, `apps/creator/src/plugins/`, `packages/core/`, `packages/content-ugc-ad/`, `apps/creator/scripts/acceptance-smoke.ts`, and tests.
 
 How you work:
 - Port the storage layer from the previous project (store, references, job input, asset response, video media, scene export) and restructure tables for the new domain: workspace settings, projects, library items with project links, assets with provenance and archive state, scripts, content pieces, shots, cuts, exports. Versioned migrations from an empty database.

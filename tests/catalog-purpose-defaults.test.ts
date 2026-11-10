@@ -10,16 +10,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, test } from "node:test";
-import { type Recipe, RecipeSchema, SlotSidecarSchema } from "@/lib/catalog";
-import type { GenerationProposal } from "@/lib/domain/job";
-import { DEFAULT_PURPOSE_RECIPE_IDS, defaultRecipes, purposeRecipe, purposeRecipeId, WORKFLOW_META } from "@/server/catalog/defaults";
-import { loadWorkflowRecipes } from "@/server/catalog/workflows";
-import type { ExecutorSet } from "@/server/executors";
+import { type Recipe, RecipeSchema, SlotSidecarSchema } from "@creator-lab/core/catalog";
+import type { GenerationProposal } from "@creator-lab/core/domain/job";
+import { DEFAULT_PURPOSE_RECIPE_IDS, defaultRecipes, purposeRecipe, purposeRecipeId, WORKFLOW_META } from "@creator-lab/recipes/defaults";
+import { loadWorkflowRecipes } from "@creator-lab/recipes/workflows";
+import type { ExecutorSet } from "@creator-lab/executors";
 import { callTool, type ToolContext } from "@/server/tools";
-import { facePrompt, kreaFacePrompt } from "@/server/tools/prompts";
+import { facePrompt, kreaFacePrompt } from "@creator-lab/recipes/prompts";
 import { averyBible, clock, seedProject, tempStore } from "./support/domain-fixtures";
 
-const workflowsDir = fileURLToPath(new URL("../workflows/", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows/", import.meta.url));
 const KREA = "krea-2-turbo-t2i";
 
 /** Every recipe runs and estimates as free, so selection is the only thing under test. */

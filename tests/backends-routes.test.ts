@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
-import type { RecipeBackendStatus } from "@/lib/catalog";
+import type { RecipeBackendStatus } from "@creator-lab/core/catalog";
 
 const empty = pathToFileURL(resolve("node_modules/server-only/empty.js")).href;
 registerHooks({

@@ -17,11 +17,11 @@ import {
   SlotSidecarSchema,
   snapLength,
   WorkflowGraphSchema,
-} from "@/lib/catalog";
-import { defaultRecipes, DEFAULT_RECIPE_IDS, recipesFor } from "@/server/catalog/defaults";
-import { loadWorkflowRecipes } from "@/server/catalog/workflows";
+} from "@creator-lab/core/catalog";
+import { defaultRecipes, DEFAULT_RECIPE_IDS, recipesFor } from "@creator-lab/recipes/defaults";
+import { loadWorkflowRecipes } from "@creator-lab/recipes/workflows";
 
-const workflowsDir = fileURLToPath(new URL("../workflows", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));
 const read = (name: string) => JSON.parse(readFileSync(join(workflowsDir, name), "utf8"));
 const NAMES = [
   "z-image-turbo-t2i",

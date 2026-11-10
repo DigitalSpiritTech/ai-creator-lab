@@ -5,7 +5,7 @@ description: Build a reusable AI creator character: the bible schema, elicitatio
 
 # Character bible and references
 
-## Bible schema (`src/lib/domain/character.ts`)
+## Bible schema (`packages/core/src/domain/library.ts`)
 
 `name`, `ageRange`, `look` (face, hair, skin, eyes, distinguishing details), `build`, `wardrobeDefaults` (two or three outfits), `voice` (how they talk, pace, phrases they use and avoid), `vibe` (three adjectives), `backstory` (two sentences), `boundaries` (what the character never does or says), `visualCore` (one dense sentence, under 60 words, used verbatim at the start of every image prompt), `references` (`faceAssetId`, `bodyAssetId`, optional wardrobe asset ids), `version`.
 

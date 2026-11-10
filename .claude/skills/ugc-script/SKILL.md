@@ -17,7 +17,7 @@ Beat order for the default template: hook, problem or context, product reveal, p
 - `broll`: no face required. Hands using the product, product close-up, product in the setting, a result shot. Spoken line optional (voice over is not available in the MVP, so b-roll audio is ambient).
 - `textcard`: on-screen text over a simple still or the last frame of the previous clip. Used for the CTA or a single claim.
 
-## Fields per beat (schema in `src/lib/domain/script.ts`)
+## Fields per beat (schema in `packages/core/src/domain/script.ts`)
 
 `index`, `type`, `purpose` (hook, problem, reveal, proof, cta), `spokenLine`, `onScreenText` (at most two lines of six words), `visual` (one sentence a still model can render), `setting` (library set id or short description), `productVisible` boolean, `durationSeconds` (default 5), `notes`.
 
