@@ -103,7 +103,9 @@ export function stitchFilter(request: Omit<StitchRequest, "out">): { graph: stri
   const parts: string[] = [];
   segments.forEach((segment, index) => {
     parts.push(
-      `[${index}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p,settb=AVTB,setpts=PTS-STARTPTS[v${index}]`,
+      // The time base and start go first, then the frame rate: with fps before settb, FFmpeg 6.0 (the
+      // bundled build) ends xfade's output when its first input ends.
+      `[${index}:v]settb=AVTB,setpts=PTS-STARTPTS,fps=${fps},scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p[v${index}]`,
     );
   });
   let video = "v0";
