@@ -4,7 +4,7 @@ AI Creator Lab is licensed under the MIT License (see `LICENSE`). It includes or
 
 ## shadcn/ui
 
-The components in `src/components/ui/` are adapted from shadcn/ui (https://ui.shadcn.com), which is licensed under the MIT License. Copyright (c) 2023 shadcn. They build on Radix UI primitives (the `radix-ui` package, MIT), `class-variance-authority` (Apache-2.0), and Tailwind CSS (MIT). The adapted files carry local changes and documentation.
+The components in `packages/ui/src/` are adapted from shadcn/ui (https://ui.shadcn.com), which is licensed under the MIT License. Copyright (c) 2023 shadcn. They build on Radix UI primitives (the `radix-ui` package, MIT), `class-variance-authority` (Apache-2.0), and Tailwind CSS (MIT). The adapted files carry local changes and documentation.
 
 ## DejaVu fonts
 

@@ -18,7 +18,7 @@ Scope: LTX 2.5 distilled open weights on Comfy (`ltx-2.5-i2v`, `ltx-2.5-flf2v`) 
 
 ## Prompt structure: prompt the change, not the picture
 
-The start image already carries the person, wardrobe, product, set, and light. Re-describing them makes the model render the traits twice. `clipPrompt` in `src/server/tools/prompts.ts` writes one flowing present-tense paragraph, 4 to 8 sentences and at most 110 words:
+The start image already carries the person, wardrobe, product, set, and light. Re-describing them makes the model render the traits twice. `clipPrompt` in `packages/recipes/src/prompts.ts` writes one flowing present-tense paragraph, 4 to 8 sentences and at most 110 words:
 
 1. `Use the provided start image as the first frame.`
 2. One action, referring to the person only as `the person in the start image` (then a pronoun). For talking beats, give the delivery cue and then the quoted line, at most 2.5 words per second (12 words for 5 s). Write pauses in ("a small nod follows the last word") so the clip has no dead air.

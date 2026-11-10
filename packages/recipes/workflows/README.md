@@ -1,5 +1,7 @@
 # Starter workflows
 
+This folder is `packages/recipes/workflows/` in the repository (it was `workflows/` at the root before the repository became an npm workspace).
+
 These are API-format ComfyUI workflows, each with a small sidecar file that tells AI Creator Lab which node inputs to fill. All of them use open weights hosted on Comfy Cloud, and each was run there on the date shown. Most were built from the official ComfyUI workflow templates (converted to API format against Cloud's node definitions, with prompt enhancers and style LoRAs switched off and the sizes, lengths and seeds exposed as slots).The dates and costs come from `docs/VERIFICATION.md`.
 
 | Workflow | Capability | Needs on Cloud | Verified |

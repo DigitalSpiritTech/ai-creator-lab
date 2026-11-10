@@ -5,7 +5,7 @@ description: Write MiniMax H3 video-with-sound prompts from a structured shot sp
 
 # MiniMax H3 prompting
 
-Prompts are rendered per model from a shot spec, never copied from an LTX prompt. The renderer is `src/server/tools/prompts-minimax-h3.ts`; tests with full snapshots are in `tests/prompts-minimax-h3.test.ts`.
+Prompts are rendered per model from a shot spec, never copied from an LTX prompt. The renderer is `packages/recipes/src/prompts-minimax-h3.ts`; tests with full snapshots are in `tests/prompts-minimax-h3.test.ts`.
 
 | Renderer | Workflow | Mode |
 | --- | --- | --- |
@@ -66,7 +66,7 @@ When `<Picture 1>` is the first frame, it carries the person, wardrobe, product,
 
 ## Known and still to measure
 
-Known: i2v, flf2v, and t2v with sound ran on Comfy Cloud on 2026-10-27 at 736 x 1312, 124 frames, about 21 to 23 credits each (see `workflows/README.md`). The prompt structure above comes from MiniMax's guides. The renderers are tested offline only.
+Known: i2v, flf2v, and t2v with sound ran on Comfy Cloud on 2026-10-27 at 736 x 1312, 124 frames, about 21 to 23 credits each (see `packages/recipes/workflows/README.md`). The prompt structure above comes from MiniMax's guides. The renderers are tested offline only.
 
 To measure in the spike (log each run in `docs/VERIFICATION.md`):
 

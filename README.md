@@ -155,7 +155,7 @@ Everything lives in one folder: `.data` inside the project folder by default, or
 
 ## Starter workflows and adding your own
 
-Twenty-three open-weights workflows ship in `workflows/` (Z-Image, Qwen-Image 2512, FLUX.2 dev, Krea 2 Turbo and MiniMax H3 for stills; Qwen Image Edit 2511 and FLUX.2 dev with one to three references and the Krea 2 style reference for edits; LTX 2.5, Wan 2.2 and MiniMax H3 for text, image and first-and-last-frame video; Chatterbox Turbo and Qwen3-TTS for voice-overs cloned from a voice sample; Wan 2.2 S2V for clips lip-synced to a take), each with a small sidecar file that tells the app which node inputs to fill (prompt, images, a voice sample, size, length, seed). To see what they need on Comfy Cloud, how to open one in ComfyUI, and how to add your own, read [workflows/README.md](workflows/README.md).
+Twenty-three open-weights workflows ship in `packages/recipes/workflows/` (Z-Image, Qwen-Image 2512, FLUX.2 dev, Krea 2 Turbo and MiniMax H3 for stills; Qwen Image Edit 2511 and FLUX.2 dev with one to three references and the Krea 2 style reference for edits; LTX 2.5, Wan 2.2 and MiniMax H3 for text, image and first-and-last-frame video; Chatterbox Turbo and Qwen3-TTS for voice-overs cloned from a voice sample; Wan 2.2 S2V for clips lip-synced to a take), each with a small sidecar file that tells the app which node inputs to fill (prompt, images, a voice sample, size, length, seed). To see what they need on Comfy Cloud, how to open one in ComfyUI, and how to add your own, read [workflows/README.md](workflows/README.md).
 
 ## Troubleshooting
 
@@ -181,7 +181,7 @@ Stack: Next.js 16 App Router, React 19, TypeScript, Tailwind 4 with shadcn/ui, Z
 
 Scripts (all in `package.json`):
 
-- `npm run dev` starts the dev server on 127.0.0.1 (or on `HOST`, with the app password; `npm start` the same). Both go through `scripts/serve.mjs`, which passes `HOST` to Next.js as `--hostname`.
+- `npm run dev` starts the dev server on 127.0.0.1 (or on `HOST`, with the app password; `npm start` the same). Both go through `apps/creator/scripts/serve.mjs`, which runs Next.js on the app folder from the repository root and passes `HOST` to it as `--hostname`.
 - `npm run build`, `npm start` build and serve.
 - `npm run lint`, `npm run typecheck`, `npm test` are the checks. `npm run test:acceptance` runs the whole flow against the mock executor with no credits.
 - `npm run --silent mcp` starts the MCP server on stdio (see below).
@@ -190,24 +190,28 @@ Scripts (all in `package.json`):
 
 Where things live:
 
-- `src/app/` pages (Projects, Assets, Library, Archive, Settings) and the HTTP routes under `src/app/api/`.
-- `src/components/` the UI.
-- `src/server/` storage (`store`), executors (Router, Workflow, mock), the recipe catalog, the typed tool set (`tools`), the assistant (`agent`), and ffmpeg assembly (`assembly`).
-- `src/lib/` shared schemas and domain types.
-- `workflows/` starter workflows and sidecars. `assets/fonts/` the caption font.
-- `tests/` offline tests with fixtures. `scripts/` the acceptance smoke and the real-provider checks.
+The repository is an npm workspace. Run every script from the repository root (it stays the working directory, so `.env.local`, the `.data` folder, and the workflows resolve there).
+
+- `apps/creator/` the Next.js app: pages (Projects, Assets, Library, Archive, Settings) in `src/app/`, the HTTP routes under `src/app/api/`, the UI in `src/components/`, and in `src/server/` storage (`store`), the typed tool set (`tools`), the assistant (`agent`), ffmpeg assembly (`assembly`), media, auth, and the MCP server. `src/plugins/` lists the installed plugins. `scripts/` holds the acceptance smoke, the MCP entry, and the real-provider checks.
+- `packages/core/` domain contracts and Zod schemas, the pure catalog types, the spend policy, and the plugin registry.
+- `packages/recipes/` the starter recipe catalog, `workflows/` (starter workflows and sidecars), Router adapters, and the per-model prompt renderers.
+- `packages/executors/` the Router, workflow, and mock executors, the allowance and spend settlement, the Router and Comfy clients, and the backend probe.
+- `packages/ui/` the shared shadcn/ui primitives.
+- `packages/content-ugc-ad/` the UGC Ad content type (its steps and workspace panels) as a plugin.
+- `assets/fonts/` the caption font.
+- `tests/` offline tests with fixtures for every package.
 - `docs/` the product description (`PRODUCT.md`), the plan (`PLAN.md`), the task board (`TASKS.md`), the log of every real run (`VERIFICATION.md`), the demo script (`DEMO.md`), and post drafts (`POSTS.md`).
 
 ### MCP server (Claude Code, Claude Desktop, other MCP clients)
 
-`npm run --silent mcp` (or `node --import tsx scripts/mcp.ts`) starts an MCP server on stdio over the same tools the in-app assistant uses. It opens the data folder in `STUDIO_DATA_DIR` (default `.data` in the repo). Keys come from `.env.local`, which the server loads when present, or from the secrets file that Settings writes in the data folder. Run it from the repo folder. Use `--silent` with `npm run`, because npm's own banner on stdout would break the protocol.
+`npm run --silent mcp` (or `node --import tsx apps/creator/scripts/mcp.ts`) starts an MCP server on stdio over the same tools the in-app assistant uses. It opens the data folder in `STUDIO_DATA_DIR` (default `.data` in the repo). Keys come from `.env.local`, which the server loads when present, or from the secrets file that Settings writes in the data folder. Run it from the repo folder. Use `--silent` with `npm run`, because npm's own banner on stdout would break the protocol.
 
 Every tool is offered under its own name. Generating is split the same way as in the app: tools such as `propose_candidates` and `compose_still` return a proposal, and only `approve_and_generate` spends credits. That tool, and `delete_asset_everywhere`, are offered only when you start the server with `MCP_ALLOW_SPEND=1` or `MCP_ALLOW_DELETE=1`, because an MCP client has no proposal card to click; with spending allowed it is still held to the same monthly budget, capped by `GENERATION_ALLOWANCE_USD` (zero blocks every paid run), and it cannot add to a month; only a click in the app does that. Two resources let a client look at the work: `project://{id}/state` (the whole project as JSON) and `asset://{id}` (a candidate's file).
 
 Claude Code, from the repo folder:
 
 ```sh
-claude mcp add ai-creator-lab -- node --import tsx scripts/mcp.ts
+claude mcp add ai-creator-lab -- node --import tsx apps/creator/scripts/mcp.ts
 ```
 
 Claude Desktop, in `claude_desktop_config.json`. Desktop does not start in the repo folder, so `npm --prefix` runs the script from there:

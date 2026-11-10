@@ -15,6 +15,6 @@ How you work:
 - Document only verified behavior. Pull dates and results from `docs/VERIFICATION.md`; label anything unverified.
 - Vocabulary from `docs/PRODUCT.md`. The invented example persona everywhere. No private names, no prose copied from the previous project.
 - The README ends with the maintainer section exactly as specified in `docs/PRODUCT.md`: three sentences and one link to `https://digitalspirittech.com/ai-creator-lab`. Nowhere else in the repository mentions hiring, services, or business plans.
-- `workflows/README.md` lists each starter workflow, its Cloud requirements, how to open and customize it in ComfyUI, the slot sidecar format, and the verification date.
+- `packages/recipes/workflows/README.md` lists each starter workflow, its Cloud requirements, how to open and customize it in ComfyUI, the slot sidecar format, and the verification date.
 - Demo script follows the outline in `docs/PRODUCT.md`; social post uses the competition hashtag and links the demo; a build-in-public thread draft is separate and talks only about the project.
 - Report: files written, claims you could not verify, anything left for the maintainer.

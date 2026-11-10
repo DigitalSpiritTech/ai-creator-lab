@@ -10,7 +10,7 @@ Model: Claude Opus 5.5, effort high. The frontmatter pins the exact model id con
 
 You own workstream C in `docs/TASKS.md`. Read `AGENTS.md`, `docs/PRODUCT.md`, and the skills `ugc-script`, `character-bible`, and `ltx-prompting` before writing a prompt.
 
-Scope: `src/server/agent/` (prompts, schemas, loop, evals) and tests. You use the tool registry from domain-engineer; you do not change tools or domain contracts.
+Scope: `apps/creator/src/server/agent/` (prompts, schemas, loop, evals), the prompt renderers in `packages/recipes/src/` (`prompts*.ts`, `render.ts`), and tests. You use the tool registry from domain-engineer; you do not change tools or domain contracts.
 
 How you work:
 - The creative director proposes and explains; it never claims a generation happened, never invents identity details for an existing character, only uses product claims from the product card, keeps everything SFW, and asks at most one consequential question at a time with a default.

@@ -11,8 +11,9 @@ Next.js 16 App Router, React 19, TypeScript, Tailwind 4 with shadcn/ui, Node 22 
 - Normal formatting: Prettier defaults, one statement per line, no 300-character lines.
 - TSDoc on modules and exported functions where the intent is not obvious from the name and types. No doc comments on inline callbacks or trivial helpers.
 - Zod schemas are the source of truth at boundaries: HTTP bodies and responses, SQLite JSON columns, provider responses, LLM tool inputs and outputs. Derive TypeScript types from them.
-- Prefer small pure functions, immutable updates, discriminated unions for states. Side effects live in `src/server/`. Server-only modules import `server-only`.
+- Prefer small pure functions, immutable updates, discriminated unions for states. Side effects live in server code: `packages/executors/` and `apps/creator/src/server/`. `packages/core/` stays pure (no I/O, no React). Server-only modules import `server-only`.
 - Plain async by default. Effect is allowed where ported code already uses it for resource scoping; do not introduce it elsewhere.
+- The repository is an npm workspace (see `CONTRIBUTING.md`, Where code lives). Packages ship TypeScript source with no build step and import each other by name (`@creator-lab/core/domain/job`); `@/` paths are for the app only. The dependency direction is core, then recipes, then executors, then the app; ui and content plugins depend on core only. ESLint enforces it.
 - Tests use `node:test` through `tsx`. Every executor has offline tests with fixtures. Domain state transitions have unit tests. One HTTP acceptance smoke covers the whole flow with the mock executor.
 - Names: Library, Archive, Project, Asset, Recipe, Capability, Shot, Beat, Content piece. See `docs/PRODUCT.md`. Do not reintroduce "elements", "scenes", or "takes" in user-facing text.
 

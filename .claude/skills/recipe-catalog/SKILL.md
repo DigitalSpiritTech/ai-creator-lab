@@ -11,21 +11,21 @@ description: Define capabilities, recipes, slot sidecars, and starter workflows 
 
 A step in the creative flow asks for a capability and a set of semantic inputs. The catalog returns recipes that satisfy it. The user or the default setting picks one.
 
-## Recipe schema (Zod in `src/lib/catalog/`)
+## Recipe schema (Zod in `packages/core/src/catalog/`)
 
 Common: `id`, `title`, `capability`, `kind` (`router` | `workflow` | `mock`), `openWeights` boolean, `verified` (date or null), `costHint` text, `limits` (aspect ratios, sizes, max references, duration), `defaults`.
 
 Router recipe adds `provider`, `model`, `fieldMap` (semantic field to schema path), and caches the fetched input schema.
 
-Workflow recipe adds `file` (path under `workflows/`), `target` hint, and the slot map from the sidecar.
+Workflow recipe adds `file` (path under `packages/recipes/workflows/`), `target` hint, and the slot map from the sidecar.
 
 ## Prompt styles and shot specs
 
-Steps never write a model's prompt. Each generation tool writes a shot spec (`src/lib/domain/shot-spec.ts`: face, body, sheet, product photo, still, refine, clip, speech, or free), and `renderPrompt` in `src/server/tools/render.ts` renders it in the recipe's prompt style: `standard` (Z-Image, Qwen Image Edit, FLUX.2, the LTX clip paragraph, every model without its own style), `krea`, `gemini-image` (Nano Banana), `gpt-image`, `minimax-h3`. A recipe may set `promptStyle`; otherwise `inferPromptStyle` reads the Router model id or the workflow id. A new model family gets a style plus renderers for the spec kinds it reads differently; everything else falls back to `standard`. Snapshots live in `tests/prompts-renderers.test.ts`.
+Steps never write a model's prompt. Each generation tool writes a shot spec (`packages/core/src/domain/shot-spec.ts`: face, body, sheet, product photo, still, refine, clip, speech, or free), and `renderPrompt` in `packages/recipes/src/render.ts` renders it (with the renderer table from the plugin registry) in the recipe's prompt style: `standard` (Z-Image, Qwen Image Edit, FLUX.2, the LTX clip paragraph, every model without its own style), `krea`, `gemini-image` (Nano Banana), `gpt-image`, `minimax-h3`. A recipe may set `promptStyle`; otherwise `inferPromptStyle` reads the Router model id or the workflow id. A new model family gets a style plus renderers for the spec kinds it reads differently; everything else falls back to `standard`. Snapshots live in `tests/prompts-renderers.test.ts`.
 
-Which recipe runs: the per-run choice, then the project preference (`set_recipe_preference`), then the Settings default, then the purpose and starter defaults. What the proposal card offers comes from `src/server/catalog/availability.ts`, the one place that decides what is available on the configured backends.
+Which recipe runs: the per-run choice, then the project preference (`set_recipe_preference`), then the Settings default, then the purpose and starter defaults. What the proposal card offers comes from `packages/executors/src/availability.ts`, the one place that decides what is available on the configured backends.
 
-## Slot sidecar format (`workflows/<name>.slots.json`)
+## Slot sidecar format (`packages/recipes/workflows/<name>.slots.json`)
 
 ```json
 {
@@ -48,7 +48,7 @@ Node ids and input names must match the API-format file. `workflow-discovery.ts`
 
 ## Starter workflows (build from Comfy Cloud templates, verify in the spike)
 
-`ltx-2.5-i2v-cloud`, `ltx-2.5-flf2v-cloud` (stretch), one multi-reference image edit (Qwen Image Edit on Cloud is the first candidate), one text-to-image (Z-Image Turbo or Qwen Image on Cloud). Each ships with a sidecar and a line in `workflows/README.md` stating what it needs and when it was verified.
+`ltx-2.5-i2v-cloud`, `ltx-2.5-flf2v-cloud` (stretch), one multi-reference image edit (Qwen Image Edit on Cloud is the first candidate), one text-to-image (Z-Image Turbo or Qwen Image on Cloud). Each ships with a sidecar and a line in `packages/recipes/workflows/README.md` stating what it needs and when it was verified.
 
 ## Starter Router recipes
 

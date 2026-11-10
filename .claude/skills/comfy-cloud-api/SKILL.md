@@ -32,7 +32,7 @@ description: Run ComfyUI workflows on Comfy Cloud, a Comfy API deployment, or a 
 6. On ambiguous submit failure (timeout after the request left the process), mark `uncertain` and resolve by `jobs.get` before any resubmission. Never resubmit a paid job automatically.
 7. Record real runs in `docs/VERIFICATION.md`, with the credit balance before and after. Read the balance from the v1 Cloud API (`GET https://cloud.comfy.org/api/user` with `X-API-Key`, or the billing endpoints the previous project's `router-billing.ts` used) and compute the delta; Cloud jobs do not always report credits per job. Keep a running total against the cap in the same file.
 
-## Procedure: the spike (`scripts/spike/`)
+## Procedure: the spike (`apps/creator/scripts/spike/`)
 
 Write small `tsx` scripts, one per check, that take paths and a prompt from the command line, run against the real target, save outputs under `.data/spike/`, print timings and any credits information, and exit non-zero on verification failure. Checks: LTX 2.5 image-to-video (vertical input), a multi-reference image edit (two references plus a product image), a text-to-image. Use the invented example persona. Fill the spike rows in `docs/VERIFICATION.md`.
 
