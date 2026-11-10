@@ -1,8 +1,9 @@
 /**
  * Output verification and atomic commits: temp file, decode check, rename, SHA-256.
  * ffprobe and ffmpeg come from FFPROBE_PATH or FFMPEG_PATH, else the binaries bundled with the
- * install (`ffmpeg-static` and `@derhuerst/ffprobe-static`, built with drawtext), else Homebrew's
- * ffmpeg-full, else PATH.
+ * install (`ffmpeg-static` and `@derhuerst/ffprobe-static`), else Homebrew's ffmpeg-full, else PATH.
+ * `ffmpeg-static` is pinned to 5.2.0 (FFmpeg 6.0, release b6.0): its builds have drawtext on every
+ * platform, where 5.3.0's Linux build (FFmpeg 7.0.2 without libharfbuzz) has none.
  * @packageDocumentation
  */
 import { execFile } from "node:child_process";
