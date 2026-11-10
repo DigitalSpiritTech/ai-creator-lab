@@ -2,11 +2,13 @@
 
 AI Creator Lab is an open-source studio for creators who make short vertical content around a single product. It runs on your own computer or server and generates on your own Comfy account (Comfy Cloud, Comfy API, or Comfy Router), so there is no middleman and no per-seat platform fee. A built-in assistant walks you from "here is what I'm selling" to a locked AI creator character, a script, the shots, and a finished 1080 x 1920 ad. Everything you approve is kept in a Library you can reuse in the next piece of content.
 
-It is early software. One user, one machine, one content type (Ad). The first full ad was produced on real credits on October 26, 2026; see `docs/VERIFICATION.md` for exactly what has and has not been tested on a real account, and `docs/TESTING.md` for the start-to-finish manual test (open weights and premium models, from a brief and from your own photos).
+**New here? [docs/QUICKSTART.md](docs/QUICKSTART.md) goes from a fresh computer to a finished Quick Ad in a few steps.** Demo: see [docs/DEMO.md](docs/DEMO.md) (the video link goes there once it is recorded). Gallery: the Gallery page in the app, from [`examples/`](examples/README.md).
+
+It is early software. One user, one machine, two content types (Ad and Social post). The first full ad was produced on real credits on October 26, 2026; see `docs/VERIFICATION.md` for exactly what has and has not been tested on a real account, and `docs/TESTING.md` for the start-to-finish manual test (open weights and premium models, from a brief and from your own photos).
 
 ## What you need
 
-Two accounts and three pieces of software. Everything else comes down with `npm ci`.
+Two accounts and two pieces of software. Everything else, ffmpeg included, comes down with `npm ci`.
 
 ### Accounts
 
@@ -20,22 +22,14 @@ Two accounts and three pieces of software. Everything else comes down with `npm 
 | Dependency | Version | Why | Install |
 | --- | --- | --- | --- |
 | Node.js and npm | Node 22.13 or newer (24 is fine) | Runs the app; the database uses Node's built-in `node:sqlite` | https://nodejs.org, or `brew install node`, or `winget install OpenJS.NodeJS.LTS` |
-| ffmpeg and ffprobe | 4.4 or newer, built with `drawtext` (libfreetype) | Checks every generated clip, lifts voice samples, levels and mixes audio, and assembles the export; `drawtext` burns in the captions | macOS: `brew install ffmpeg-full` (the plain `ffmpeg` formula is a lean build without `drawtext`; the app finds `ffmpeg-full` on its own). Debian and Ubuntu: `sudo apt install ffmpeg`. Windows: `winget install Gyan.FFmpeg`, which puts the full build on PATH. |
+| ffmpeg and ffprobe | bundled (6.0 or newer, with `drawtext`) | Checks every generated clip, lifts voice samples, levels and mixes audio, and assembles the export; `drawtext` burns in the captions | Nothing to install: `npm ci` downloads static builds for macOS (Apple silicon and Intel), Linux (x64 and ARM), and Windows x64 through `ffmpeg-static` and `@derhuerst/ffprobe-static`. To use your own, set `FFMPEG_PATH` and `FFPROBE_PATH` (below). |
 | git | any | Cloning and updating | https://git-scm.com, or `brew install git` |
 
-The image library (`sharp`) and everything else in `package.json` install with `npm ci` as prebuilt packages on macOS, Linux and Windows, Intel and ARM; no compiler is needed. The caption font (DejaVu Sans Bold) is bundled in `assets/fonts/`.
+The image library (`sharp`), the ffmpeg and ffprobe binaries, and everything else in `package.json` install with `npm ci` as prebuilt packages on macOS, Linux and Windows, Intel and ARM; no compiler is needed. The caption font (DejaVu Sans Bold) is bundled in `assets/fonts/`.
 
-To check the software before you start:
+To check before you start, `node --version` should print v22.13.0 or higher. After `npm ci`, `node_modules/ffmpeg-static/ffmpeg -hide_banner -filters | grep drawtext` prints one line naming `drawtext`, the filter that burns in captions.
 
-```
-node --version
-ffmpeg -version
-ffmpeg -hide_banner -filters | grep drawtext
-```
-
-The first should print v22.13.0 or higher. The last should print one line naming `drawtext`; if it prints nothing, your ffmpeg lacks captions (see Troubleshooting). On macOS with `ffmpeg-full` installed, test that build instead: `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg -hide_banner -filters | grep drawtext`.
-
-If ffmpeg is installed somewhere the app cannot see, or you have several, set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local` to the pair you want. Settings shows the ffmpeg and ffprobe the app is using and whether captions are available, so you can confirm from the browser.
+Which ffmpeg runs, first match wins: `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local`, then the bundled pair (each checked against the SHA-256 recorded for its release before it first runs; see SECURITY.md), then Homebrew's `ffmpeg-full` (if the bundled download was skipped, for example with `npm ci --ignore-scripts`), then whatever is on PATH. Settings shows the ffmpeg and ffprobe the app is using and whether captions are available, so you can confirm from the browser.
 
 ## Install
 
@@ -43,11 +37,10 @@ If ffmpeg is installed somewhere the app cannot see, or you have several, set `F
 git clone <the address of this repository>
 cd ai-creator-lab
 npm ci
-npm run build
-npm start
+npx ai-creator-lab
 ```
 
-Those are the clone, the move into the folder, the dependency install, the build, and the start. Then open http://127.0.0.1:3000 in your browser. By default the app only listens on your own machine (127.0.0.1), only answers requests addressed to localhost or 127.0.0.1, and asks for no password. To use it from another computer, see the next section.
+Those are the clone, the move into the folder, the dependency install, and the start. `npx ai-creator-lab` checks your Node version, reads `.env.local` like `npm start` does, prepares the data folder (and says which one and why), builds the app the first time (and again after `git pull` brings new code), and serves it on http://127.0.0.1:3000 (the next free port if 3000 is taken). Open that address in your browser. Options: `--open`, `--port 4000`, `--data <folder>`, `--rebuild`, `--no-build`. `npm run build` then `npm start` does the same by hand, and is the way to use `HOST` (next section). By default the app only listens on your own machine (127.0.0.1), only answers requests addressed to localhost or 127.0.0.1, and asks for no password. To use it from another computer, see the next section.
 
 ### On a network, with a password
 
@@ -124,6 +117,10 @@ Each step decides what the shot should show once (the beat, your character, the 
 
 Which model a step uses, first match wins: the one you pick for this run, this project's choice, the default in Settings, then the app's starter default. A project's choice never changes other projects.
 
+## A Quick Ad
+
+For an ad in a few minutes, press Quick Ad on Projects (or ask the assistant for one). Write two lines: what you're selling, and who it's for. The studio saves the brief and a one-beat talking script, then asks for three approvals: one frame, one four-second talking clip, and the export, each on the Quick Ad tab. Every generation still shows its card in the chat and waits for Approve and generate. With a Library character (locked face) and a product with a photo linked to the project, the frame is composed from them; otherwise it is made from your two lines. On Comfy Router the whole Quick Ad reserves under 1 USD from the catalog's price ceilings (about 0.79 USD composed, 0.89 USD from text). [docs/QUICKSTART.md](docs/QUICKSTART.md) walks through it from a fresh install.
+
 ## A social post
 
 Not every piece needs video. On Projects, create a project from Social Post instead of UGC Creator. A social post is a set of stills plus its copy, in up to four aspect ratios: 1:1 (square), 4:5 (feed portrait), 9:16 (story or reel cover), and 16:9 (wide).
@@ -136,9 +133,11 @@ Not every piece needs video. On Projects, create a project from Social Post inst
 
 Social Post is the first content type added as a plugin (`packages/content-social-post`): the app shell did not change to make room for it. See CONTRIBUTING.md, Adding a content type.
 
-## Example outputs
+## Example outputs and the Gallery
 
 `docs/examples/` holds one complete run with the open-weights starter recipes: the face and body references, the reference sheet, the product photo, two start frames, and the finished 18 second ad with voice-overs and captions. The creator and the product are invented.
+
+The Gallery page in the app lists the examples in [`examples/`](examples/README.md), each with its brief, the recipe for every step, the Library items it uses, what it cost (settled from the credit balance before and after, never an estimate), its outputs, and its flaws. "Start from this example" creates a project with the example's brief and Library items. Examples marked "Not yet generated" are drafts waiting for a real run. `npm run gallery:build` renders the same examples as a static site in `site/`.
 
 ## What it costs
 
@@ -179,8 +178,8 @@ Twenty-three open-weights workflows ship in `packages/recipes/workflows/` (Z-Ima
 - "More than the ... left in this month's budget." Add to this month in the dialog or in Settings, raise the monthly budget, or wait for the reset day.
 - Cloud workflows fail with an authorization or plan error. API access to Comfy Cloud is not part of the free tier. Use a paid plan, or use Router models, which need only credits.
 - Jobs wait in a queue. On the entry plan Comfy Cloud runs one workflow at a time. The app also submits one job at a time per target and shows queue position, so a batch of candidates arrives one after another.
-- The export says the FFmpeg build has no `drawtext` filter. Captions need an ffmpeg built with libfreetype. On macOS run `brew install ffmpeg-full` (Homebrew's plain `ffmpeg` is lean and lacks it); the app looks for `ffmpeg-full` on its own, no restart needed. Elsewhere, check the build with `ffmpeg -filters | grep drawtext`, install a fuller one, and if several are installed set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local` to the right pair. Or export with captions switched off.
-- ffmpeg or ffprobe not found. Install them, or set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local` to the full paths.
+- The export says the FFmpeg build has no `drawtext` filter. The bundled ffmpeg has it, so this means another one is in use: Settings, Video tools names it. Remove `FFMPEG_PATH` and `FFPROBE_PATH` from `.env.local` to go back to the bundled pair, or point them at a build with libfreetype (on macOS, Homebrew's `ffmpeg-full`; the plain `ffmpeg` formula lacks it). Or export with captions switched off.
+- ffmpeg or ffprobe not found. Run `npm ci` again: it downloads the bundled binaries (an install with `--ignore-scripts` skips them). Or set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local` to the full paths of your own.
 - Captions use the wrong font or the font is missing. The app bundles DejaVu Sans Bold (`assets/fonts/DejaVuSans-Bold.ttf`). To use another TTF or OTF file, set `CAPTION_FONT_PATH` in `.env.local`.
 - The face does not look like a three-quarter view. The open Z-Image model ignores loose wording; the face-lock prompt states the head turn explicitly. Reject and regenerate, or edit the prompt on the proposal card.
 - The product name is printed on the bottle or a second bottle appears. Add "no text or logo on the product" and "one bottle only" to the prompt and regenerate. These came up in the first full run.
@@ -193,10 +192,12 @@ Stack: Next.js 16 App Router, React 19, TypeScript, Tailwind 4 with shadcn/ui, Z
 
 Scripts (all in `package.json`):
 
+- `npx ai-creator-lab` (the `bin` in the root `package.json`, `apps/creator/scripts/launch.mjs`) builds when needed and serves the production build on 127.0.0.1; see Install.
 - `npm run dev` starts the dev server on 127.0.0.1 (or on `HOST`, with the app password; `npm start` the same). Both go through `apps/creator/scripts/serve.mjs`, which runs Next.js on the app folder from the repository root and passes `HOST` to it as `--hostname`.
 - `npm run build`, `npm start` build and serve.
 - `npm run lint`, `npm run typecheck`, `npm test` are the checks. `npm run test:acceptance` runs the whole flow against the mock executor with no credits.
 - `npm run --silent mcp` starts the MCP server on stdio (see below).
+- `npm run gallery:build` renders `examples/` into a static site in `site/` (GitHub Pages, through the manual `Gallery (GitHub Pages)` workflow).
 - `npm run spike`, `npm run live-check`, `npm run e2e-real`, `npm run e2e-photos`, `npm run live-premium` call real providers and spend credits. They need the key, a nonzero `GENERATION_ALLOWANCE_USD`, and room in the monthly budget.
 - `npm run spike:v02` runs the v0.2 spike (Krea 2 character start and the MiniMax H3 checks) under a 420-credit cap; `DRY_RUN=1 npm run spike:v02` prints the plan and its ceilings without a key or any network call. See `docs/TASKS.md` B24 and B25 for its inputs.
 
@@ -204,7 +205,7 @@ Where things live:
 
 The repository is an npm workspace. Run every script from the repository root (it stays the working directory, so `.env.local`, the `.data` folder, and the workflows resolve there).
 
-- `apps/creator/` the Next.js app: pages (Projects, Assets, Library, Archive, Settings) in `src/app/`, the HTTP routes under `src/app/api/`, the UI in `src/components/`, and in `src/server/` storage (`store`), the typed tool set (`tools`), the assistant (`agent`), ffmpeg assembly (`assembly`), media, auth, and the MCP server. `src/plugins/` lists the installed plugins. `scripts/` holds the acceptance smoke, the MCP entry, and the real-provider checks.
+- `apps/creator/` the Next.js app: pages (Projects, Gallery, Assets, Library, Archive, Settings) in `src/app/`, the HTTP routes under `src/app/api/`, the UI in `src/components/`, and in `src/server/` storage (`store`), the typed tool set (`tools`), the assistant (`agent`), ffmpeg assembly (`assembly`), media, auth, and the MCP server. `src/plugins/` lists the installed plugins. `scripts/` holds the acceptance smoke, the MCP entry, and the real-provider checks.
 - `packages/core/` domain contracts and Zod schemas, the pure catalog types, the spend policy, and the plugin registry.
 - `packages/recipes/` the starter recipe catalog, `workflows/` (starter workflows and sidecars), Router adapters, and the per-model prompt renderers.
 - `packages/executors/` the Router, workflow, and mock executors, the allowance and spend settlement, the Router and Comfy clients, and the backend probe.
@@ -212,6 +213,7 @@ The repository is an npm workspace. Run every script from the repository root (i
 - `packages/content-ugc-ad/` the UGC Ad content type (its steps and workspace panels) as a plugin.
 - `packages/content-social-post/` the Social Post content type as a plugin: its steps, its tools (`social_post_save_copy`, `social_post_propose_still`, `social_post_export`), its assistant, and its three workspace panels.
 - `assets/fonts/` the caption font.
+- `examples/` the gallery examples, each an `example.json` checked by the schema in `packages/core/src/domain/gallery.ts`.
 - `tests/` offline tests with fixtures for every package.
 - `docs/` the product description (`PRODUCT.md`), the plan (`PLAN.md`), the task board (`TASKS.md`), the log of every real run (`VERIFICATION.md`), the demo script (`DEMO.md`), and post drafts (`POSTS.md`).
 
@@ -240,6 +242,8 @@ Claude Desktop, in `claude_desktop_config.json`. Desktop does not start in the r
   }
 }
 ```
+
+[docs/MCP.md](docs/MCP.md) has a project `.mcp.json`, the two flags in detail, and a sample Quick Ad session from Claude Code.
 
 Read `AGENTS.md` for the working agreements before changing scope.
 

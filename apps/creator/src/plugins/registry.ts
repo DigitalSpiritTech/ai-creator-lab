@@ -27,14 +27,17 @@ export interface AppChoice {
   id: string;
   label: string;
   contentTypes: string[];
+  /** The content types' modes (the Ad's Quick Ad), each a start button opening on its panel. */
+  modes: { id: string; label: string; description: string; panel: string }[];
 }
 
 /** The Apps to offer on the Projects page, in registration order. */
 export function appChoices(registry: Pick<PluginRegistry<unknown>, "contentTypes"> = appPlugins): AppChoice[] {
   const apps = new Map<string, AppChoice>();
   for (const type of registry.contentTypes()) {
-    const app = apps.get(type.app.id) ?? { id: type.app.id, label: type.app.label, contentTypes: [] };
+    const app = apps.get(type.app.id) ?? { id: type.app.id, label: type.app.label, contentTypes: [], modes: [] };
     app.contentTypes.push(type.id);
+    app.modes.push(...type.modes.map(({ id, label, description, panel }) => ({ id, label, description, panel })));
     apps.set(app.id, app);
   }
   return [...apps.values()];

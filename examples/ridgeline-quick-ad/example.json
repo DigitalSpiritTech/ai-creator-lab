@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "id": "ridgeline-quick-ad",
+  "status": "draft",
+  "title": "Ridgeline bottle, Quick Ad",
+  "summary": "Avery Lane holds the Ridgeline 32 oz bottle up to the camera in a bright kitchen and says it keeps drinks cold for a whole day. Two lines, one frame, one four-second talking clip, the export. The creator and the product are invented.",
+  "appId": "ugc-creator",
+  "mode": "quick",
+  "brief": {
+    "productSummary": "Ridgeline 32 oz insulated bottle, keeps drinks cold 24 hours",
+    "audience": "Commuters who leave a drink in the car, on TikTok",
+    "platforms": ["TikTok", "Instagram Reels", "YouTube Shorts"],
+    "tone": "Warm and direct, like a friend recommending it"
+  },
+  "recipes": [
+    {
+      "step": "frame",
+      "capability": "text_to_image",
+      "recipeId": "router-nano-banana-pro-t2i",
+      "backend": "Comfy Router",
+      "note": "Planned: a new Library has no locked face, so the frame comes from the bible's visual core and the product's appearance line."
+    },
+    {
+      "step": "clip",
+      "capability": "image_to_video",
+      "recipeId": "router-kling-3-omni-i2v",
+      "backend": "Comfy Router",
+      "note": "Planned: four seconds with the line spoken, native sound. The export after it is local ffmpeg assembly with the caption burned in, so no recipe runs."
+    }
+  ],
+  "library": {
+    "characters": [
+      {
+        "key": "avery-lane",
+        "wardrobe": "Olive utility jacket over a white tee",
+        "bible": {
+          "name": "Avery Lane",
+          "ageRange": "early 30s",
+          "look": {
+            "face": "Warm oval face with light freckles across the nose",
+            "hair": "Dark shoulder-length hair, usually tied back",
+            "skin": "Light olive with natural texture",
+            "eyes": "Hazel",
+            "distinguishingDetails": "Small silver hoop earrings"
+          },
+          "build": "Average height, athletic and relaxed",
+          "wardrobeDefaults": ["Olive utility jacket over a white tee", "Oatmeal knit sweater and jeans"],
+          "voice": {
+            "style": "Speaks like a friend recommending something, never hype",
+            "pace": "Unhurried with natural pauses",
+            "phrasesUsed": ["Honestly", "I checked"],
+            "phrasesAvoided": ["You won't believe"]
+          },
+          "vibe": ["warm", "direct", "grounded"],
+          "backstory": "Commutes forty minutes each way and tries things before she talks about them.",
+          "boundaries": ["No claims about health outcomes", "No competitor names"],
+          "visualCore": "Avery Lane, a woman in her early 30s with a warm oval face, light freckles, hazel eyes, dark shoulder-length hair tied back, and small silver hoop earrings."
+        }
+      }
+    ],
+    "products": [
+      {
+        "key": "ridgeline-32",
+        "product": {
+          "name": "Ridgeline 32 oz insulated bottle",
+          "appearance": "a matte dark green steel bottle with a black screw cap",
+          "link": "https://example.com/ridgeline",
+          "allowedClaims": ["Keeps drinks cold 24 hours", "Fits a car cup holder", "Dishwasher safe"]
+        }
+      }
+    ],
+    "sets": [
+      {
+        "key": "kitchen-counter",
+        "set": {
+          "name": "Bright kitchen counter",
+          "notes": "A bright kitchen counter by a window, morning light, light wood and white tile."
+        }
+      }
+    ]
+  },
+  "cost": null,
+  "outputs": [],
+  "flaws": [],
+  "madeBy": "Not yet generated: waiting for the maintainer's run on Comfy Router."
+}

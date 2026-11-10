@@ -1,44 +1,133 @@
 /**
  * Output verification and atomic commits: temp file, decode check, rename, SHA-256.
- * ffprobe and ffmpeg come from FFPROBE_PATH or FFMPEG_PATH, else Homebrew's ffmpeg-full, else PATH.
+ * ffprobe and ffmpeg come from FFPROBE_PATH or FFMPEG_PATH, else the binaries bundled with the
+ * install (`ffmpeg-static` and `@derhuerst/ffprobe-static`), else Homebrew's ffmpeg-full, else PATH.
+ * `ffmpeg-static` is pinned to 5.2.0 (FFmpeg 6.0, release b6.0): its builds have drawtext on every
+ * platform, where 5.3.0's Linux build (FFmpeg 7.0.2 without libharfbuzz) has none. The packages
+ * download their binaries by release tag with no checksum, so a bundled binary runs only after its
+ * SHA-256 matches `BUNDLED_CHECKSUMS` for this platform (checked once per file).
  * @packageDocumentation
  */
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
 import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { promisify } from "node:util";
+import bundledFfprobe from "@derhuerst/ffprobe-static";
+import bundledFfmpeg from "ffmpeg-static";
 import sharp from "sharp";
 import { z } from "zod";
 import { jobError, ExecutorFailure } from "./jobs";
 import type { RetrieveDestination, RetrievedFile } from "./types";
 import { childEnv } from "./process";
+import { BUNDLED_CHECKSUMS, type BundledChecksum, checksumKey } from "./media-checksums";
 
 const execute = promisify(execFile);
 
 /**
  * Homebrew ships a lean `ffmpeg` on PATH and a keg-only `ffmpeg-full` (with drawtext for
- * captions) beside it. When no path is configured and the full build is installed, it wins.
+ * captions) beside it. When nothing is configured or bundled and the full build is installed, it wins.
  */
 const HOMEBREW_FULL = ["/opt/homebrew/opt/ffmpeg-full/bin", "/usr/local/opt/ffmpeg-full/bin"];
 
-function found(tool: "ffmpeg" | "ffprobe"): string {
+/** Where the ffmpeg and ffprobe in use came from, for the Settings report. */
+export type MediaToolSource = "environment" | "bundled" | "homebrew-full" | "path";
+
+/**
+ * The binary `npm ci` downloaded for this platform (macOS arm64 and x64, Linux x64, arm64, arm,
+ * and ia32, Windows x64). Null when the platform has none or the install scripts were skipped.
+ */
+function bundled(tool: "ffmpeg" | "ffprobe"): string | null {
+  const path = tool === "ffmpeg" ? bundledFfmpeg : bundledFfprobe;
+  return path && existsSync(path) ? path : null;
+}
+
+export type BundledCheck = { ok: true } | { ok: false; reason: string };
+
+/** SHA-256 of a file read in chunks, without holding it in memory. */
+function fileSha256(path: string): string {
+  const hash = createHash("sha256");
+  const buffer = Buffer.alloc(4 * 1024 * 1024);
+  const descriptor = openSync(path, "r");
+  try {
+    for (let read = readSync(descriptor, buffer); read > 0; read = readSync(descriptor, buffer)) hash.update(buffer.subarray(0, read));
+  } finally {
+    closeSync(descriptor);
+  }
+  return hash.digest("hex");
+}
+
+const checked = new Map<string, BundledCheck>();
+
+/**
+ * Whether a bundled binary is the one recorded for this platform: same size and SHA-256. Each file
+ * (by path, size, and modification time) is hashed once per process. A platform with no recorded
+ * checksum is refused too, since nothing vouches for what was downloaded there.
+ */
+export function checkBundledBinary(
+  tool: "ffmpeg" | "ffprobe",
+  path: string,
+  options: { platform?: string; arch?: string; table?: Readonly<Record<string, BundledChecksum>> } = {},
+): BundledCheck {
+  const key = checksumKey(tool, options.platform, options.arch);
+  const expected = (options.table ?? BUNDLED_CHECKSUMS)[key];
+  const advice = `Run npm ci again to download it afresh, or set ${tool === "ffmpeg" ? "FFMPEG_PATH" : "FFPROBE_PATH"} in .env.local to an ${tool} you trust.`;
+  if (!expected) return { ok: false, reason: `No checksum is recorded for the bundled ${tool} on ${key.slice(tool.length + 1)}, so it was not run. Set ${tool === "ffmpeg" ? "FFMPEG_PATH" : "FFPROBE_PATH"} in .env.local to an ${tool} you trust.` };
+  let stats;
+  try {
+    stats = statSync(path);
+  } catch {
+    return { ok: false, reason: `The bundled ${tool} could not be read. ${advice}` };
+  }
+  const memo = `${path}\n${stats.size}\n${stats.mtimeMs}\n${expected.sha256}`;
+  const known = checked.get(memo);
+  if (known) return known;
+  const matches = stats.size === expected.size && fileSha256(path) === expected.sha256;
+  const result: BundledCheck = matches
+    ? { ok: true }
+    : { ok: false, reason: `The bundled ${tool} does not match the SHA-256 recorded for release ${expected.release} on ${key.slice(tool.length + 1)}, so it was not run. ${advice}` };
+  checked.set(memo, result);
+  return result;
+}
+
+const warned = new Set<string>();
+
+/**
+ * One tool's path and where it came from: FFMPEG_PATH or FFPROBE_PATH, the bundled binary when its
+ * checksum matches, Homebrew's ffmpeg-full, or PATH. A bundled binary that fails its check is never
+ * run; `warning` says why (also logged once), and the next candidate is used.
+ */
+export function resolveMediaTool(
+  tool: "ffmpeg" | "ffprobe",
+  options: { bundledPath?: string | null; platform?: string; arch?: string; table?: Readonly<Record<string, BundledChecksum>> } = {},
+): { path: string; source: MediaToolSource; warning?: string } {
   const configured = process.env[tool === "ffmpeg" ? "FFMPEG_PATH" : "FFPROBE_PATH"]?.trim();
-  if (configured) return configured;
+  if (configured) return { path: configured, source: "environment" };
+  let warning: string | undefined;
+  const shipped = options.bundledPath !== undefined ? options.bundledPath : bundled(tool);
+  if (shipped) {
+    const check = checkBundledBinary(tool, shipped, options);
+    if (check.ok) return { path: shipped, source: "bundled" };
+    warning = check.reason;
+    if (!warned.has(warning)) {
+      warned.add(warning);
+      console.warn(`[media] ${warning}`);
+    }
+  }
   for (const directory of HOMEBREW_FULL) {
     const candidate = `${directory}/${tool}`;
-    if (existsSync(candidate)) return candidate;
+    if (existsSync(candidate)) return { path: candidate, source: "homebrew-full", ...(warning ? { warning } : {}) };
   }
-  return tool;
+  return { path: tool, source: "path", ...(warning ? { warning } : {}) };
 }
 
 export function ffprobePath(): string {
-  return found("ffprobe");
+  return resolveMediaTool("ffprobe").path;
 }
 
 export function ffmpegPath(): string {
-  return found("ffmpeg");
+  return resolveMediaTool("ffmpeg").path;
 }
 
 export function sha256(bytes: Uint8Array): string {

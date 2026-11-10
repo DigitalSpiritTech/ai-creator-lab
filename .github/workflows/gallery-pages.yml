@@ -1,0 +1,48 @@
+# Builds the static gallery from examples/ and publishes it to GitHub Pages.
+#
+# Manual only: this workflow runs when someone with write access clicks "Run workflow" on the
+# Actions tab. It never runs on push, pull request, or a schedule. Pages must first be switched on
+# for the repository (Settings, Pages, Source: GitHub Actions); until then the deploy job fails
+# and nothing is published. The build job alone is a safe check of the examples.
+name: Gallery (GitHub Pages)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gallery-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # The builder needs only the TypeScript runner and the schema; skip the ffmpeg downloads.
+      - run: npm ci --ignore-scripts
+      - run: npm run gallery:build
+        env:
+          GALLERY_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

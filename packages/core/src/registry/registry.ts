@@ -181,6 +181,14 @@ export function createPluginRegistry<C = unknown>(): PluginRegistry<C> {
       for (const type of manifest.contentTypes) {
         const own = allPanels.get(type.defaultPanel);
         if (!own || own.contentType !== type.id) fail(id, `content type ${type.id} opens on ${type.defaultPanel}, which is not one of its panels.`);
+        for (const repeated of duplicates(type.modes.map((mode) => mode.id))) fail(id, `content type ${type.id} has two modes named ${repeated}.`);
+        const stepIds = new Set(manifest.steps.filter((step) => step.contentType === type.id).map((step) => step.id));
+        for (const mode of type.modes) {
+          if (allPanels.get(mode.panel)?.contentType !== type.id) fail(id, `mode ${mode.id} of ${type.id} opens on ${mode.panel}, which is not one of its panels.`);
+          for (const stepId of mode.steps) {
+            if (!stepIds.has(stepId)) fail(id, `mode ${mode.id} of ${type.id} names step ${stepId}, which is not one of its steps.`);
+          }
+        }
       }
 
       const recipeIds = new Set(recipes.map((recipe) => recipe.id));

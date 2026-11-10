@@ -3,7 +3,7 @@
  * and its assistant. The app registers `socialPostServerPlugin` on the server in place of the
  * data-only `socialPostPlugin` (same manifest, plus these).
  *
- * Tools, named with the plugin prefix so the 33 core names stay untouched:
+ * Tools, named with the plugin prefix so the core roster names stay untouched:
  * - `social_post_save_copy`: create the post or revise its copy (a versioned document).
  * - `social_post_propose_still`: propose stills for one aspect ratio through `propose_candidates`,
  *   aimed at the post's slot for that ratio; nothing runs until the gate submits it.

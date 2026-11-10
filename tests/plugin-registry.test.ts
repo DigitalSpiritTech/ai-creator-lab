@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { UGC_AD_PANELS, UGC_AD_STEPS, ugcAdPlugin } from "@creator-lab/content-ugc-ad";
+import { QUICK_AD_MODE, UGC_AD_PANELS, UGC_AD_STEPS, ugcAdPlugin } from "@creator-lab/content-ugc-ad";
 import type { PromptStyle } from "@creator-lab/core/catalog";
 import { type PluginDefinition, createPluginRegistry, definePlugin } from "@creator-lab/core/registry";
 import { STARTER_RENDERERS, renderPrompt } from "@creator-lab/recipes/render";
@@ -85,6 +85,31 @@ describe("plugin registry", () => {
       ["duplicate step", notePlugin({ steps: [{ id: "write", contentType: "note", number: 1, title: "Write" }, { id: "write", contentType: "note", number: 2, title: "Again" }] }), /registered twice/],
       ["default panel not its own", notePlugin({ contentTypes: [{ ...notePlugin().contentTypes![0], defaultPanel: "notes.gone" }] }), /opens on notes\.gone/],
       ["invalid recipe", notePlugin({ recipes: [{ id: "x", kind: "mock" } as never] }), /recipes/],
+      [
+        "mode with a step the content type lacks",
+        notePlugin({ contentTypes: [{ ...notePlugin().contentTypes![0], modes: [{ id: "quick", label: "Quick note", description: "One line.", panel: "notes.editor", steps: ["write", "publish"] }] }] }),
+        /mode quick of note names step publish/,
+      ],
+      [
+        "mode opening on a missing panel",
+        notePlugin({ contentTypes: [{ ...notePlugin().contentTypes![0], modes: [{ id: "quick", label: "Quick note", description: "One line.", panel: "notes.gone", steps: ["write"] }] }] }),
+        /mode quick of note opens on notes\.gone/,
+      ],
+      [
+        "two modes with one id",
+        notePlugin({
+          contentTypes: [
+            {
+              ...notePlugin().contentTypes![0],
+              modes: [
+                { id: "quick", label: "Quick note", description: "One line.", panel: "notes.editor", steps: ["write"] },
+                { id: "quick", label: "Again", description: "One line.", panel: "notes.editor", steps: ["write"] },
+              ],
+            },
+          ],
+        }),
+        /two modes named quick/,
+      ],
     ];
     for (const [label, definition, error] of cases) {
       const registry = createPluginRegistry();
@@ -132,15 +157,19 @@ describe("plugin registry", () => {
 });
 
 describe("UGC Ad as a registered content type", () => {
-  test("is the first installed content type, made in UGC Creator, with the five workspace panels", () => {
-    assert.deepEqual(appChoices()[0], { id: "ugc-creator", label: "UGC Creator", contentTypes: ["ad"] });
+  test("is the first installed content type, made in UGC Creator, with the six workspace panels and the Quick Ad mode", () => {
+    assert.deepEqual(appChoices()[0], { id: "ugc-creator", label: "UGC Creator", contentTypes: ["ad"], modes: [{ id: "quick", label: "Quick Ad", description: QUICK_AD_MODE.description, panel: UGC_AD_PANELS.quick }] });
     assert.equal(appLabel("ugc-creator"), "UGC Creator");
     const ad = appPlugins.contentTypeForApp("ugc-creator");
     assert.ok(ad);
     assert.equal(ad.id, "ad");
     assert.equal(ad.pieceType, "ad");
     assert.equal(ad.defaultPanel, UGC_AD_PANELS.documents);
-    assert.deepEqual(ad.panels.map((panel) => panel.title), ["Documents", "Script", "Shots", "Assets", "Export"]);
+    assert.deepEqual(ad.panels.map((panel) => panel.title), ["Documents", "Script", "Shots", "Assets", "Export", "Quick Ad"]);
+    assert.deepEqual(
+      ad.modes.map((mode) => [mode.id, mode.label, mode.panel, mode.steps]),
+      [["quick", "Quick Ad", UGC_AD_PANELS.quick, ["quick", "stills", "clips", "assemble"]]],
+    );
     assert.deepEqual(serverPlugins.contentType("ad"), ad, "the server and the browser read the same declaration");
   });
 
@@ -148,7 +177,7 @@ describe("UGC Ad as a registered content type", () => {
     const ad = appPlugins.contentType("ad")!;
     assert.deepEqual(
       ad.steps.map((step) => step.id),
-      ["brief", "character", "face", "body", "sheet", "product", "script", "shots", "stills", "clips", "voice", "assemble", "next"],
+      ["brief", "quick", "character", "face", "body", "sheet", "product", "script", "shots", "stills", "clips", "voice", "assemble", "next"],
     );
     const roster = new Set([...TOOLS, ...INTERNAL_TOOLS].map((tool) => tool.name));
     for (const step of ad.steps) {

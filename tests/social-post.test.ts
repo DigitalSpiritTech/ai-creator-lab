@@ -116,7 +116,7 @@ describe("Social Post exists only as a plugin", () => {
     assert.deepEqual(serverPlugins.tools(SOCIAL_POST_CONTENT_TYPE).map((tool) => tool.name), Object.values(SOCIAL_POST_TOOLS));
     assert.ok(serverPlugins.pieceType(socialPostPlugin.contentTypes[0].pieceType));
     assert.ok(serverPlugins.assistant(SOCIAL_POST_CONTENT_TYPE)?.systemPrompt.includes("no video"));
-    assert.equal(TOOLS.length, 33, "the core roster is unchanged");
+    assert.equal(TOOLS.length, 34, "the core roster: the 33 tools and start_quick_ad (F11)");
     assert.deepEqual(PLUGIN_TOOLS.map((tool) => tool.name), Object.values(SOCIAL_POST_TOOLS));
   });
 

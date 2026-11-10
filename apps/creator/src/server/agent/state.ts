@@ -9,6 +9,7 @@ import type { GenerationTarget } from "@creator-lab/core/domain/job";
 import type { CharacterItem, CharacterLink, ProductItem, SetItem } from "@creator-lab/core/domain/library";
 import type { ProjectPreferences } from "@creator-lab/core/domain/preferences";
 import type { Project } from "@creator-lab/core/domain/project";
+import { QUICK_AD, quickAdProgress } from "@creator-lab/core/domain/quick-ad";
 import type { Script } from "@creator-lab/core/domain/script";
 import { UGC_AD_STEPS, type UgcAdStepId } from "@creator-lab/content-ugc-ad";
 import type { Store } from "@/server/store";
@@ -141,13 +142,61 @@ function bibleFields(item: CharacterItem): Record<string, unknown> {
 const UPLOAD_FACE =
   "If this character is a real person the user has photos of, do not generate a face: ask them to upload a clear face photo to the face slot on the Assets tab (the chat is text only) and continue once it is locked.";
 
+/**
+ * The Quick Ad's next step (an Ad in quick mode): the frame, the clip, then the export, each an
+ * approval the person gives. Character, sheet, product, and voice-over steps are skipped.
+ */
+function quickStage(snapshot: ProjectSnapshot, content: ContentPiece): Stage {
+  const { script, project } = snapshot;
+  if (script && content.scriptId === script.id && content.scriptVersion !== script.version) {
+    return { ...stepOf("shots"), guidance: `The Quick Ad's script is at version ${script.version} but the Ad uses ${content.scriptVersion}: call plan_shots with projectId ${project.id}, scriptId ${script.id}, and contentId ${content.id}.` };
+  }
+  const progress = quickAdProgress(content, snapshot.completedExports);
+  const given = `${progress.approved.length} of ${QUICK_AD.approvals.length} approvals given`;
+  if (progress.next === "frame") {
+    const shot = content.shots.find((entry) => entry.still.state !== "approved")!;
+    const title = `Quick Ad frame (${given})`;
+    if (shot.still.state === "open") {
+      return {
+        ...stepOf("stills"),
+        title,
+        guidance: waiting(`beat ${shot.beatIndex} frame`, shot.still.candidateIds, "still", `When the user approves it (the Quick Ad tab's Approve, or a yes here), call approve with kind still, contentId ${content.id}, beatIndex ${shot.beatIndex}. Not right: compose_still again (count 1), or refine_still.`),
+      };
+    }
+    if (running(snapshot, (target) => target.kind === "shot" && target.slot === "still" && target.contentId === content.id)) {
+      return { ...stepOf("stills"), title, guidance: "The frame is generating. Say it will appear in the Quick Ad tab." };
+    }
+    return { ...stepOf("stills"), title, guidance: `Propose the frame: compose_still with contentId ${content.id}, beatIndex ${shot.beatIndex}, and count ${QUICK_AD.frameCount}. Say what it composes from (the linked character and product, or the brief in words) and its cost.` };
+  }
+  if (progress.next === "clip") {
+    const shot = content.shots.find((entry) => entry.clip.state !== "approved")!;
+    const title = `Quick Ad talking clip (${given})`;
+    if (shot.clip.state === "open") {
+      return {
+        ...stepOf("clips"),
+        title,
+        guidance: waiting(`beat ${shot.beatIndex} clip`, shot.clip.candidateIds, "clip", `When the user approves it, call approve with kind clip, contentId ${content.id}, beatIndex ${shot.beatIndex}.`),
+      };
+    }
+    if (running(snapshot, (target) => target.kind === "shot" && target.slot === "clip" && target.contentId === content.id)) {
+      return { ...stepOf("clips"), title, guidance: "The talking clip is generating. Say it will appear in the Quick Ad tab." };
+    }
+    return { ...stepOf("clips"), title, guidance: `Propose the talking clip from the approved frame: generate_clip with contentId ${content.id} and beatIndex ${shot.beatIndex} (one ${QUICK_AD.durationSeconds} s clip with the line spoken).` };
+  }
+  if (progress.next === "export") {
+    return { ...stepOf("assemble"), title: `Quick Ad export (${given})`, guidance: `The frame and the clip are approved. The last approval is the export: when the user says go (or clicks Export in the Quick Ad tab), call assemble_ad with contentId ${content.id} (captions on).` };
+  }
+  return { ...stepOf("next"), guidance: "The Quick Ad is exported. Offer another Quick Ad (start_quick_ad), or the full flow with a locked character for a longer ad." };
+}
+
 export function nextStage(snapshot: ProjectSnapshot): Stage {
   const { project, character, product, script, content, candidates } = snapshot;
+  if (content?.mode === "quick") return quickStage(snapshot, content);
   if (!project.brief) {
     return {
       ...stepOf("brief"),
       guidance:
-        "Find out what they are selling, who buys it, where the ad will run, and the tone. Take what they already said, ask for the rest one question at a time with a default, then call save_brief.",
+        "Find out what they are selling, who buys it, where the ad will run, and the tone. Take what they already said, ask for the rest one question at a time with a default, then call save_brief. If they want a Quick Ad (two lines, one frame, one talking clip), call start_quick_ad with projectId and the two lines instead.",
     };
   }
   if (!character) {
@@ -348,7 +397,7 @@ export function renderSnapshot(snapshot: ProjectSnapshot): string {
       const voice = beat && beat.type !== "talking" && beat.spokenLine ? `, voice-over ${describe(shot.voice)}` : "";
       return `beat ${shot.beatIndex} still ${describe(shot.still)}, clip ${describe(shot.clip)}${voice}`;
     });
-    lines.push(`Ad: "${content.title}" (contentId ${content.id}, script v${content.scriptVersion}): ${shots.join("; ")}.`);
+    lines.push(`${content.mode === "quick" ? "Quick Ad" : "Ad"}: "${content.title}" (contentId ${content.id}, script v${content.scriptVersion}): ${shots.join("; ")}.`);
   }
   const preferred = Object.entries(snapshot.preferences.recipes);
   if (preferred.length) {

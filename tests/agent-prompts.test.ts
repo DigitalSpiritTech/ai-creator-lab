@@ -188,8 +188,8 @@ describe("creative director prompt", () => {
     ]) {
       assert.ok(CREATIVE_DIRECTOR_PROMPT.includes(phrase), phrase);
     }
-    // The model-override rules (F3) added about 650 characters to the cached prompt.
-    assert.ok(CREATIVE_DIRECTOR_PROMPT.length < 13_500, `${CREATIVE_DIRECTOR_PROMPT.length} characters`);
+    // The model-override rules (F3) added about 650 characters to the cached prompt, the Quick Ad (F11) about 900.
+    assert.ok(CREATIVE_DIRECTOR_PROMPT.length < 14_500, `${CREATIVE_DIRECTOR_PROMPT.length} characters`);
   });
 
   test("stage guidance follows project state and points the face lock at the tool that renders its prompt", async () => {

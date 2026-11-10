@@ -81,7 +81,7 @@ export function createMcpServer(context: ToolContext, options: { version?: strin
     {
       capabilities: { tools: {}, resources: {} },
       instructions:
-        `AI Creator Lab: make a UGC ad from a brief, a Library character, a product, a script, stills, and clips. Read project://{id}/state first. Spending tools return proposals; ${permissions.spend ? "nothing is generated until the user approves a proposal and you call approve_and_generate" : "this server cannot run them (start it with MCP_ALLOW_SPEND=1 to allow approve_and_generate); the user runs proposals from the app"}.`,
+        `AI Creator Lab: make a UGC ad from a brief, a Library character, a product, a script, stills, and clips, or a Quick Ad from two lines (start_quick_ad, then one frame, one talking clip, and the export). Read project://{id}/state first. Spending tools return proposals; ${permissions.spend ? "nothing is generated until the user approves a proposal and you call approve_and_generate" : "this server cannot run them (start it with MCP_ALLOW_SPEND=1 to allow approve_and_generate); the user runs proposals from the app"}.`,
     },
   );
 

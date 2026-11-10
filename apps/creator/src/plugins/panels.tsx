@@ -15,6 +15,7 @@ import type { PanelProps } from "@creator-lab/core/registry";
 import { AssetsTab } from "@/components/project/assets-tab";
 import { DocumentsTab } from "@/components/project/documents-tab";
 import { ExportTab } from "@/components/project/export-tab";
+import { QuickAdTab } from "@/components/project/quick-ad-tab";
 import { ScriptTab } from "@/components/project/script-tab";
 import { ShotsTab } from "@/components/project/shots-tab";
 import { type PanelComponent, appPlugins } from "@/plugins/registry";
@@ -29,6 +30,7 @@ const UGC_AD_PANEL_COMPONENTS: Record<string, PanelComponent> = {
   [UGC_AD_PANELS.shots]: ShotsTab,
   [UGC_AD_PANELS.assets]: AssetsTab,
   [UGC_AD_PANELS.export]: ExportTab,
+  [UGC_AD_PANELS.quick]: QuickAdTab,
 };
 
 appPlugins.registerPanelComponents(UGC_AD_PANEL_COMPONENTS);

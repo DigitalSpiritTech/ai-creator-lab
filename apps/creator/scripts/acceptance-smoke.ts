@@ -1,6 +1,7 @@
 /**
  * Acceptance smoke: the whole UGC Creator flow with the mock executor, on a temporary data
- * directory, then a Social Post (a plugin content type: brief, copy, a 4:5 still through the gate,
+ * directory, then a Quick Ad (a two-line brief, three approvals: the frame, the clip, the export),
+ * then a Social Post (a plugin content type: brief, copy, a 4:5 still through the gate,
  * approval, and export), then a restart and a relocated restore. No provider is called: every proposal names a
  * mock recipe, the operator ceiling (GENERATION_ALLOWANCE_USD) is zero, and the Comfy and Anthropic
  * keys are placeholders. A monthly budget is saved and an extension is refused at the zero ceiling.
@@ -288,6 +289,48 @@ async function runFlow(client: Client) {
   return { projectId, characterId, faceId: faces[1], contentId: content.id, exportId, assembled };
 }
 
+/** The Quick Ad (F11): two lines, then three approvals (frame, clip, export), each generation through the gate. */
+async function runQuickAd(client: Client) {
+  const project = await client.createProject("Cup holder, quick");
+  const projectId = project.id;
+  const started = await client.tool<{ content: { id: string; mode: string; shots: unknown[] } }>("start_quick_ad", {
+    projectId,
+    brief: { productSummary: "Ridgeline 32 oz insulated bottle, keeps drinks cold 24 hours", audience: "Commuters who leave a drink in the car, on TikTok" },
+  }, projectId);
+  check(started.content.mode === "quick" && started.content.shots.length === 1, "the two lines make a one-shot Ad in quick mode");
+  const contentId = started.content.id;
+  step(client, "quick ad: started from a two-line brief");
+  let approvals = 0;
+
+  const frame = await client.tool<GenerationProposal>("compose_still", { contentId, beatIndex: 1, recipeId: "mock-text-to-image" }, projectId);
+  check(frame.count === 1, "a Quick Ad proposes one frame");
+  const frames = await client.submit(projectId, frame);
+  await client.tool("approve", { kind: "still", contentId, beatIndex: 1, assetId: frames[0] }, projectId);
+  approvals += 1;
+  const clip = await client.tool<GenerationProposal>("generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video" }, projectId);
+  check(clip.durationSeconds === 4, "the talking clip is four seconds");
+  const clips = await client.submit(projectId, clip);
+  await client.tool("approve", { kind: "clip", contentId, beatIndex: 1, assetId: clips[0] }, projectId);
+  approvals += 1;
+  const exportId = randomUUID();
+  const assembled = await client.tool<Assembled>("assemble_ad", { contentId, exportId, captions: true }, projectId);
+  approvals += 1;
+  check(approvals === 3, "three approvals: the frame, the clip, the export");
+  check(assembled.export.status === "completed", `the Quick Ad exported (${assembled.export.status === "failed" ? assembled.export.error : assembled.export.status})`);
+  check(assembled.export.status === "completed" && /drawtext captions/.test(assembled.export.filterSummary), "the caption is burned in");
+  const asset = assembled.asset;
+  check(asset && asset.kind === "export" && asset.width === 1080 && asset.height === 1920, "a 1080 x 1920 Quick Ad");
+  const downloaded = await client.download(asset.id);
+  check(hash(downloaded) === asset.sha256, "the Quick Ad MP4 downloads intact");
+  step(client, `quick ad: three approvals, exported ${downloaded.length} bytes with the caption burned in`);
+  return { projectId, contentId, exportId, assembled };
+}
+
+async function confirmQuickAdAfterRestart(client: Client, quick: Awaited<ReturnType<typeof runQuickAd>>, how: string): Promise<void> {
+  const again = await client.tool<Assembled>("assemble_ad", { contentId: quick.contentId, exportId: quick.exportId }, quick.projectId);
+  check(JSON.stringify(again) === JSON.stringify(quick.assembled), `${how}: the Quick Ad export comes back unchanged`);
+}
+
 interface PostExport {
   copyText: string;
   stills: { aspectRatio: string; assetId: string; sha256: string }[];
@@ -365,14 +408,17 @@ async function confirmBudget(client: Client, how: string): Promise<void> {
 async function runLayer(client: Client): Promise<void> {
   try {
     const flow = await runFlow(client);
+    const quick = await runQuickAd(client);
     const post = await runSocialPost(client);
     await checkBudget(client);
     await client.restart(false);
     await confirmAfterRestart(client, flow, "after restart");
+    await confirmQuickAdAfterRestart(client, quick, "after restart");
     await confirmPostAfterRestart(client, post, "after restart");
     await confirmBudget(client, "after restart");
     await client.restart(true);
     await confirmAfterRestart(client, flow, "after relocating the data directory");
+    await confirmQuickAdAfterRestart(client, quick, "after relocating the data directory");
     await confirmPostAfterRestart(client, post, "after relocating the data directory");
     await confirmBudget(client, "after relocating the data directory");
   } finally {

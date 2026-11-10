@@ -1,10 +1,10 @@
 /**
- * The left rail: Projects, Assets, Library, Archive, Settings, and the theme toggle.
+ * The left rail: Projects, Gallery, Assets, Library, Archive, Settings, and the theme toggle.
  * @packageDocumentation
  */
 "use client";
 
-import { Archive, FolderKanban, Images, Library, Settings } from "lucide-react";
+import { Archive, FolderKanban, GalleryVerticalEnd, Images, Library, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@creator-lab/ui/utils";
@@ -13,6 +13,7 @@ import { SignOutButton } from "@/components/shell/sign-out-button";
 
 export const RAIL = [
   { label: "Projects", href: "/projects", icon: FolderKanban },
+  { label: "Gallery", href: "/gallery", icon: GalleryVerticalEnd },
   { label: "Assets", href: "/assets", icon: Images },
   { label: "Library", href: "/library", icon: Library },
   { label: "Archive", href: "/archive", icon: Archive },

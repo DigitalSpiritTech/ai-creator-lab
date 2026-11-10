@@ -25,11 +25,11 @@ import { useJobPolling } from "@/lib/client/use-job-polling";
 import { appPlugins } from "@/plugins/panels";
 import { appLabel } from "@/plugins/registry";
 
-export function ProjectView({ projectId }: { projectId: string }) {
+export function ProjectView({ projectId, initialPanel = null }: { projectId: string; initialPanel?: string | null }) {
   const [view, setView] = useState<ProjectViewData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [items, setItems] = useState<ChatItem[]>([]);
-  const [panel, setPanel] = useState<string | null>(null);
+  const [chosenPanel, setPanel] = useState<string | null>(initialPanel);
   const [mode, setMode] = useState<"chat" | "manual">("chat");
 
   const refresh = useCallback(async () => {
@@ -77,6 +77,9 @@ export function ProjectView({ projectId }: { projectId: string }) {
   );
 
   const contentTypeId = view ? appPlugins.contentTypeForApp(view.project.appId)?.id : undefined;
+  // Until a tab is chosen, a project whose newest content piece was made in a mode (the Quick Ad)
+  // opens on that mode's panel.
+  const panel = chosenPanel ?? (view && contentTypeId ? modePanel(contentTypeId, view.contents[0]?.mode) : null);
   const notify = context?.notify;
   const propose = context?.propose;
   const host = useMemo<PanelHost | null>(
@@ -179,4 +182,10 @@ export function ProjectView({ projectId }: { projectId: string }) {
       </div>
     </ProjectContext.Provider>
   );
+}
+
+/** The panel of a content type's mode, when `mode` is one of its registered modes. */
+function modePanel(contentTypeId: string, mode: string | undefined): string | null {
+  if (!mode) return null;
+  return appPlugins.contentType(contentTypeId)?.modes.find((entry) => entry.id === mode)?.panel ?? null;
 }

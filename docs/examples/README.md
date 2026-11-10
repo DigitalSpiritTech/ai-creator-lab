@@ -13,3 +13,5 @@ One complete run of the UGC Creator app on Comfy Cloud with the open-weights sta
 | `07-ridgeline-ad.mp4` | The finished 18 second ad: four LTX 2.5 clips with their own audio, two Chatterbox voice-overs over the b-roll, captions burned in, 1080 x 1920 | LTX 2.5 image to video, Chatterbox Turbo TTS, ffmpeg |
 
 The whole run, including the candidates that were not picked, cost about 5 USD of Comfy credits across two attempts (one was a duplicate from a lookup slip); the ad itself is around 60 credits. The images are saved as JPEG at 1024 px on the long side for the repository; the app keeps the originals.
+
+This folder is the v0.1 record and stays as it is. The gallery (with a schema, the cost settled from the balance, and a flaws list per example) lives in `examples/` at the repository root; see `examples/README.md`, "The v0.1 run in docs/examples", for why this run is not one of its entries.

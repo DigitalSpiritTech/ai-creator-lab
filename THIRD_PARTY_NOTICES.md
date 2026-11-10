@@ -14,6 +14,12 @@ The components in `packages/ui/src/` are adapted from shadcn/ui (https://ui.shad
 
 Runtime and build dependencies listed in `package.json` (including Next.js, React, Zod, sharp, Lucide icons, `@anthropic-ai/sdk`, and `@comfyorg/sdk`) are installed from npm and keep their own licenses. They are not copied into this repository. Run `npm ls` and read each package's license file for details.
 
+## FFmpeg (bundled binaries)
+
+`npm ci` downloads static FFmpeg (6.0) and ffprobe builds for your platform through the `ffmpeg-static` and `@derhuerst/ffprobe-static` npm packages (GPL-3.0-or-later). The binaries themselves are GPL builds of FFmpeg (configured with `--enable-gpl`), published as release assets of the ffmpeg-static project (https://github.com/eugeneware/ffmpeg-static/releases, tags `b6.0` for ffmpeg and `b6.1.1` for ffprobe), which collects static builds made by others for each platform. They are separate programs the app runs as child processes; they are not part of this repository's source and keep their own licenses. Each package's folder in `node_modules` carries the GPL license text; the exact build configuration of a binary is what `ffmpeg -version` (or `ffprobe -version`) prints. Set `FFMPEG_PATH` and `FFPROBE_PATH` to use another FFmpeg instead.
+
+The Docker image does not contain these binaries. It installs Debian's `ffmpeg` package (bookworm) with apt and points `FFMPEG_PATH` and `FFPROBE_PATH` at `/usr/bin`; that FFmpeg is licensed as Debian packages it, and Debian provides its source (`apt-get source ffmpeg`, or https://sources.debian.org/src/ffmpeg/).
+
 ## Models and services
 
 No model weights are included. The starter workflows reference Z-Image, Qwen Image Edit, and LTX 2.5 model files by name; you use them through Comfy under the licenses and terms that apply to them and to your Comfy account. Hosted models used through Comfy Router are subject to their providers' terms.
