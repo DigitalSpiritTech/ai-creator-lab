@@ -221,6 +221,33 @@ describe("projects and tools", () => {
     assert.deepEqual(body.links, []);
   });
 
+  test("a tool that names only a content piece is held to the piece's project on a project route", async () => {
+    const post = async (name: string) => {
+      const response = await routes.projects.POST(json("/api/projects", { name, appId: "social-post" }));
+      assert.equal(response.status, 201);
+      return ((await response.json()) as { project: { id: string } }).project.id;
+    };
+    const mine = await post("My post");
+    const theirs = await post("Another post");
+    const tool = (projectId: string, name: string, input: Record<string, unknown>) =>
+      routes.tools.POST(json(`/api/projects/${projectId}/tools/${name}`, input), params({ id: projectId, name }));
+    const saved = await tool(theirs, "social_post_save_copy", { projectId: theirs, copy: { caption: "Cold at five.", visual: "A bottle on a desk." } });
+    assert.equal(saved.status, 200);
+    const contentId = ((await saved.json()) as { post: { id: string } }).post.id;
+    for (const [name, input] of [
+      ["social_post_export", { contentId }],
+      ["social_post_propose_still", { contentId, aspectRatio: "4:5" }],
+      ["approve", { kind: "slot", contentId, slot: "4:5", assetId: randomUUID() }],
+      ["list_document_versions", { kind: "piece", subjectId: contentId }],
+    ] as const) {
+      const refused = await tool(mine, name, input);
+      assert.equal(refused.status, 400, name);
+      assert.match(((await refused.json()) as { error: string }).error, /belongs to another project/, name);
+    }
+    const own = await tool(theirs, "list_document_versions", { kind: "piece", subjectId: contentId });
+    assert.equal(own.status, 200);
+  });
+
   test("runs roster tools, refuses the gate tool and other projects' input", async () => {
     const id = await createProject("Avery tests");
     const brief = { productSummary: "Ridgeline 32 oz insulated bottle", audience: "Commuters", platforms: ["TikTok"], tone: "Warm and direct" };
