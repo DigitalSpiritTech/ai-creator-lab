@@ -49,8 +49,10 @@ export function safeNextPath(value: string | null | undefined): string {
   const base = "http://studio.invalid";
   try {
     const url = new URL(value, base);
-    if (url.origin !== base || url.pathname.startsWith("/login")) return "/";
-    return url.pathname + url.search + url.hash;
+    const out = url.pathname + url.search + url.hash;
+    // Normalization can turn `/.//host` into `//host`, so the output is checked as well as the input.
+    if (url.origin !== base || url.pathname.startsWith("/login") || !out.startsWith("/") || out.startsWith("//") || out.startsWith("/\\")) return "/";
+    return out;
   } catch {
     return "/";
   }

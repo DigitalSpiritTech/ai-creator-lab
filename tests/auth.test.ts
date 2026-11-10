@@ -80,7 +80,7 @@ describe("network policy", () => {
 
   test("the next path after sign-in stays on this site", () => {
     assert.equal(safeNextPath("/projects/abc?tab=shots"), "/projects/abc?tab=shots");
-    for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "", null, "/login?next=/x", "projects"]) assert.equal(safeNextPath(bad), "/", String(bad));
+    for (const bad of ["https://evil.example", "//evil.example", "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/.//evil.example", "/%2e//evil.example", "/a/..//evil.example", "", null, "/login?next=/x", "projects"]) assert.equal(safeNextPath(bad), "/", String(bad));
   });
 });
 
