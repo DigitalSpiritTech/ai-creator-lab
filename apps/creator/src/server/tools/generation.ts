@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 import { z } from "zod";
-import { AspectRatioSchema, CapabilitySchema, placeRecipe, placementNote } from "@creator-lab/core/catalog";
+import { AspectRatioSchema, CapabilitySchema, MAX_TAKE_SECONDS, type Recipe, placeRecipe, placementNote } from "@creator-lab/core/catalog";
 import { IdSchema, RecipeIdSchema, text } from "@creator-lab/core/domain/common";
 import { type Asset, AssetSchema } from "@creator-lab/core/domain/asset";
 import { type ContentPiece, ExportRecordSchema } from "@creator-lab/core/domain/content";
@@ -17,17 +17,21 @@ import {
   type SetItem,
   chooseWardrobe,
 } from "@creator-lab/core/domain/library";
-import { GenerationProposalSchema, GenerationTargetSchema, type Job, JobSchema } from "@creator-lab/core/domain/job";
+import { type GenerationProposal, GenerationProposalSchema, GenerationTargetSchema, type Job, JobSchema } from "@creator-lab/core/domain/job";
 import { QUICK_AD } from "@creator-lab/core/domain/quick-ad";
 import { EditedPromptSchema, type ShotSpecInput } from "@creator-lab/core/domain/shot-spec";
 import { assembleAd as assembleExport } from "@/server/assembly";
 import { defaultRecipes, recipesFor } from "@creator-lab/recipes/defaults";
 import { BudgetCrossingSchema, SpendWarningSchema, budgetCrossing, describeCrossing } from "@creator-lab/core/domain/spend";
 import { reservationUsd } from "@creator-lab/executors/allowance";
+import { chainReserveUsd } from "@creator-lab/executors/chain";
+import { chainSummary, currentJob, runChainToCompletion, startChain } from "@/server/generation/chain";
 import { runToCompletion, spendPolicy, startGeneration } from "@/server/generation/run";
 import type { Store } from "@/server/store";
 import { BODY_REFERENCE, FACE_GARMENT, FACE_LOCK, inline } from "@creator-lab/recipes/prompts";
-import { buildProposal, candidateRequestId, nearestAspect, proposalRequest, runDeps } from "@/server/tools/proposals";
+import type { ChainedTake } from "@/server/tools/chain";
+import { buildProposal, candidateRequestId, estimateTake, nearestAspect, proposalChain, proposalRequest, runDeps } from "@/server/tools/proposals";
+import type { ToolContext } from "@/server/tools/registry";
 import { defineTool } from "@/server/tools/registry";
 import { referenceableIn } from "@/server/tools/shared";
 
@@ -368,7 +372,7 @@ export function endingFrame(store: Store, content: ContentPiece, assetId: string
 export const generateClip = defineTool({
   name: "generate_clip",
   description:
-    "Propose a clip for one beat from its approved still (the first frame). Talking beats carry the spoken line in quotes for synchronized audio; b-roll is ambient sound only. With mode first_last, the clip also ends on lastAssetId, which must be an approved still in this content piece or the project's reference sheet; use it only when that ending still was composed for the same shot, since unrelated endpoints produce a dissolve. With mode speech, a talking beat's approved voice take drives the clip (lip sync, speech_to_video, 4.8 s at most), so every talking beat can share one cloned voice.",
+    "Propose a clip for one beat from its approved still (the first frame). Talking beats carry the spoken line in quotes for synchronized audio; b-roll is ambient sound only. With mode first_last, the clip also ends on lastAssetId, which must be an approved still in this content piece or the project's reference sheet; use it only when that ending still was composed for the same shot, since unrelated endpoints produce a dissolve. With mode speech, a talking beat's approved voice take drives the clip (lip sync, speech_to_video) and sets its length, so every talking beat can share one cloned voice. Length is a capability: durationSeconds (up to 60) sets the take's length when it should differ from the beat's, and a take longer than the recipe makes in one run is proposed as a chained take (segments from each other's last frames, stitched with short crossfades, the beat's approved voice take as the one audio track), with the whole take priced and reserved up front.",
   input: z
     .object({
       contentId: IdSchema,
@@ -377,6 +381,12 @@ export const generateClip = defineTool({
       count: z.number().int().min(1).max(4).default(1),
       mode: z.enum(["start", "first_last", "speech"]).default("start").describe("start animates from the approved still; first_last also lands on an ending frame; speech lip-syncs the beat's approved voice take."),
       lastAssetId: IdSchema.optional().describe("The ending frame for mode first_last."),
+      durationSeconds: z
+        .number()
+        .min(1)
+        .max(MAX_TAKE_SECONDS)
+        .optional()
+        .describe("The take's length in seconds when it should differ from the beat's (talking takes over the model's one-run length are chained). Mode speech defaults to the voice take's length."),
     })
     .strict(),
   output: GenerationProposalSchema,
@@ -403,8 +413,22 @@ export const generateClip = defineTool({
       if (take.kind !== "audio" || !take.audio) fail("invalid", "The approved voice take is not an audio recording.");
     }
     const cast = projectCast(store, content.projectId);
-    // A lip-synced clip lasts as long as its take plus a breath; the recipe caps it at one chunk.
-    const durationSeconds = take?.audio ? Math.min(beat.durationSeconds, take.audio.durationSeconds + 0.4) : beat.durationSeconds;
+    // The take's length: as asked, else the beat's, except that a voice take longer than the beat
+    // sets it (plus a breath) so the voice is never cut: a lip-synced clip follows its take (audio
+    // sets the length where the model takes it), and a start-mode talking beat with an approved
+    // voice-over uses it as the take's audio. Within the beat, a lip-synced clip lasts its take plus
+    // a breath, as before.
+    const spoken = !speech && beat.type === "talking" && shot.voice.state === "approved" ? store.assets.get(shot.voice.assetId)?.audio?.durationSeconds : undefined;
+    const voiceSeconds = take?.audio?.durationSeconds ?? spoken;
+    const fromAudio =
+      voiceSeconds === undefined
+        ? beat.durationSeconds
+        : voiceSeconds > beat.durationSeconds
+          ? voiceSeconds + 0.4
+          : take
+            ? Math.min(beat.durationSeconds, voiceSeconds + 0.4)
+            : beat.durationSeconds;
+    const durationSeconds = Math.round(Math.min(MAX_TAKE_SECONDS, input.durationSeconds ?? fromAudio) * 100) / 100;
     const person = cast.character?.item.bible;
     return buildProposal(context, {
       projectId: content.projectId,
@@ -414,7 +438,8 @@ export const generateClip = defineTool({
         kind: "clip",
         beat,
         mode: input.mode,
-        durationSeconds,
+        // The spec holds one run's length; a longer take is split into segment specs at submit.
+        durationSeconds: Math.min(15, durationSeconds),
         ...(person
           ? {
               character: {
@@ -483,6 +508,8 @@ export const submitProposal = defineTool({
       proposal = { ...proposal, prompt: edited.data };
     }
     const deps = runDeps(context);
+    const chained = await proposalChain(context, proposal);
+    if (chained) return submitChained(context, proposal, chained, input);
     const request = await proposalRequest(context, proposal);
     const results: z.input<typeof SubmitResultSchema>[] = [];
     // The candidates not yet admitted are checked as a whole first, so a proposal that would cross
@@ -553,6 +580,107 @@ export const submitProposal = defineTool({
     return { results, warning: spendPolicy(deps).warning };
   },
 });
+
+/**
+ * Submits a chained proposal: one chain per candidate. The candidates not yet admitted are checked as
+ * a whole first (every segment of every take), so a proposal that would cross the budget starts
+ * none of them; each chain then reserves all of its segments before segment 1 runs.
+ */
+async function submitChained(
+  context: ToolContext,
+  proposal: GenerationProposal,
+  chained: { recipe: Recipe; take: ChainedTake },
+  input: { confirmUnquoted: boolean; wait: boolean },
+): Promise<{ results: z.input<typeof SubmitResultSchema>[]; warning: z.infer<typeof SpendWarningSchema> }> {
+  if (proposal.promptEdited) {
+    fail("invalid", "A chained take renders one prompt per segment from the beat. Change the line or the take's length instead of editing the prompt, or pick a recipe that makes the take in one run.");
+  }
+  const { store } = context;
+  const deps = runDeps(context);
+  const { recipe, take } = chained;
+  const slots = recipe.kind === "workflow" ? Object.fromEntries(Object.entries(proposal.slots ?? {}).filter(([name]) => name in recipe.sidecar.slots)) : undefined;
+  const base = { aspectRatio: proposal.aspectRatio, seed: proposal.seed, slots };
+  const results: z.input<typeof SubmitResultSchema>[] = [];
+  const candidates = Array.from({ length: proposal.count }, (_, index) => candidateRequestId(proposal.id, index));
+  const fresh = candidates.filter((requestId) => !store.chains.getByRequest(requestId));
+  const executor = deps.executors.forRecipe(recipe);
+  const before = spendPolicy(deps);
+  if (executor && fresh.length && before.ceilingUsd > 0) {
+    const estimate = await estimateTake(executor, { requestId: fresh[0], projectId: proposal.projectId, recipe, take, base });
+    const crossing = estimate.usd === null ? null : budgetCrossing(before, estimate.usd * fresh.length);
+    if (crossing) {
+      for (const requestId of candidates) {
+        const chain = store.chains.getByRequest(requestId);
+        if (!chain) continue;
+        results.push({ requestId, outcome: "existing", job: currentJob(deps, chain), assetIds: chain.outputAssetId ? [chain.outputAssetId] : [], message: chainSummary(chain), reserveUsd: chainReserveUsd(chain), budget: null });
+      }
+      results.push({ requestId: fresh[0], outcome: "blocked", job: null, assetIds: [], message: `The whole take is reserved before segment 1 runs. ${describeCrossing(crossing)}`, reserveUsd: null, budget: crossing });
+      return { results, warning: before.warning };
+    }
+  }
+  const stillRole = proposal.references.find((reference) => reference.assetId === take.still.id)?.role ?? "image1";
+  for (const requestId of candidates) {
+    const started = await startChain(
+      deps,
+      {
+        requestId,
+        projectId: proposal.projectId,
+        recipe,
+        drive: take.strategy.drive,
+        plan: take.plan,
+        prompts: take.prompts.map(({ line, prompt }) => ({ line, prompt })),
+        spec: proposal.spec!,
+        inputs: [
+          { role: stillRole, assetId: take.still.id, sha256: take.still.sha256 },
+          ...(take.identity ? [{ role: "identity", assetId: take.identity.id, sha256: take.identity.sha256 }] : []),
+        ],
+        images: [take.still.relativePath, ...(take.identity ? [take.identity.relativePath] : [])],
+        spine: take.spine,
+        target: proposal.target,
+        ...base,
+      },
+      { confirmUnquoted: input.confirmUnquoted },
+    );
+    if (started.kind === "blocked" || started.kind === "needs_confirmation") {
+      results.push({
+        requestId,
+        outcome: started.kind,
+        job: null,
+        assetIds: [],
+        message: started.kind === "blocked" ? started.error.message : started.reason,
+        reserveUsd: started.kind === "needs_confirmation" ? started.reserveUsd : null,
+        budget: started.kind === "blocked" ? (started.budget ?? null) : null,
+      });
+      break;
+    }
+    if (started.kind === "failed") {
+      results.push({ requestId, outcome: "failed", job: started.chain ? currentJob(deps, started.chain) : null, assetIds: [], message: started.chain?.notice ?? started.error.message, reserveUsd: null });
+      continue;
+    }
+    let chain = started.chain;
+    let outcome: "started" | "existing" | "completed" | "failed" | "blocked" = started.kind;
+    if (input.wait) {
+      const step = await runChainToCompletion(deps, chain.id);
+      chain = step.chain;
+      if (step.kind === "completed") outcome = "completed";
+      else if (step.kind === "failed") outcome = "failed";
+      else if (step.kind === "paused") outcome = "blocked";
+    } else if (chain.status === "completed") {
+      outcome = "existing";
+    } else if (chain.status === "running" || chain.status === "stitching") {
+      void runChainToCompletion(deps, chain.id).catch(() => undefined);
+    }
+    results.push({
+      requestId,
+      outcome,
+      job: currentJob(deps, chain),
+      assetIds: chain.outputAssetId ? [chain.outputAssetId] : [],
+      message: chainSummary(chain),
+      reserveUsd: chainReserveUsd(chain),
+    });
+  }
+  return { results, warning: spendPolicy(deps).warning };
+}
 
 export const assembleAd = defineTool({
   name: "assemble_ad",

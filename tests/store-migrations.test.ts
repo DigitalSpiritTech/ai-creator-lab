@@ -20,7 +20,7 @@ describe("migrations", () => {
   test("an empty directory migrates to the latest version with WAL, foreign keys, and media folders", () => {
     const { store, dir, cleanup } = tempStore();
     cleanups.push(cleanup);
-    assert.equal(SCHEMA_VERSION, 8);
+    assert.equal(SCHEMA_VERSION, 9);
     const pragma = (sql: string) => Object.values(store.database.prepare(sql).get()!)[0];
     assert.equal(pragma("PRAGMA user_version"), SCHEMA_VERSION);
     assert.equal(pragma("PRAGMA journal_mode"), "wal");
@@ -33,6 +33,7 @@ describe("migrations", () => {
       "assets",
       "backends",
       "budget_extensions",
+      "chains",
       "content_pieces",
       "conversation_messages",
       "document_versions",

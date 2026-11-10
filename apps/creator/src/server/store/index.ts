@@ -9,6 +9,7 @@ import { MEDIA_DIRECTORIES } from "@/server/media/paths";
 import { assetRepository } from "@/server/store/assets";
 import { backendRepository } from "@/server/store/backends";
 import { budgetRepository } from "@/server/store/budget";
+import { chainRepository } from "@/server/store/chains";
 import { openDatabase, transaction } from "@/server/store/connection";
 import { contentRepository } from "@/server/store/content";
 import { documentRepository } from "@/server/store/documents";
@@ -46,6 +47,10 @@ export interface Store {
   readonly backends: ReturnType<typeof backendRepository>;
   /** Per-project recipe preferences by capability. */
   readonly preferences: ReturnType<typeof preferencesRepository>;
+  /** Chained takes: the plan, the job behind each segment, and the stitched result. */
+  readonly chains: ReturnType<typeof chainRepository>;
+  /** What the spend policy counts as held beyond job reservations (chain segments not admitted yet). */
+  readonly holds: { outstandingUsd(): number };
   /** Runs synchronous store work atomically; nested calls become savepoints. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -59,6 +64,7 @@ export function openStore(dataDir: string): Store {
   const root = resolve(dataDir);
   for (const directory of MEDIA_DIRECTORIES) mkdirSync(join(root, directory), { recursive: true });
   const database = openDatabase(join(root, DATABASE_FILE));
+  const chains = chainRepository(database);
   return {
     dataDir: root,
     database,
@@ -74,6 +80,8 @@ export function openStore(dataDir: string): Store {
     budget: budgetRepository(database),
     backends: backendRepository(database),
     preferences: preferencesRepository(database),
+    chains,
+    holds: { outstandingUsd: chains.outstandingUsd },
     transaction: (work) => transaction(database, work),
     close: () => database.close(),
   };

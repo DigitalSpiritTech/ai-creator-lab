@@ -12,7 +12,7 @@ import { MediaPathSchema } from "@creator-lab/core/domain/common";
 import { addCandidates } from "@creator-lab/core/domain/content";
 import { addPieceCandidates } from "@creator-lab/core/domain/piece";
 import { fail } from "@creator-lab/core/domain/failure";
-import { type Job, type RetrievedFile, advanceJob, isTerminal } from "@creator-lab/core/domain/job";
+import { type GenerationTarget, type Job, type RetrievedFile, advanceJob, isTerminal } from "@creator-lab/core/domain/job";
 import { removeMedia, writeAtomic } from "@/server/media/files";
 import { resolveMediaPath, sha256 } from "@/server/media/paths";
 import type { Store } from "@/server/store";
@@ -42,8 +42,8 @@ export interface CommitResult {
   committed: boolean;
 }
 
-function attachToTarget(store: Store, job: Job, assetIds: string[], now: number): void {
-  const target = job.request.target;
+/** Adds new assets to a generation target: a shot's candidates or a plugin piece's slot. */
+export function attachToTarget(store: Store, target: GenerationTarget, assetIds: string[], now: number): void {
   if (target.kind === "piece") {
     const piece = store.pieces.get(target.contentId);
     if (piece && piece.slots[target.slot]) store.pieces.update(addPieceCandidates(piece, target.slot, assetIds, now));
@@ -95,6 +95,7 @@ async function stagedAsset(store: Store, job: Job, output: StagedOutput): Promis
 
 /**
  * Commits a job's outputs. `job` is the caller's last observed record (normally `retrieving`).
+ * `attach: false` saves the assets without adding them to the job's target (a chain segment).
  * Returns `committed: false` with the stored job when another worker already finished it.
  * Files written here are removed if the commit loses or fails; staged files are left for a retry.
  */
@@ -102,7 +103,7 @@ export async function commitJobOutputs(
   store: Store,
   job: Job,
   outputs: JobOutputFile[],
-  context: { now: number; newId: () => string },
+  context: { now: number; newId: () => string; attach?: boolean },
 ): Promise<CommitResult> {
   if (isTerminal(job)) fail("conflict", "This job already finished.");
   if (outputs.length === 0) fail("provider", "The provider returned no outputs.");
@@ -164,9 +165,11 @@ export async function commitJobOutputs(
     const completed = advanceJob(job, { status: "completed", outputs: assets.map((asset) => asset.id) }, context.now);
     const committed = store.transaction(() => {
       if (!store.jobs.commitOutputs(completed, assets)) return false;
+      // A chained take's segments are not candidates on their own; the stitched take is.
+      if (context.attach === false) return true;
       attachToTarget(
         store,
-        completed,
+        completed.request.target,
         assets.map((asset) => asset.id),
         context.now,
       );

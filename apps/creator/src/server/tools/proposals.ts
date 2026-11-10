@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 import { createHash } from "node:crypto";
-import { type AspectRatio, type BackendRouting, type Capability, type Placement, type PromptStyle, type Recipe, bindRecipe, imageSlotNames, placeRecipe, placedTitle, placementNote } from "@creator-lab/core/catalog";
+import { type AspectRatio, type BackendRouting, type Capability, type Placement, type PromptStyle, type Recipe, bindRecipe, imageSlotNames, inferPromptStyle, placeRecipe, placedTitle, placementNote } from "@creator-lab/core/catalog";
 import { AspectRatioSchema } from "@creator-lab/core/catalog";
 import type { Asset } from "@creator-lab/core/domain/asset";
 import { fail } from "@creator-lab/core/domain/failure";
@@ -20,10 +20,12 @@ import { EDITED_PROMPT_LIMIT, type ShotSpec, type ShotSpecInput, ShotSpecSchema 
 import { DEFAULT_RECIPE_IDS, purposeRecipe } from "@creator-lab/recipes/defaults";
 import type { EstimateOutcome, ExecutorSet } from "@creator-lab/executors";
 import type { RunDeps } from "@/server/generation/run";
+import { chainPromptSummary } from "@creator-lab/recipes/chain";
 import { renderPrompt } from "@creator-lab/recipes/render";
 import { serverPlugins } from "@/plugins/server";
 import type { ToolContext } from "@/server/tools/registry";
 import { requireGeneration } from "@/server/tools/registry";
+import { type ChainedTake, chainedTake, combineEstimates, pricingInput } from "@/server/tools/chain";
 import { linkedReferenceIds, referenceableIn } from "@/server/tools/shared";
 
 export interface ProposalSpec {
@@ -254,11 +256,15 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
   const placed = placeForProposal(context, picked);
   const recipe = placed.recipe;
   const shot = shotOf(spec);
-  const { prompt, style } = renderFor(recipe, shot);
+  // A clip longer than the recipe makes in one run is a chained take: one prompt per segment, priced as a whole.
+  const take = chainedTake(context, { projectId: spec.projectId, recipe, shot, durationSeconds: spec.durationSeconds, target: spec.target, assets });
+  const { prompt, style } = take ? { prompt: chainPromptSummary(take.plan, take.prompts), style: inferPromptStyle(recipe) } : renderFor(recipe, shot);
   const id = context.newId();
   const executor = generation.executors.forRecipe(recipe) ?? fail("invalid", `${placed.title} cannot run with the keys and backends configured now.`);
   const slots = recipe.kind === "workflow" ? Object.fromEntries(Object.entries(spec.slots ?? {}).filter(([name]) => name in recipe.sidecar.slots)) : {};
-  const estimated = summarizeEstimate(await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, prompt, slots }, assets) }));
+  const estimated = take
+    ? await estimateTake(executor, { requestId: id, projectId: spec.projectId, recipe, take, base: { aspectRatio: spec.aspectRatio, seed: spec.seed, slots } })
+    : summarizeEstimate(await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, prompt, slots }, assets) }));
   // Where it runs comes first, so a fallback to Comfy Cloud is never silent.
   const estimate = placed.note ? { ...estimated, note: `${placed.note} ${estimated.note}`.trim().slice(0, 600) } : estimated;
   return GenerationProposalSchema.parse({
@@ -280,6 +286,34 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
     target: spec.target,
     estimate,
   });
+}
+
+/** Every segment of a chained take priced by the executor, as one estimate for the card. */
+export async function estimateTake(
+  executor: Pick<NonNullable<ReturnType<ExecutorSet["forRecipe"]>>, "estimate">,
+  args: { requestId: string; projectId: string; recipe: Recipe; take: ChainedTake; base: Pick<GenerationInput, "aspectRatio" | "seed" | "slots"> },
+): Promise<EstimateSummary> {
+  const estimates: EstimateOutcome[] = [];
+  for (let index = 0; index < args.take.plan.segments.length; index++) {
+    estimates.push(await executor.estimate({ requestId: args.requestId, projectId: args.projectId, recipe: args.recipe, input: pricingInput(args.take, index, args.base) }));
+  }
+  return combineEstimates(args.take, args.recipe, estimates);
+}
+
+/**
+ * The chained take a proposal runs, or undefined when it runs as one job per candidate. Decided
+ * the same way as when the proposal was built, for the recipe bound at submit.
+ */
+export async function proposalChain(context: ToolContext, proposal: GenerationProposal): Promise<{ recipe: Recipe; take: ChainedTake } | undefined> {
+  if (proposal.spec?.kind !== "clip") return undefined;
+  const generation = requireGeneration(context);
+  const listed = (await generation.recipes()).find((entry) => entry.id === proposal.recipeId);
+  if (!listed) fail("not_found", `There is no recipe ${proposal.recipeId}.`);
+  if (listed.capability !== proposal.capability) fail("invalid", "The proposal's recipe does not match its capability.");
+  const recipe = boundForSubmit(generation.routing?.(), listed, proposal.backendId);
+  const assets = referenceAssets(context, proposal.projectId, proposal.references);
+  const take = chainedTake(context, { projectId: proposal.projectId, recipe, shot: proposal.spec, durationSeconds: proposal.durationSeconds, target: proposal.target, assets });
+  return take ? { recipe, take } : undefined;
 }
 
 /** A stable request id per candidate, so submitting the same proposal twice never runs twice. */

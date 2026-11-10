@@ -215,6 +215,24 @@ export const MIGRATIONS: readonly string[] = [
   DROP TABLE document_versions;
   ALTER TABLE document_versions_next RENAME TO document_versions;
   `,
+  // Version 9: chained takes (v0.2 F4, length as a capability). One row per proposal candidate made
+  // as segments; each segment is an ordinary job, and the row records the plan, which job made which
+  // segment, and the stitched result. Self-contained (IF NOT EXISTS, no change to other tables) so it
+  // can move to another number when branches merge.
+  `
+  CREATE TABLE IF NOT EXISTS chains (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id),
+    request_id TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL CHECK (status IN ('running', 'paused', 'stitching', 'completed', 'failed')),
+    data TEXT NOT NULL CHECK (${jsonOwnId}
+      AND json_extract(data, '$.projectId') = project_id
+      AND json_extract(data, '$.requestId') = request_id
+      AND json_extract(data, '$.status') = status)
+  );
+  CREATE INDEX IF NOT EXISTS chains_project ON chains(project_id);
+  CREATE INDEX IF NOT EXISTS chains_status ON chains(status);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
