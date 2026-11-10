@@ -2,7 +2,8 @@
  * MCP server over the domain tool registry, so Claude Code, Claude Desktop, and other MCP clients
  * drive the same flow as the in-app assistant. Every roster tool is exposed with its JSON schema and
  * runs through `callTool`. The spending gate (`submit_proposal`) is exposed deliberately as
- * `approve_and_generate`, the human's approval step, under the same allowance. Two resource
+ * `approve_and_generate`, the human's approval step, under the same monthly budget. Raising the
+ * budget is not a tool: only a person's click in the app extends a month. Two resource
  * templates let a client look at a project's state and at candidate files.
  * @packageDocumentation
  */
@@ -27,7 +28,7 @@ export const APPROVE_AND_GENERATE = "approve_and_generate";
 
 const APPROVE_DESCRIPTION = [
   "Spends Comfy credits. This is the human's approval step: call it only after the user has seen a proposal (from propose_candidates, compose_still, generate_clip, generate_reference_sheet, or refine_still) and explicitly approved it.",
-  "Submits the proposal as one generation job per candidate, gated by the same allowance as the app (GENERATION_ALLOWANCE_USD and the workspace allowance; zero blocks every paid run). Submitting the same proposal again never runs it twice.",
+  "Submits the proposal as one generation job per candidate, gated by the same spend policy as the app (this month's budget plus any extension the user added in the app, capped by GENERATION_ALLOWANCE_USD; a zero ceiling blocks every paid run). A proposal that would cross the remaining budget is blocked with the spent, remaining, and cost figures; only the user can add to this month, in the app. Submitting the same proposal again never runs it twice.",
   "Pass confirmUnquoted only when the user accepted a reservation for a recipe without a live price; pass wait true to return once the candidates are finished.",
 ].join(" ");
 

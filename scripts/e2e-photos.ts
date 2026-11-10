@@ -39,7 +39,7 @@ async function main() {
   const maxBeats = Number(process.env.E2E_MAX_BEATS ?? "1");
   await withStore(async (store) => {
     const now = Date.now();
-    store.workspace.update({ allowanceUsd: 5 }, now);
+    store.workspace.update({ monthlyBudgetUsd: 5 }, now);
     const context = createToolContext(store, createGenerationContext(store));
     const project = process.env.PROJECT_ID
       ? store.projects.getRequired(process.env.PROJECT_ID)

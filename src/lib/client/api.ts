@@ -3,7 +3,7 @@
  * gate, and asset URLs.
  * @packageDocumentation
  */
-import type { Asset, GenerationProposal, SubmitResult } from "@/lib/client/types";
+import type { Asset, GenerationProposal, SettingsView, SubmitResponse } from "@/lib/client/types";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -38,8 +38,16 @@ export function callTool<T = unknown>(name: string, input: Record<string, unknow
 }
 
 /** The spending gate: submit a proposal the user approved. */
-export function submitProposal(proposal: GenerationProposal, confirmUnquoted = false): Promise<{ results: SubmitResult[] }> {
+export function submitProposal(proposal: GenerationProposal, confirmUnquoted = false): Promise<SubmitResponse> {
   return sendJson(`/api/projects/${proposal.projectId}/proposals/submit`, { proposal, confirmUnquoted });
+}
+
+/**
+ * "Add to this month": raises only the current budget period, up to the operator ceiling. `id` makes
+ * a repeated click add once; `periodKey` is the period the person saw.
+ */
+export function extendBudget(request: { id: string; periodKey: string; amountUsd: number }): Promise<SettingsView & { created: boolean }> {
+  return sendJson("/api/settings/budget", request);
 }
 
 export const UPLOAD_TYPES = "image/png,image/jpeg,image/webp";

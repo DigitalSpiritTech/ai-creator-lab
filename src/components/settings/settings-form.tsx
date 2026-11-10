@@ -1,6 +1,7 @@
 /**
  * Settings: keys (write-only; the page only ever learns whether each is set), assistant model,
- * generation allowance and auto-approve, default recipe per capability, data directory, theme.
+ * monthly budget (reset day, add to this month, the read-only operator ceiling) and auto-approve,
+ * default recipe per capability, data directory, theme.
  * @packageDocumentation
  */
 "use client";
@@ -14,8 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { useLoad } from "@/lib/client/use-load";
-import { errorMessage, getJson, sendJson } from "@/lib/client/api";
-import { CAPABILITY_LABELS, formatUsd } from "@/lib/client/format";
+import { errorMessage, extendBudget, getJson, sendJson } from "@/lib/client/api";
+import { CAPABILITY_LABELS, describeSpendWarning, formatPeriodDate, formatUsd, formatUsdCredits } from "@/lib/client/format";
 import type { ConnectionView, RecipeSummary, SettingsView } from "@/lib/client/types";
 import type { Capability } from "@/lib/domain/capability";
 
@@ -35,7 +36,6 @@ export function SettingsForm() {
   const [comfyKey, setComfyKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [model, setModel] = useState("");
-  const [allowance, setAllowance] = useState("");
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [connection, setConnection] = useState<ConnectionView | null>(null);
@@ -71,7 +71,6 @@ export function SettingsForm() {
     try {
       const next = await getJson<SettingsView>("/api/settings");
       setView(next);
-      setAllowance(String(next.workspace.allowanceUsd));
       setModel(next.keys.llmModel.source === "settings" ? (next.keys.llmModel.value ?? "") : "");
     } catch (cause) {
       setMessage({ tone: "error", text: errorMessage(cause) });
@@ -210,34 +209,16 @@ export function SettingsForm() {
         )}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold">Generation allowance</h2>
-        <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-          <Stat label="In force" value={formatUsd(view.allowance.effectiveUsd)} />
-          <Stat label="Spent" value={formatUsd(view.allowance.spentUsd)} />
-          <Stat label="Reserved" value={formatUsd(view.allowance.reservedUsd)} />
-          <Stat label="Operator cap (.env.local)" value={formatUsd(view.allowance.operatorUsd)} />
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Paid runs stop at the lower of your allowance and the operator cap. A cap of zero keeps paid generation off.
-        </p>
-        <form
-          className="flex items-center gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const value = Number(allowance);
-            if (Number.isFinite(value) && value >= 0) void saveWorkspace({ allowanceUsd: value });
-          }}
-        >
-          <label htmlFor="allowance" className="text-sm">Your allowance (USD)</label>
-          <Input id="allowance" type="number" min={0} max={10000} step={0.5} value={allowance} onChange={(event) => setAllowance(event.target.value)} className="w-28" />
-          <Button size="sm" type="submit" disabled={busy}>Save</Button>
-        </form>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={view.workspace.autoApprove} disabled={busy} onChange={(event) => void saveWorkspace({ autoApprove: event.target.checked })} />
-          Auto-approve proposals under the allowance (skip the Approve and generate step)
-        </label>
-      </section>
+      <MonthlyBudget
+        view={view}
+        busy={busy}
+        onSave={(patch) => void saveWorkspace(patch)}
+        onExtended={(next) => {
+          setView(next);
+          setMessage({ tone: "ok", text: "Added to this month. Next month starts from your monthly budget again." });
+        }}
+        onError={(text) => setMessage({ tone: "error", text })}
+      />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">Default recipe per capability</h2>
@@ -306,6 +287,118 @@ export function SettingsForm() {
         <ThemeToggle />
       </section>
     </div>
+  );
+}
+
+/**
+ * The spend policy in Settings: this period's numbers, the monthly budget and reset day, "add to
+ * this month", and the operator ceiling (GENERATION_ALLOWANCE_USD), which is read-only here.
+ */
+export function MonthlyBudget({
+  view,
+  busy,
+  onSave,
+  onExtended,
+  onError,
+}: {
+  view: SettingsView;
+  busy: boolean;
+  onSave: (patch: Record<string, unknown>) => void;
+  onExtended: (next: SettingsView) => void;
+  onError: (text: string) => void;
+}) {
+  const { spend, workspace, creditsPerUsd } = view;
+  const [budget, setBudget] = useState(String(workspace.monthlyBudgetUsd));
+  const [resetDay, setResetDay] = useState(String(workspace.budgetResetDay));
+  const [extra, setExtra] = useState("");
+  const [extending, setExtending] = useState(false);
+  const warning = describeSpendWarning(spend.warning, spend.period.endsAt);
+  const usd = (value: number) => formatUsdCredits(value, creditsPerUsd);
+  const extraValue = Number(extra);
+  const canExtend = spend.ceilingUsd > 0 && spend.maxExtensionUsd > 0;
+
+  async function extend(event: React.FormEvent) {
+    event.preventDefault();
+    if (!(Number.isFinite(extraValue) && extraValue > 0)) return;
+    setExtending(true);
+    try {
+      onExtended(await extendBudget({ id: crypto.randomUUID(), periodKey: spend.period.key, amountUsd: extraValue }));
+      setExtra("");
+    } catch (cause) {
+      onError(errorMessage(cause));
+    } finally {
+      setExtending(false);
+    }
+  }
+
+  return (
+    <section className="space-y-3" aria-label="Monthly budget">
+      <h2 className="text-sm font-semibold">Monthly budget</h2>
+      <p className="text-xs text-muted-foreground">
+        This period runs from {formatPeriodDate(spend.period.startsAt)} to {formatPeriodDate(spend.period.endsAt)} (UTC).
+      </p>
+      <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+        <Stat label="This month's budget" value={formatUsd(spend.effectiveLimitUsd)} />
+        <Stat label="Spent" value={formatUsd(spend.spentUsd)} />
+        <Stat label="Reserved" value={formatUsd(spend.reservedUsd)} />
+        <Stat label="Remaining" value={formatUsd(spend.remainingUsd)} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Remaining {usd(spend.remainingUsd)}.
+        {spend.extensionUsd > 0 ? ` Includes ${formatUsd(spend.extensionUsd)} added to this month.` : ""}
+      </p>
+      {warning ? <Notice tone={warning.tone}>{warning.text}</Notice> : null}
+      <div className="rounded-lg border p-2 text-xs" aria-label="Operator ceiling">
+        <div className="text-muted-foreground">Operator ceiling (GENERATION_ALLOWANCE_USD, read-only)</div>
+        <div className="text-base font-semibold">{formatUsd(spend.ceilingUsd)} a month</div>
+        <p className="mt-1 text-muted-foreground">
+          {spend.ceilingUsd > 0
+            ? `No month can spend more than this, whatever the budget or extensions; ${formatUsd(spend.ceilingSpentUsd)} of it is spent this calendar month. Only the person running this install can change it.`
+            : "Zero keeps paid generation off on this install. Only the person running this install can change it."}
+        </p>
+      </div>
+      <form
+        className="flex flex-wrap items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const value = Number(budget);
+          const day = Number(resetDay);
+          if (Number.isFinite(value) && value >= 0 && Number.isInteger(day) && day >= 1 && day <= 28) onSave({ monthlyBudgetUsd: value, budgetResetDay: day });
+        }}
+      >
+        <label htmlFor="monthly-budget" className="text-sm">Monthly budget (USD)</label>
+        <Input id="monthly-budget" type="number" min={0} max={10000} step={0.5} value={budget} onChange={(event) => setBudget(event.target.value)} className="w-28" />
+        <label htmlFor="budget-reset-day" className="text-sm">Resets on day</label>
+        <NativeSelect id="budget-reset-day" value={resetDay} onChange={(event) => setResetDay(event.target.value)} className="w-20">
+          {Array.from({ length: 28 }, (_, index) => String(index + 1)).map((day) => (
+            <NativeSelectOption key={day} value={day}>{day}</NativeSelectOption>
+          ))}
+        </NativeSelect>
+        <Button size="sm" type="submit" disabled={busy}>Save</Button>
+      </form>
+      <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => void extend(event)}>
+        <label htmlFor="budget-extra" className="text-sm">Add to this month (USD)</label>
+        <Input
+          id="budget-extra"
+          type="number"
+          min={0.01}
+          max={spend.maxExtensionUsd}
+          step={0.5}
+          value={extra}
+          disabled={!canExtend}
+          onChange={(event) => setExtra(event.target.value)}
+          className="w-28"
+        />
+        <Button size="sm" type="submit" variant="outline" disabled={!canExtend || extending || !(extraValue > 0)}>Add</Button>
+        <span className="text-xs text-muted-foreground">
+          {canExtend ? `Up to ${formatUsd(spend.maxExtensionUsd)} under the operator ceiling. This month only.` : "The operator ceiling leaves no room to add more this month."}
+        </span>
+      </form>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={workspace.autoApprove} disabled={busy} onChange={(event) => onSave({ autoApprove: event.target.checked })} />
+        Auto-approve proposals under this month&apos;s budget (skip the Approve and generate step)
+      </label>
+    </section>
   );
 }
 

@@ -20,7 +20,8 @@ import {
 import { GenerationProposalSchema, GenerationTargetSchema, type Job, JobSchema } from "@/lib/domain/job";
 import { assembleAd as assembleExport } from "@/server/assembly";
 import { defaultRecipes, recipesFor } from "@/server/catalog/defaults";
-import { runToCompletion, startGeneration } from "@/server/executors/run";
+import { BudgetCrossingSchema, SpendWarningSchema, budgetCrossing, describeCrossing } from "@/lib/domain/spend";
+import { runToCompletion, spendPolicy, startGeneration } from "@/server/executors/run";
 import type { Store } from "@/server/store";
 import { BODY_REFERENCE, FACE_LOCK, bodyPrompt, clipPrompt, faceLockPrompt, productPhotoPrompt, referenceSheetPrompt, refinePrompt, stillPrompt, type StillPromptParts } from "@/server/tools/prompts";
 import { buildProposal, candidateRequestId, nearestAspect, proposalRecipe, proposalRequest, runDeps } from "@/server/tools/proposals";
@@ -438,12 +439,14 @@ const SubmitResultSchema = z.object({
   assetIds: z.array(IdSchema),
   message: z.string().nullable(),
   reserveUsd: z.number().nonnegative().nullable(),
+  /** Set on a blocked result when the run would cross this month's remaining budget. */
+  budget: BudgetCrossingSchema.nullable().default(null),
 });
 
 export const submitProposal = defineTool({
   name: "submit_proposal",
   description:
-    "Internal: submit an approved proposal as one generation job per candidate. Called by the UI gate after the user approves, or by auto-approve under the allowance; the assistant never calls it on its own. Submitting the same proposal again never runs it twice.",
+    "Internal: submit an approved proposal as one generation job per candidate. Called by the UI gate after the user approves, or by auto-approve under the budget; the assistant never calls it on its own. A proposal whose cost would cross this month's remaining budget is blocked as a whole, with the spent, remaining, and cost figures. Submitting the same proposal again never runs it twice.",
   input: z
     .object({
       proposal: GenerationProposalSchema,
@@ -451,12 +454,30 @@ export const submitProposal = defineTool({
       wait: z.boolean().default(false).describe("Wait for every candidate to finish instead of returning once submitted."),
     })
     .strict(),
-  output: z.object({ results: z.array(SubmitResultSchema) }),
+  output: z.object({
+    results: z.array(SubmitResultSchema),
+    /** The share of this month's budget in use after submitting: 0, 50, 80, or 100 percent. */
+    warning: SpendWarningSchema,
+  }),
   run: async (context, input) => {
     const { proposal } = input;
     const deps = runDeps(context);
     const request = await proposalRequest(context, proposal);
     const results: z.input<typeof SubmitResultSchema>[] = [];
+    // The whole proposal is checked first, so a run that crosses the budget starts no candidate.
+    // Each candidate is still gated on its own live estimate below; this is the extend modal's number.
+    const fresh = Array.from({ length: proposal.count }, (_, index) => candidateRequestId(proposal.id, index)).filter(
+      (requestId) => !context.store.jobs.getByRequest(requestId),
+    );
+    const unitUsd = proposal.estimate.kind === "free" ? 0 : (proposal.estimate.usd ?? request.recipe.ceilingUsd ?? 0);
+    const before = spendPolicy(deps);
+    const crossing = before.ceilingUsd > 0 && fresh.length ? budgetCrossing(before, unitUsd * fresh.length) : null;
+    if (crossing) {
+      return {
+        results: [{ requestId: fresh[0], outcome: "blocked" as const, job: null, assetIds: [], message: describeCrossing(crossing), reserveUsd: null, budget: crossing }],
+        warning: before.warning,
+      };
+    }
     for (let index = 0; index < proposal.count; index++) {
       const requestId = candidateRequestId(proposal.id, index);
       const started = await startGeneration(
@@ -472,6 +493,7 @@ export const submitProposal = defineTool({
           assetIds: [],
           message: started.kind === "blocked" ? started.error.message : started.reason,
           reserveUsd: started.kind === "needs_confirmation" ? started.reserveUsd : null,
+          budget: started.kind === "blocked" ? (started.budget ?? null) : null,
         });
         break;
       }
@@ -498,7 +520,7 @@ export const submitProposal = defineTool({
       }
       results.push({ requestId, outcome, job, assetIds, message, reserveUsd: job.reservedUsd });
     }
-    return { results };
+    return { results, warning: spendPolicy(deps).warning };
   },
 });
 

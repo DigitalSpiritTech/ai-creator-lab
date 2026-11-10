@@ -131,6 +131,20 @@ export const MIGRATIONS: readonly string[] = [
         'imageAssetIds', json(coalesce(json_extract(data, '$.imageAssetIds'), '[]'))))
     FROM library_items WHERE kind = 'product';
   `,
+  // Version 4: the monthly budget (v0.2 F2). The workspace allowance becomes the monthly budget with
+  // reset day 1, and each "add to this month" click is a row keyed by its period's start date.
+  `
+  UPDATE workspace SET data = json_set(json_remove(data, '$.allowanceUsd'),
+      '$.monthlyBudgetUsd', json_extract(data, '$.allowanceUsd'),
+      '$.budgetResetDay', coalesce(json_extract(data, '$.budgetResetDay'), 1))
+    WHERE json_type(data, '$.allowanceUsd') IN ('integer', 'real');
+  CREATE TABLE budget_extensions (
+    id TEXT PRIMARY KEY,
+    period_key TEXT NOT NULL,
+    data TEXT NOT NULL CHECK (${jsonOwnId} AND json_extract(data, '$.periodKey') = period_key)
+  );
+  CREATE INDEX budget_extensions_period ON budget_extensions(period_key);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

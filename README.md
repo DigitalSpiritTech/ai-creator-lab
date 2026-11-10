@@ -49,21 +49,22 @@ npm start
 
 Those are the clone, the move into the folder, the dependency install, the build, and the start. Then open http://127.0.0.1:3000 in your browser. The app only listens on your own machine (127.0.0.1) and only answers requests addressed to localhost or 127.0.0.1. There is no setting to open it to other hosts. To run it on your own server, reach it through an SSH tunnel (for example `ssh -L 3000:127.0.0.1:3000 you@your-server`), or put a reverse proxy in front that rewrites the Host header to `127.0.0.1:3000` (and the Origin header to `http://127.0.0.1:3000`, or saving will be refused) and adds its own login.
 
-## Settings: keys and the allowance
+## Settings: keys and the monthly budget
 
 Open Settings in the left rail.
 
 - Paste your Comfy API key and your Anthropic API key and press Save keys. The app checks them and shows which are set. Keys are stored in a file called `secrets.json` inside the data folder, with permissions 0600 (readable only by your user). They are read on the server only and are never sent to the browser, shown again, or written to logs. If you set `COMFY_API_KEY` or `ANTHROPIC_API_KEY` as environment variables instead, those win over the saved ones.
-- Paid generation is off until you turn it on. Two numbers have to be above zero, and the lower one is the cap that applies:
-  1. The operator cap, `GENERATION_ALLOWANCE_USD` in a file named `.env.local` in the project folder. Copy `.env.example` to `.env.local`, set the variable to the dollar amount you are willing to spend in total, and restart the app.
-  2. Your allowance in Settings (USD). Settings shows the amount in force, what has been spent, and what is reserved by jobs in flight.
-- With the allowance at zero, nothing paid runs. Proposals still show you the quote, so you can walk the flow up to the gate before spending anything.
+- Paid generation is off until you turn it on. Two numbers have to be above zero:
+  1. The operator ceiling, `GENERATION_ALLOWANCE_USD` in a file named `.env.local` in the project folder: the most any calendar month (UTC) can spend. Copy `.env.example` to `.env.local`, set the variable to the dollar amount you are willing to spend in a month, and restart the app. Settings shows it read-only; nothing in the app can raise it.
+  2. Your monthly budget in Settings (USD), with the day of the month it resets (1 to 28, at midnight UTC). Settings shows this period's dates, the budget in force, what has been spent, what is reserved by jobs in flight, and what remains, in dollars with Comfy credits beside them (210 credits per dollar).
+- Spend counts in the period its cost was recorded, so a new period starts at zero. Settings warns at 50 and 80 percent of the month's budget and says when it is used up.
+- With either number at zero, nothing paid runs. Proposals still show you the quote, so you can walk the flow up to the gate before spending anything.
 
 ## Your first ad in ten minutes
 
 The example below uses an invented creator, Avery Lane, and an invented product, the Ridgeline 32 oz insulated bottle. Replace them with your own. Most of the ten minutes is waiting on generation; the real clicking is short.
 
-1. Connect. Save your two keys in Settings and set an allowance (above).
+1. Connect. Save your two keys in Settings and set a monthly budget (above).
 2. New project. On Projects, create one from UGC Creator and name it, for example "Ridgeline launch". The chat opens on the left.
 3. Brief. The assistant asks what you are selling, who buys it, where it will run, and the tone. It saves the brief to the Documents tab beside the chat, where you can edit it.
 4. Character. Build the bible together: name, age range, look, wardrobe, voice, boundaries. Avery Lane is early 30s, warm and direct, light freckles, dark shoulder-length hair tied back, small silver hoop earrings, never hype, no health claims, no competitor names. If you already have a Character in the Library, pick it and skip ahead.
@@ -101,11 +102,13 @@ Numbers as of October 2026, observed on a real Comfy Cloud account on October 26
 
 The app converts at 210 credits per US dollar, which is the rate observed on Router and matches the entry plan's monthly rate, so a full three-beat ad is a few tenths of a dollar of generation. Expect more once you generate several candidates per step and redo a few. The entry Comfy Cloud plan with API access was about $20 a month with roughly 4,200 credits and one workflow at a time when this was written. Router models need no plan, only credits. The assistant's Anthropic usage is billed separately by Anthropic.
 
-## The allowance and auto-approve
+## The monthly budget and auto-approve
 
-The allowance is a hard stop. Before a paid job runs, the app reserves its quoted cost (or the recipe's ceiling when the model gives no quote) against what is left of the allowance. A job that does not fit is blocked. A recipe without a quote asks for your explicit confirmation. Free and mock runs always pass.
+The budget is a hard stop. Before a paid job runs, the app reserves its quoted cost (or the recipe's ceiling when the model gives no quote) against what is left of this month's budget. A recipe without a quote asks for your explicit confirmation. Free and mock runs always pass.
 
-Auto-approve is a checkbox in Settings. When it is on, proposals under the allowance are submitted without the Approve and generate click, and the card says so. The server still enforces the allowance either way. Leave it off until you trust the prompts for your product. Submitting the same proposal twice never runs it twice.
+When approving a proposal would go over what is left, nothing runs and a dialog shows what you have spent this month, what remains, and what this action costs. You can type an amount under "Add to this month" and generate: the extra raises the current period only, and next period starts from your monthly budget again. You can also add to this month in Settings. Neither can go past the operator ceiling; when the ceiling is what stands in the way, the dialog says so. Only a click in the app extends a month: the assistant and the MCP server cannot.
+
+Auto-approve is a checkbox in Settings. When it is on, proposals under the budget are submitted without the Approve and generate click, and the card says so. The server still enforces the budget either way, and a proposal that would go over it still waits for you. Leave it off until you trust the prompts for your product. Submitting the same proposal twice never runs it twice.
 
 ## Your data folder
 
@@ -119,7 +122,8 @@ Twenty-three open-weights workflows ship in `workflows/` (Z-Image, Qwen-Image 25
 
 - The app must stay on your own computer. `npm start` binds to 127.0.0.1 on purpose; the local-only check refuses other hosts, and it is not a login. Do not expose the port to a network. [SECURITY.md](SECURITY.md) says what is and is not protected.
 
-- "Paid generation is off." Both the Settings allowance and `GENERATION_ALLOWANCE_USD` in `.env.local` must be above zero. Restart after editing `.env.local`.
+- "Paid generation is off." `GENERATION_ALLOWANCE_USD` in `.env.local` must be above zero. Restart after editing `.env.local`.
+- "More than the ... left in this month's budget." Add to this month in the dialog or in Settings, raise the monthly budget, or wait for the reset day.
 - Cloud workflows fail with an authorization or plan error. API access to Comfy Cloud is not part of the free tier. Use a paid plan, or use Router models, which need only credits.
 - Jobs wait in a queue. On the entry plan Comfy Cloud runs one workflow at a time. The app also submits one job at a time per target and shows queue position, so a batch of candidates arrives one after another.
 - The export says the FFmpeg build has no `drawtext` filter. Captions need an ffmpeg built with libfreetype. On macOS run `brew install ffmpeg-full` (Homebrew's plain `ffmpeg` is lean and lacks it); the app looks for `ffmpeg-full` on its own, no restart needed. Elsewhere, check the build with `ffmpeg -filters | grep drawtext`, install a fuller one, and if several are installed set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env.local` to the right pair. Or export with captions switched off.
@@ -140,7 +144,7 @@ Scripts (all in `package.json`):
 - `npm run build`, `npm start` build and serve.
 - `npm run lint`, `npm run typecheck`, `npm test` are the checks. `npm run test:acceptance` runs the whole flow against the mock executor with no credits.
 - `npm run --silent mcp` starts the MCP server on stdio (see below).
-- `npm run spike`, `npm run live-check`, `npm run e2e-real`, `npm run e2e-photos`, `npm run live-premium` call real providers and spend credits. They need the key and a nonzero allowance.
+- `npm run spike`, `npm run live-check`, `npm run e2e-real`, `npm run e2e-photos`, `npm run live-premium` call real providers and spend credits. They need the key, a nonzero `GENERATION_ALLOWANCE_USD`, and room in the monthly budget.
 - `npm run spike:v02` runs the v0.2 spike (Krea 2 character start and the MiniMax H3 checks) under a 420-credit cap; `DRY_RUN=1 npm run spike:v02` prints the plan and its ceilings without a key or any network call. See `docs/TASKS.md` B24 and B25 for its inputs.
 
 Where things live:
@@ -157,7 +161,7 @@ Where things live:
 
 `npm run --silent mcp` (or `node --import tsx scripts/mcp.ts`) starts an MCP server on stdio over the same tools the in-app assistant uses. It opens the data folder in `STUDIO_DATA_DIR` (default `.data` in the repo). Keys come from `.env.local`, which the server loads when present, or from the secrets file that Settings writes in the data folder. Run it from the repo folder. Use `--silent` with `npm run`, because npm's own banner on stdout would break the protocol.
 
-Every tool is offered under its own name. Generating is split the same way as in the app: tools such as `propose_candidates` and `compose_still` return a proposal, and only `approve_and_generate` spends credits. That tool, and `delete_asset_everywhere`, are offered only when you start the server with `MCP_ALLOW_SPEND=1` or `MCP_ALLOW_DELETE=1`, because an MCP client has no proposal card to click; with spending allowed it is still held to the same allowance (`GENERATION_ALLOWANCE_USD` and the workspace allowance; zero blocks every paid run). Two resources let a client look at the work: `project://{id}/state` (the whole project as JSON) and `asset://{id}` (a candidate's file).
+Every tool is offered under its own name. Generating is split the same way as in the app: tools such as `propose_candidates` and `compose_still` return a proposal, and only `approve_and_generate` spends credits. That tool, and `delete_asset_everywhere`, are offered only when you start the server with `MCP_ALLOW_SPEND=1` or `MCP_ALLOW_DELETE=1`, because an MCP client has no proposal card to click; with spending allowed it is still held to the same monthly budget, capped by `GENERATION_ALLOWANCE_USD` (zero blocks every paid run), and it cannot add to a month; only a click in the app does that. Two resources let a client look at the work: `project://{id}/state` (the whole project as JSON) and `asset://{id}` (a candidate's file).
 
 Claude Code, from the repo folder:
 

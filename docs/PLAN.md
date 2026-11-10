@@ -25,7 +25,7 @@ The MVP is one App, UGC Creator, with one content type, Ad.
 
 Must have:
 
-- Settings: Comfy API key, Anthropic API key, data directory, generation allowance (USD, zero disables paid runs). Keys never reach the browser.
+- Settings: Comfy API key, Anthropic API key, data directory, monthly budget (USD, a reset day, per-period extensions by click only, capped by the operator ceiling `GENERATION_ALLOWANCE_USD` per calendar month; zero disables paid runs). Keys never reach the browser.
 - Workspace shell: Projects, Assets, Library, Archive. Light and dark theme.
 - Project created from the UGC Creator app with a chat panel, tool-result cards, and the project's asset grid.
 - Capability and recipe catalog with two executors (Router executor, Workflow executor) and a mock executor for credit-free trials.

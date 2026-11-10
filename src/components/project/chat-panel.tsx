@@ -157,7 +157,7 @@ export function ChatPanel({ items, setItems }: { items: ChatItem[]; setItems: Re
           disabled={readOnly}
         />
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{readOnly ? "Read-only demo." : view.autoApprove ? "Auto-approve is on: proposals run under your allowance." : "Every generation waits for your approval."}</span>
+          <span className="text-xs text-muted-foreground">{readOnly ? "Read-only demo." : view.autoApprove ? "Auto-approve is on: proposals run under this month's budget." : "Every generation waits for your approval."}</span>
           {streaming ? (
             <Button type="button" size="sm" variant="outline" onClick={() => abort.current?.abort()}>
               <Square /> Stop

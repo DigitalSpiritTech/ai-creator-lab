@@ -25,11 +25,11 @@ AI Creator Lab is an open-source studio for creators who make short vertical con
 
 Left rail: Projects, Assets, Library, Archive, Settings. Inside a project: Chat (left), Workspace (right) with tabs for Script, Shots, Assets, and Export.
 
-Settings: Comfy API key, Anthropic API key, generation allowance in USD, default recipe per capability, data directory, theme.
+Settings: Comfy API key, Anthropic API key, monthly budget in USD with a reset day (add to this month when a step needs more; the operator ceiling `GENERATION_ALLOWANCE_USD` is shown read-only), default recipe per capability, data directory, theme.
 
 ## The UGC Creator flow as the user experiences it
 
-1. Connect. Paste a Comfy API key and an Anthropic key. The app checks both and shows the Comfy plan and credit balance. Set an allowance.
+1. Connect. Paste a Comfy API key and an Anthropic key. The app checks both and shows the Comfy plan and credit balance. Set a monthly budget.
 2. New project from UGC Creator. Name it. The chat opens.
 3. Brief. The assistant asks what you are selling, who buys it, where it will run, and the tone. It saves a brief card you can edit.
 4. Character. The assistant builds a character bible with you: name, age range, look, wardrobe defaults, voice, backstory, boundaries. If you already have a Character in the Library, you pick it and skip ahead.

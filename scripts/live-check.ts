@@ -20,7 +20,7 @@ async function main() {
   await withStore(async (store) => {
   const now = Date.now();
   const project = store.projects.create({ id: randomUUID(), appId: "ugc-creator", name: "Live check", brief: null, revision: 0, createdAt: now, updatedAt: now });
-  store.workspace.update({ allowanceUsd: 5 }, now);
+  store.workspace.update({ monthlyBudgetUsd: 5 }, now);
   const context = createToolContext(store, createGenerationContext(store));
   const proposed = await callTool(context, "propose_candidates", { projectId: project.id, capability: "text_to_image", prompt, count: 1, aspectRatio: "4:5", target: { kind: "loose" } });
   if (!proposed.ok) throw new Error(`propose failed: ${proposed.failure.message}`);
