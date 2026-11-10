@@ -9,13 +9,17 @@
  * @packageDocumentation
  */
 import { z } from "zod";
+import { MAX_TAKE_SECONDS } from "../catalog/length";
 import { IdSchema, Sha256Schema } from "./common";
 import { fail } from "./failure";
 import type { Beat, Script, ScriptChange } from "./script";
 import { type BeatSpan, BeatSpanSchema, type Transcript, alignBeats } from "./transcript";
 
-/** The longest talking recording a take-then-cutaways Ad asks for: its beats added up, capped here. */
-export const MAX_TAKE_SECONDS = 60;
+/**
+ * The longest talking recording a take-then-cutaways Ad asks for (its beats added up, capped here):
+ * the longest recording a chain plans, one constant for both (`@creator-lab/core/catalog/length`).
+ */
+export { MAX_TAKE_SECONDS };
 /**
  * How far past MAX_TAKE_SECONDS a delivered file may run: models round a length up to their own
  * frame rule (LTX's 8n+1 makes 60.04 s of a 60 s request). Schemas accept the file; requests never ask for it.

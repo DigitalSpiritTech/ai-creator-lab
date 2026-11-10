@@ -18,7 +18,7 @@ import {
 import type { Asset } from "@creator-lab/core/domain/asset";
 import { fail } from "@creator-lab/core/domain/failure";
 import type { EstimateSummary, GenerationInput, GenerationTarget } from "@creator-lab/core/domain/job";
-import type { ClipSpec, ShotSpec } from "@creator-lab/core/domain/shot-spec";
+import type { ClipSpec, ShotSpec, TakeSpec } from "@creator-lab/core/domain/shot-spec";
 import type { EstimateOutcome } from "@creator-lab/executors";
 import { type ChainSegmentPrompt, renderChain } from "@creator-lab/recipes/chain";
 import { serverPlugins } from "@/plugins/server";
@@ -75,11 +75,46 @@ function identityReference(context: ToolContext, projectId: string): Asset | nul
 }
 
 /**
- * Refuses a video proposal longer than one run of its recipe that is not a clip spec (a hand-written
- * prompt through propose_candidates): only generate_clip knows the beat to split into segments.
+ * An Ad's full talking recording (recording with cutaways) as one long talking clip spec, so it is
+ * chained like any long clip: every beat's line in order is the line shared out across segments,
+ * the opening beat's visual and setting are the picture. The spec is not re-parsed as a whole (a
+ * recording runs past a beat's 15 s); each segment's share is checked by `renderChain` as usual.
+ */
+export function takeAsClip(spec: TakeSpec): ClipSpec {
+  return {
+    kind: "clip",
+    mode: "start",
+    durationSeconds: spec.durationSeconds,
+    beat: {
+      index: spec.lines[0]?.beatIndex ?? 1,
+      type: "talking",
+      purpose: "hook",
+      spokenLine: spec.lines.map((line) => line.text.trim()).join(" "),
+      onScreenText: "",
+      visual: spec.visual,
+      setting: spec.setting,
+      productVisible: spec.product !== undefined,
+      durationSeconds: Math.min(15, spec.durationSeconds),
+      notes: "",
+    },
+    ...(spec.character ? { character: spec.character } : {}),
+    ...(spec.product ? { product: spec.product } : {}),
+  };
+}
+
+/** The clip spec a chained recording splits: a clip's own, or a talking recording's as one clip. */
+function chainableSpec(shot: ShotSpec): ClipSpec | undefined {
+  if (shot.kind === "clip") return shot;
+  if (shot.kind === "take") return takeAsClip(shot);
+  return undefined;
+}
+
+/**
+ * Refuses a video proposal longer than one run of its recipe that is not a clip or talking-recording
+ * spec (a hand-written prompt through propose_candidates): only those know the line to split into segments.
  */
 export function assertOneRunLength(context: ToolContext, recipe: Recipe, shot: ShotSpec, durationSeconds: number | undefined): void {
-  if (shot.kind === "clip" || durationSeconds === undefined || !recipe.capability.endsWith("_to_video")) return;
+  if (shot.kind === "clip" || shot.kind === "take" || durationSeconds === undefined || !recipe.capability.endsWith("_to_video")) return;
   const strategy = resolveLengthStrategy(recipe, durationSeconds, { customGraphs: customGraphs(context, recipe) });
   if (strategy.kind === "unsupported") fail("invalid", strategy.reason);
   if (strategy.kind === "chained") {
@@ -95,13 +130,14 @@ export function chainedTake(
   context: ToolContext,
   args: { projectId: string; recipe: Recipe; shot: ShotSpec; durationSeconds: number | undefined; target: GenerationTarget; assets: Asset[] },
 ): ChainedTake | undefined {
-  if (args.shot.kind !== "clip") return undefined;
-  const spec: ClipSpec = args.shot;
+  const spec = chainableSpec(args.shot);
+  if (!spec) return undefined;
   const seconds = args.durationSeconds ?? spec.durationSeconds;
   const strategy = resolveLengthStrategy(args.recipe, seconds, { customGraphs: customGraphs(context, args.recipe) });
-  if (strategy.kind === "unsupported") fail("invalid", strategy.reason);
+  if (strategy.kind === "unsupported") fail("invalid", args.shot.kind === "take" ? `${strategy.reason} This talking recording is ${seconds} s.` : strategy.reason);
   if (strategy.kind !== "chained") return undefined;
-  if (args.recipe.kind === "mock" && requireGeneration(context).executors.mock.video !== "mp4") {
+  // The mock always makes a real recording for a talking-recording target, so it chains without MOCK_VIDEO.
+  if (args.recipe.kind === "mock" && args.target.kind !== "take" && requireGeneration(context).executors.mock.video !== "mp4") {
     fail("invalid", "A chained recording hands frames from one segment to the next, and the mock makes storyboards. Start the app with MOCK_VIDEO=mp4 for real mock clips, or shorten the clip.");
   }
   const still = args.assets.find((asset) => asset.kind !== "audio") ?? fail("invalid", "A chained recording starts from the beat's approved still.");

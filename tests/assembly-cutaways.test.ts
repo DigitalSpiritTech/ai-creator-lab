@@ -104,12 +104,15 @@ describe("take-then-cutaways export", () => {
     assert.equal(takeProposal.spec?.kind, "take");
     assert.equal(takeProposal.durationSeconds, TAKE_SECONDS);
     assert.deepEqual(takeProposal.target, { kind: "take", contentId: planned.id, slot: "clip" });
-    for (const beat of CUTAWAY_BEATS) assert.ok(takeProposal.prompt.includes(beat.spokenLine!.replace(/\.$/, "")), beat.spokenLine!);
+    assert.deepEqual(takeProposal.spec?.kind === "take" && takeProposal.spec.lines.map((line) => line.text), CUTAWAY_BEATS.map((beat) => beat.spokenLine));
+    // 8 s on the 5 s mock model: item 11's chain makes it as two segments, stitched into one recording.
+    assert.match(takeProposal.estimate.note, /Chained recording: 2 segments/);
     const [takeId] = await submit(tools, takeProposal);
     const take = store.assets.getRequired(takeId);
     assert.equal(take.kind, "video");
     assert.equal(take.video?.hasAudio, true, "the mock take is a real MP4 with sound");
-    assert.ok(Math.abs(take.video!.durationSeconds - TAKE_SECONDS) < 0.05);
+    assert.ok(Math.abs(take.video!.durationSeconds - TAKE_SECONDS) < 0.2, `the stitched recording lasts about 8 s (${take.video!.durationSeconds})`);
+    const takeFrames = Math.round(take.video!.durationSeconds * 24);
     await ok(tools, "approve", { kind: "take", contentId: planned.id, assetId: takeId });
 
     // 2. Transcription with word timestamps (the fixture), through the gate like any generation.
@@ -159,7 +162,7 @@ describe("take-then-cutaways export", () => {
     for (const asset of [first.asset!, second.asset!]) {
       assert.equal(asset.width, 1080);
       assert.equal(asset.height, 1920);
-      assert.equal(asset.video?.frameCount, TAKE_SECONDS * 24);
+      assert.equal(asset.video?.frameCount, takeFrames);
       assert.equal(asset.video?.hasAudio, true);
     }
 

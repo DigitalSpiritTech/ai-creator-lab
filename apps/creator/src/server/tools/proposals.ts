@@ -313,7 +313,7 @@ export async function estimateTake(
  * the same way as when the proposal was built, for the recipe bound at submit.
  */
 export async function proposalChain(context: ToolContext, proposal: GenerationProposal): Promise<{ recipe: Recipe; take: ChainedTake } | undefined> {
-  if (proposal.spec?.kind !== "clip") return undefined;
+  if (proposal.spec?.kind !== "clip" && proposal.spec?.kind !== "take") return undefined;
   const generation = requireGeneration(context);
   const listed = (await generation.recipes()).find((entry) => entry.id === proposal.recipeId);
   if (!listed) fail("not_found", `There is no recipe ${proposal.recipeId}.`);

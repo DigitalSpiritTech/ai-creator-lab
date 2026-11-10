@@ -7,51 +7,26 @@
  * @packageDocumentation
  */
 import { z } from "zod";
-import type { Recipe } from "@creator-lab/core/catalog";
+import { resolveLengthStrategy } from "@creator-lab/core/catalog";
 import { IdSchema, RecipeIdSchema } from "@creator-lab/core/domain/common";
 import { ContentPieceSchema, setEdl } from "@creator-lab/core/domain/content";
 import { EdlCueSchema, EdlSchema, EdlWindowSchema, MAX_TAKE_SECONDS, estimatedBeats, reviseEdl } from "@creator-lab/core/domain/edl";
 import { sameContent } from "@creator-lab/core/domain/document";
-import { fail } from "@creator-lab/core/domain/failure";
+import { ServiceError, fail } from "@creator-lab/core/domain/failure";
 import { GenerationProposalSchema } from "@creator-lab/core/domain/job";
 import { recipesFor } from "@creator-lab/recipes/defaults";
 import { inline } from "@creator-lab/recipes/prompts";
 import { PLANNED_TRANSCRIPTION_RECIPES, plannedRecipe } from "@creator-lab/recipes/transcription";
-import { describeDurations } from "@creator-lab/executors/router-body";
 import { approvedTake, draftEdlFor } from "@/server/assembly/edl";
 import { recordDocument } from "@/server/tools/documents";
 import { projectCast } from "@/server/tools/generation";
 import { type ProposalSpec, buildProposal, referenceRange } from "@/server/tools/proposals";
 import { defineTool, requireGeneration } from "@/server/tools/registry";
 
-/** The fps a workflow's length rule counts frames at. */
-function workflowFps(recipe: Extract<Recipe, { kind: "workflow" }>): number {
-  return recipe.sidecar.limits.fps ?? recipe.limits.fps ?? 24;
-}
-
-/**
- * Whether a video recipe makes one clip this long: a Router model from its list of lengths, a
- * workflow up to its longest single chunk (most have none), the mock always.
- */
-export function makesLength(recipe: Recipe, seconds: number): boolean {
-  if (recipe.kind === "router") return !recipe.limits.durations || recipe.limits.durations.includes(seconds);
-  if (recipe.kind === "workflow") {
-    const max = recipe.sidecar.limits.length?.max;
-    return max === undefined || Math.round(seconds * workflowFps(recipe)) <= max;
-  }
-  return true;
-}
-
-function lengthsOf(recipe: Recipe): string {
-  if (recipe.kind === "router" && recipe.limits.durations) return describeDurations(recipe.limits.durations);
-  if (recipe.kind === "workflow" && recipe.sidecar.limits.length?.max) return `up to ${(recipe.sidecar.limits.length.max / workflowFps(recipe)).toFixed(1)} s`;
-  return "any length";
-}
-
 export const generateTake = defineTool({
   name: "generate_take",
   description:
-    "Propose the Ad's full talking recording for a recording-with-cutaways export: one continuous clip from the first talking beat's approved still in which the creator says every beat's line in order, as long as the beats added up (60 s at most). Without a recipeId it picks a recipe that makes a clip that long; a recipe that cannot is refused with the ones that can. B-roll is cut over some lines later from the edit decision list; the recording's sound is kept untouched. It lands in the Ad's take slot; approve one with approve kind take. Nothing runs until the proposal is accepted.",
+    "Propose the Ad's full talking recording for a recording-with-cutaways export: one continuous clip from the first talking beat's approved still in which the creator says every beat's line in order, as long as the beats added up (60 s at most). Longer than the recipe makes in one run, it is proposed as a chained recording (segments from each other's last frames, stitched with short crossfades, the line shared out), priced as a whole; without a recipeId a recipe that cannot reach the length at all is passed over for one that can. B-roll is cut over some lines later from the edit decision list; the recording's sound is kept untouched. It lands in the Ad's take slot; approve one with approve kind take. Nothing runs until the proposal is accepted.",
   input: z
     .object({
       contentId: IdSchema,
@@ -101,19 +76,18 @@ export const generateTake = defineTool({
       aspectRatio: "9:16",
       durationSeconds,
     });
-    const recipes = await generation.recipes();
-    const proposal = await buildProposal(context, spec(input.recipeId));
-    const picked = recipes.find((recipe) => recipe.id === proposal.recipeId);
-    if (!picked || makesLength(picked, durationSeconds)) return proposal;
-    const fitting = recipesFor(recipes, "image_to_video", generation.routing?.()).filter((recipe) => {
-      const [min, max] = referenceRange(recipe);
-      return makesLength(recipe, durationSeconds) && !!generation.executors.forRecipe(recipe) && min <= 1 && max >= 1;
-    });
-    if (!input.recipeId && fitting[0]) return buildProposal(context, spec(fitting[0].id));
-    const others = fitting.length
-      ? ` Recipes that make a ${durationSeconds} s clip here: ${fitting.map((recipe) => `${recipe.title} (${recipe.id})`).join(", ")}. Pass one as recipeId.`
-      : ` No recipe configured here makes a single ${durationSeconds} s clip; shorten the beats to a length one of them makes.`;
-    return fail("invalid", `${picked.title} makes clips of ${lengthsOf(picked)}; this recording is ${durationSeconds} s.${others}`);
+    try {
+      return await buildProposal(context, spec(input.recipeId));
+    } catch (error) {
+      // Item 11's length strategy decides native, chained, or unsupported; only an unrequested recipe that cannot reach the length is swapped.
+      if (input.recipeId || !(error instanceof ServiceError) || error.code !== "invalid") throw error;
+      const others = recipesFor(await generation.recipes(), "image_to_video", generation.routing?.()).filter((recipe) => {
+        const [min, max] = referenceRange(recipe);
+        return min <= 1 && max >= 1 && !!generation.executors.forRecipe(recipe) && resolveLengthStrategy(recipe, durationSeconds).kind !== "unsupported";
+      });
+      if (!others[0]) throw error;
+      return buildProposal(context, spec(others[0].id));
+    }
   },
 });
 

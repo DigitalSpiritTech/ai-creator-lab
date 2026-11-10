@@ -64,7 +64,8 @@ interface Client {
   /** Submits an approved proposal and waits for every candidate; returns the new asset ids. */
   submit(projectId: string, proposal: GenerationProposal): Promise<string[]>;
   /** Submits a chained clip proposal and waits for the stitched clip to land on its beat; returns its asset id. */
-  submitTake(projectId: string, contentId: string, proposal: GenerationProposal): Promise<string>;
+  /** Submits a chained recording and waits for the stitched clip on beat 1, or (`into: "take"`) on the Ad's talking recording slot. */
+  submitTake(projectId: string, contentId: string, proposal: GenerationProposal, into?: "beat" | "take"): Promise<string>;
   upload(name: string, bytes: Uint8Array): Promise<Asset>;
   /** Uploads a voice recording (WAV bytes) as an audio asset in a project. */
   uploadVoice(projectId: string, name: string, bytes: Uint8Array): Promise<Asset>;
@@ -425,8 +426,9 @@ async function inspectExport(bytes: Buffer, frameAt: number): Promise<{ packets:
 async function runCutaways(client: Client, flow: Awaited<ReturnType<typeof runFlow>>) {
   const { projectId, contentId } = flow;
   const takeProposal = await client.tool<GenerationProposal>("generate_take", { contentId, recipeId: "mock-image-to-video" }, projectId);
-  check(takeProposal.spec?.kind === "take" && takeProposal.durationSeconds === BEATS.length * 2, "the take proposal speaks every line over the whole script");
-  const [takeId] = await client.submit(projectId, takeProposal);
+  check(takeProposal.spec?.kind === "take" && takeProposal.durationSeconds === BEATS.length * 2, "the talking recording speaks every line over the whole script");
+  check(/Chained recording: 2 segments/.test(takeProposal.estimate.note), `8 s on the 5 s mock model is a chained recording (${takeProposal.estimate.note})`);
+  const takeId = await client.submitTake(projectId, contentId, takeProposal, "take");
   await client.tool("approve", { kind: "take", contentId, assetId: takeId }, projectId);
   const transcribe = await client.tool<GenerationProposal>("transcribe_take", { contentId, recipeId: "mock-speech-to-text" }, projectId);
   check(transcribe.capability === "speech_to_text" && transcribe.estimate.kind === "free", "the transcription goes through the gate like any generation");
@@ -737,14 +739,16 @@ async function httpClient(): Promise<Client> {
       }
       throw new Error("Mock jobs did not finish in time.");
     },
-    submitTake: async (projectId, contentId, proposal) => {
+    submitTake: async (projectId, contentId, proposal, into = "beat") => {
       const { results } = await post<{ results: { outcome: string; message: string | null }[] }>(`/api/projects/${projectId}/proposals/submit`, { proposal });
       check(results.length === 1 && (results[0].outcome === "started" || results[0].outcome === "existing"), `the chained recording started (${results[0]?.outcome}: ${results[0]?.message})`);
       // Segments run one after another; the recording is done when the stitched clip lands on the beat.
       const deadline = Date.now() + 120_000;
       while (Date.now() < deadline) {
-        const state = await post<{ contents: { id: string; shots: { clip: { state: string; candidateIds?: string[] } }[] }[] }>(`/api/projects/${projectId}/tools/get_project_state`, { projectId });
-        const clip = state.contents.find((content) => content.id === contentId)?.shots[0]?.clip;
+        type Slot = { state: string; candidateIds?: string[] };
+        const state = await post<{ contents: { id: string; take?: Slot; shots: { clip: Slot }[] }[] }>(`/api/projects/${projectId}/tools/get_project_state`, { projectId });
+        const content = state.contents.find((entry) => entry.id === contentId);
+        const clip = into === "take" ? content?.take : content?.shots[0]?.clip;
         if (clip?.candidateIds?.length) return clip.candidateIds[0];
         await new Promise((wait) => setTimeout(wait, 250));
       }

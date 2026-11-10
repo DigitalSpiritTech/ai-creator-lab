@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { afterEach, describe, test } from "node:test";
 import { PlannedRecipeSchema, RouterRecipeSchema } from "@creator-lab/core/catalog";
 import { buildRouterBody, lengthSubject } from "@creator-lab/executors/router-body";
-import { makesLength } from "@/server/tools/cutaways";
+import { renderPrompt } from "@creator-lab/recipes/render";
 import { addTakeCandidates } from "@creator-lab/core/domain/content";
 import type { GenerationProposal } from "@creator-lab/core/domain/job";
 import { CLOUD_WHISPER_ID, PLANNED_TRANSCRIPTION_RECIPES, ROUTER_WHISPER_ID } from "@creator-lab/recipes/transcription";
@@ -90,8 +90,15 @@ describe("take-then-cutaways tools", () => {
     const take = await ok<GenerationProposal>(context.tools, "generate_take", { contentId: ad.id, recipeId: "mock-image-to-video" });
     assert.equal(take.spec?.kind, "take");
     assert.equal(take.spec?.kind === "take" && take.spec.lines.length, 4);
-    assert.equal(take.promptStyle, "standard", "the take renders in the house clip grammar");
-    assert.match(take.prompt, /^Use the provided start image as the first frame\. .*one continuous take.*"This fits my cup holder\." "Warm by noon, every day\." "Still cold a day later\." "Link below\."/);
+    // 8 s on a 5 s mock model: item 11's length strategy chains it, the lines shared out across segments.
+    assert.equal(take.durationSeconds, 8);
+    assert.match(take.estimate.note, /Chained recording: 2 segments/);
+    assert.equal((take.prompt.match(/\[Segment \d of 2/g) ?? []).length, 2);
+    assert.match(take.prompt, /"This fits my cup holder\. Warm by noon,/);
+    assert.match(take.prompt, /Still cold a day later\. Link below\."/);
+    // Within one run the house take paragraph is used as it is.
+    const single = renderPrompt(take.spec!, { id: "ltx-2.5-i2v", kind: "workflow" } as Parameters<typeof renderPrompt>[1]);
+    assert.ok(single.ok && /one continuous take.*"This fits my cup holder\." "Warm by noon, every day\." "Still cold a day later\." "Link below\."/.test(single.prompt));
   });
 
   test("transcribe_take and save_edl need an approved take and its transcript first", async () => {
@@ -131,7 +138,7 @@ describe("take-then-cutaways tools", () => {
     assert.match(message, /Approve a talking recording/);
   });
 
-  test("generate_take refuses a recipe that cannot make the recording's length and names the ones that can", async () => {
+  test("generate_take chains a recording longer than the recipe's runs, on that recipe's own lengths", async () => {
     const context = setup();
     const ad = await plannedAd(context);
     const proposal = await ok<GenerationProposal>(context.tools, "compose_still", { contentId: ad.id, beatIndex: 1, count: 1 });
@@ -163,12 +170,12 @@ describe("take-then-cutaways tools", () => {
         executors: { ...generation.executors, forRecipe: (recipe) => ((recipe as { id?: string }).id === fiveSeconds.id || recipe.kind === "mock" ? mock : generation.executors.forRecipe(recipe)) },
       },
     };
-    const message = await refused(tools, "generate_take", { contentId: ad.id, recipeId: fiveSeconds.id });
-    assert.match(message, /^Five-second clips makes clips of 5 seconds; this recording is 8 s\. Recipes that make a 8 s clip here: .*mock-image-to-video/);
-    await ok(tools, "set_recipe_preference", { projectId: context.project.id, capability: "image_to_video", recipeId: fiveSeconds.id });
-    const picked = await ok<GenerationProposal>(tools, "generate_take", { contentId: ad.id });
-    assert.notEqual(picked.recipeId, fiveSeconds.id, "without a recipeId it moves to one that makes 8 s");
-    assert.equal(makesLength(fiveSeconds, 5), true);
+    const chained = await ok<GenerationProposal>(tools, "generate_take", { contentId: ad.id, recipeId: fiveSeconds.id });
+    assert.equal(chained.recipeId, fiveSeconds.id);
+    assert.match(chained.estimate.note, /Chained recording: 2 segments of 5\.00 s/);
+    const tooLong = { ...fiveSeconds, limits: { ...fiveSeconds.limits, durations: [0.5] } };
+    const refusing: ToolContext = { ...tools, generation: { ...tools.generation!, recipes: async () => [...(await generation.recipes()), tooLong] } };
+    assert.match(await refused(refusing, "generate_take", { contentId: ad.id, recipeId: tooLong.id }), /This talking recording is 8 s\./);
   });
 
   test("a Router length refusal names the recording, not a beat", () => {
