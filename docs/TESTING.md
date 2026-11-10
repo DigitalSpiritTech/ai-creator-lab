@@ -91,6 +91,16 @@ Set the premium defaults from run 2 and repeat run 3. Expected cost about 450 to
 - A still showing camera app chrome, a second bottle, lettering on the product, or a different person: these are prompt-rule failures. Archive it, Refine with a one-line instruction, and note what the prompt said (it is on the card).
 - Anything in the UI that needs a page reload to update: the workspace polls every two seconds while jobs run and should never need one.
 
+## Network access (app password, no credits)
+
+`npm run test:acceptance` already starts `HOST=0.0.0.0 npm start` on a fresh data folder and checks the API and the setup code over HTTP. This is the part only a browser shows.
+
+1. `npm run build`, then `HOST=0.0.0.0 STUDIO_DATA_DIR=/tmp/studio-net STUDIO_ALLOWED_HOSTS=<this machine's LAN address> npm start`. The log prints `[auth] ... setup code ...`.
+2. On another device on the same network, open `http://<LAN address>:3000`. You land on "Choose a password for this studio". A wrong code is refused; the logged code with a 12-character password signs you in and opens Projects.
+3. The rail shows Sign out. Open `http://<LAN address>:3000/api/projects` in a private window: `{"error":"Sign in to use this studio.","signIn":"/login"}` with status 401.
+4. Sign out, then sign in with the password. Restart the server: you stay signed in, and no new setup code is printed.
+5. `http://localhost:3000` on the server itself asks for the password too. With `HOST` unset (plain `npm start`), no password is asked and `/login` goes straight to Projects.
+
 ## Resetting
 
 Everything lives in the data folder (`STUDIO_DATA_DIR`, default `.data`): the database, media, exports and the keys file. To start over, stop the server and move that folder aside; the next start creates a fresh one. To keep the projects and get room to spend, add to this month or raise the monthly budget in Settings; spend resets on the budget reset day, and the operator ceiling counts per calendar month.

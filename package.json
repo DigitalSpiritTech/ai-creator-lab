@@ -7,9 +7,9 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1",
+    "dev": "node scripts/serve.mjs dev",
     "build": "next build --webpack",
-    "start": "next start --hostname 127.0.0.1",
+    "start": "node scripts/serve.mjs start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",

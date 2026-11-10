@@ -15,3 +15,6 @@ test-results/
 # API keys saved from Settings (also inside any STUDIO_DATA_DIR)
 secrets.json
 **/secrets.json
+# The app password hash and sessions (inside the data folder)
+auth.json
+**/auth.json

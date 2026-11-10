@@ -1,6 +1,6 @@
-# Read-only demo image for AI Creator Lab. It serves an existing data folder for viewing only and
-# refuses to start any other way (see docker-entrypoint.sh). Not for running the studio itself:
-# the studio is meant for your own computer, where it listens on 127.0.0.1 only.
+# Hosted image for AI Creator Lab: the read-only demo, the judging copy, or your own studio on a
+# server behind the app password (see docker-entrypoint.sh). It always listens on all interfaces
+# inside the container, so a writable studio only ever starts with the password in force.
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
