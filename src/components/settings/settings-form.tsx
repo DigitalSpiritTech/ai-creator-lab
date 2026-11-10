@@ -369,12 +369,15 @@ export function MonthlyBudget({
         <label htmlFor="monthly-budget" className="text-sm">Monthly budget (USD)</label>
         <Input id="monthly-budget" type="number" min={0} max={10000} step={0.5} value={budget} onChange={(event) => setBudget(event.target.value)} className="w-28" />
         <label htmlFor="budget-reset-day" className="text-sm">Resets on day</label>
-        <NativeSelect id="budget-reset-day" value={resetDay} onChange={(event) => setResetDay(event.target.value)} className="w-20">
+        <NativeSelect id="budget-reset-day" aria-describedby="budget-reset-note" value={resetDay} onChange={(event) => setResetDay(event.target.value)} className="w-20">
           {Array.from({ length: 28 }, (_, index) => String(index + 1)).map((day) => (
             <NativeSelectOption key={day} value={day}>{day}</NativeSelectOption>
           ))}
         </NativeSelect>
         <Button size="sm" type="submit" disabled={busy}>Save</Button>
+        <p className="w-full text-xs text-muted-foreground" id="budget-reset-note">
+          Changing the reset day starts a new budget period now: spend and anything added to this month before the new start no longer count against it. The operator ceiling still counts the whole calendar month.
+        </p>
       </form>
       <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => void extend(event)}>
         <label htmlFor="budget-extra" className="text-sm">Add to this month (USD)</label>

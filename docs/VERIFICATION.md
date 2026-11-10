@@ -4,6 +4,8 @@ Every real provider run (anything that spends credits or tokens on a real accoun
 
 Budget: the whole build, spike included, is capped at the allowance in `.env.local` ($5, about 1,050 credits at 210 credits per USD). Notices at 50 percent (525 credits) and 80 percent (840 credits); hard stop at 1,050 until the maintainer raises it. Starting balance on the Base plan, October 26: 5,496 credits.
 
+Policy change with v0.2 F2 (spend policy, November): `GENERATION_ALLOWANCE_USD` is now a ceiling per calendar month (UTC), not a cap on the whole build. The October figures above stay as the record of the build under the old rule. Under the new rule spend can start again each month, so the operator sets the ceiling to zero when a build or judging window ends.
+
 Running total spent: 928 credits (4.42 USD), settled from the balance endpoint (start 5,496 credits, now 4,509); the figure includes about 37 credits of the maintainer's own native runs on the afternoon of October 28. The 80 percent notice of the original 1,055-credit cap went out at 835 credits on October 27 and paid runs paused; the maintainer then doubled the cap in the app on October 28 (about 1,055 credits of headroom left at that point). From October 27 late morning this includes the maintainer's own native test runs, which are not logged row by row. The spike's own ledger counts spike runs only.
 
 Columns: date (America/Chicago), who, target (cloud, deployment, proxy, router), recipe, inputs (asset hashes or short description), result (asset path or failure), credits (balance before, after, delta), duration, notes.

@@ -17,15 +17,15 @@ import { sheetChecklist } from "@/components/project/sheet-checklist";
 import { assetQuery } from "@/components/assets/asset-browser";
 import type { ChatItem } from "@/components/project/project-context";
 import { applyAgentEvent, historyToItems, parseAgentEvent } from "@/lib/client/chat";
-import { ASSET_KINDS, assetKindInfo, describeEstimate, describeSpendWarning, describeTarget, formatPeriodDate, formatUsdCredits, shouldPoll, suggestedExtensionUsd, summarizeSubmit } from "@/lib/client/format";
+import { ASSET_KINDS, assetKindInfo, budgetBlock, describeBudgetBlock, describeEstimate, describeSpendWarning, describeTarget, formatPeriodDate, formatUsdCredits, shouldPoll, suggestedExtensionUsd, summarizeSubmit } from "@/lib/client/format";
 import { AssetMedia } from "@/components/media/asset-media";
 import { ProductForm } from "@/components/library/product-form";
 import { MonthlyBudget, ProviderChoice } from "@/components/settings/settings-form";
 import { productFields } from "@/lib/client/library";
 import { AssetKindSchema } from "@/lib/domain/asset";
 import { createSseParser, encodeSse } from "@/lib/client/sse";
-import type { GenerationProposal, SettingsView } from "@/lib/client/types";
-import { budgetPeriod, composeSpendPolicy } from "@/lib/domain/spend";
+import type { GenerationProposal, SettingsView, SubmitResult } from "@/lib/client/types";
+import { budgetCrossing, budgetPeriod, composeSpendPolicy } from "@/lib/domain/spend";
 import { DEFAULT_WORKSPACE_SETTINGS } from "@/lib/domain/workspace";
 
 function proposal(overrides: Partial<GenerationProposal> = {}): GenerationProposal {
@@ -138,6 +138,22 @@ describe("format", () => {
     assert.equal(suggestedExtensionUsd({ neededUsd: 0.3, maxExtensionUsd: 5 }), 1);
     assert.equal(suggestedExtensionUsd({ neededUsd: 1.004, maxExtensionUsd: 5 }), 2);
     assert.equal(suggestedExtensionUsd({ neededUsd: 0.3, maxExtensionUsd: 0.5 }), 0.5);
+  });
+
+  test("a budget block counts the candidates that already ran, so the card never says nothing ran when some did", () => {
+    const now = Date.UTC(2026, 10, 20);
+    const totals = { spentUsd: 4.8, reservedUsd: 0 };
+    const spend = composeSpendPolicy({ period: budgetPeriod(now, 1), ceilingPeriod: budgetPeriod(now, 1), limitUsd: 5, ceilingUsd: 10, extensionUsd: 0, totals, ceilingTotals: totals });
+    const crossing = budgetCrossing(spend, 0.5)!;
+    const job = { id: randomUUID() } as unknown as SubmitResult["job"];
+    const base = { requestId: randomUUID(), assetIds: [], message: null, reserveUsd: null, budget: null };
+    const blocked = { ...base, outcome: "blocked" as const, job: null, budget: crossing };
+    assert.deepEqual(budgetBlock([blocked]), { crossing, ran: 0 });
+    assert.deepEqual(budgetBlock([{ ...base, outcome: "existing", job }, { ...base, outcome: "started", job }, blocked]), { crossing, ran: 2 });
+    assert.equal(budgetBlock([{ ...base, outcome: "blocked", job: null, message: "Paid generation is off." }]), null, "a block without a crossing is not the extend dialog");
+    assert.equal(describeBudgetBlock(0), "Approving this would go over this month's budget. Nothing was generated.");
+    assert.match(describeBudgetBlock(1), /^1 candidate has already run/);
+    assert.match(describeBudgetBlock(2), /^2 candidates have already run/);
   });
 
   test("shot and sheet helpers", () => {

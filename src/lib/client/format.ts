@@ -116,6 +116,24 @@ export function summarizeSubmit(results: SubmitResult[]): { tone: "ok" | "warn" 
   return { tone: failed.length ? "warn" : "ok", text };
 }
 
+/**
+ * The budget block in a gate response, if any: the crossing for the extend dialog, and how many of
+ * the proposal's candidates already ran (admitted now or by an earlier submission), so the card
+ * never says nothing was generated when some were.
+ */
+export function budgetBlock(results: SubmitResult[]): { crossing: BudgetCrossing; ran: number } | null {
+  const blocked = results.find((result) => result.outcome === "blocked" && result.budget);
+  if (!blocked?.budget) return null;
+  const ran = results.filter((result) => result.job !== null && (result.outcome === "started" || result.outcome === "existing" || result.outcome === "completed")).length;
+  return { crossing: blocked.budget, ran };
+}
+
+/** The card's line while a proposal waits on the budget. */
+export function describeBudgetBlock(ran: number): string {
+  if (ran === 0) return "Approving this would go over this month's budget. Nothing was generated.";
+  return `${ran} candidate${ran === 1 ? " has" : "s have"} already run; the rest would go over this month's budget and were not started.`;
+}
+
 /** Whether the client should keep polling the jobs route. */
 export function shouldPoll(unfinished: readonly { status: JobStatus }[]): boolean {
   return unfinished.some((job) => job.status !== "completed" && job.status !== "failed");

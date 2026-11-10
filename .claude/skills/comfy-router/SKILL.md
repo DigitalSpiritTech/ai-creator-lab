@@ -25,6 +25,6 @@ Image output and no image inputs: `text_to_image`. Image output with one or more
 ## Procedure for one Router job
 
 1. Resolve recipe and build the body from the semantic map; validate.
-2. Quote when the model offers an estimate; reserve against the allowance; if no quote, require explicit per-shot confirmation and reserve the recipe's documented ceiling.
+2. Quote when the model offers an estimate; reserve against this month's remaining budget (the spend policy, capped by `GENERATION_ALLOWANCE_USD` per calendar month); if no quote, require explicit per-shot confirmation and reserve the recipe's documented ceiling.
 3. Persist intent, submit with the job's idempotency key, persist the request id immediately.
 4. Poll with the returned pacing; copy and verify outputs locally; replace the reservation with the credits header charge; log in `docs/VERIFICATION.md` for real runs.

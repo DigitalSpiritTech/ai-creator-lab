@@ -63,4 +63,4 @@ Heading: "Need help running this?" Body: AI Creator Lab is maintained by Ted Dar
 
 ## Demo outline (two minutes)
 
-0:00 the problem and the promise in one sentence; 0:10 settings with keys and allowance; 0:20 brief and bible in chat; 0:40 face lock with four candidates, pick and name; 0:50 the reference sheet; 0:58 product card; 1:05 script with beats; 1:20 approved frames; 1:35 LTX clips playing with audio; 1:50 assembled ad playing; 1:58 repo link.
+0:00 the problem and the promise in one sentence; 0:10 settings with keys and monthly budget; 0:20 brief and bible in chat; 0:40 face lock with four candidates, pick and name; 0:50 the reference sheet; 0:58 product card; 1:05 script with beats; 1:20 approved frames; 1:35 LTX clips playing with audio; 1:50 assembled ad playing; 1:58 repo link.

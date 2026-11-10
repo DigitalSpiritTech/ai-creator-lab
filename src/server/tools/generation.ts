@@ -21,6 +21,7 @@ import { GenerationProposalSchema, GenerationTargetSchema, type Job, JobSchema }
 import { assembleAd as assembleExport } from "@/server/assembly";
 import { defaultRecipes, recipesFor } from "@/server/catalog/defaults";
 import { BudgetCrossingSchema, SpendWarningSchema, budgetCrossing, describeCrossing } from "@/lib/domain/spend";
+import { reservationUsd } from "@/server/executors/allowance";
 import { runToCompletion, spendPolicy, startGeneration } from "@/server/executors/run";
 import type { Store } from "@/server/store";
 import { BODY_REFERENCE, FACE_LOCK, bodyPrompt, clipPrompt, faceLockPrompt, productPhotoPrompt, referenceSheetPrompt, refinePrompt, stillPrompt, type StillPromptParts } from "@/server/tools/prompts";
@@ -464,19 +465,28 @@ export const submitProposal = defineTool({
     const deps = runDeps(context);
     const request = await proposalRequest(context, proposal);
     const results: z.input<typeof SubmitResultSchema>[] = [];
-    // The whole proposal is checked first, so a run that crosses the budget starts no candidate.
-    // Each candidate is still gated on its own live estimate below; this is the extend modal's number.
-    const fresh = Array.from({ length: proposal.count }, (_, index) => candidateRequestId(proposal.id, index)).filter(
-      (requestId) => !context.store.jobs.getByRequest(requestId),
-    );
-    const unitUsd = proposal.estimate.kind === "free" ? 0 : (proposal.estimate.usd ?? request.recipe.ceilingUsd ?? 0);
+    // The candidates not yet admitted are checked as a whole first, so a proposal that would cross
+    // the budget starts none of them. The amount is the executor's own estimate, never the
+    // client-supplied `proposal.estimate`; each candidate is still gated on its own estimate below.
+    const candidates = Array.from({ length: proposal.count }, (_, index) => candidateRequestId(proposal.id, index));
+    const fresh = candidates.filter((requestId) => !context.store.jobs.getByRequest(requestId));
+    const executor = deps.executors.forRecipe(request.recipe);
     const before = spendPolicy(deps);
-    const crossing = before.ceilingUsd > 0 && fresh.length ? budgetCrossing(before, unitUsd * fresh.length) : null;
-    if (crossing) {
-      return {
-        results: [{ requestId: fresh[0], outcome: "blocked" as const, job: null, assetIds: [], message: describeCrossing(crossing), reserveUsd: null, budget: crossing }],
-        warning: before.warning,
-      };
+    if (executor && fresh.length && before.ceilingUsd > 0) {
+      const estimate = await executor.estimate({ requestId: fresh[0], projectId: proposal.projectId, recipe: request.recipe, input: request.input });
+      const unitUsd = reservationUsd(estimate, request.recipe);
+      const crossing = unitUsd === undefined ? null : budgetCrossing(before, unitUsd * fresh.length);
+      if (crossing) {
+        // Candidates admitted by an earlier submission are reported as they are, so the card never
+        // says nothing ran when some did.
+        for (const requestId of candidates) {
+          const job = context.store.jobs.getByRequest(requestId);
+          if (!job) continue;
+          results.push({ requestId, outcome: "existing", job, assetIds: job.status === "completed" ? job.outputs : [], message: null, reserveUsd: job.reservedUsd, budget: null });
+        }
+        results.push({ requestId: fresh[0], outcome: "blocked", job: null, assetIds: [], message: describeCrossing(crossing), reserveUsd: null, budget: crossing });
+        return { results, warning: before.warning };
+      }
     }
     for (let index = 0; index < proposal.count; index++) {
       const requestId = candidateRequestId(proposal.id, index);

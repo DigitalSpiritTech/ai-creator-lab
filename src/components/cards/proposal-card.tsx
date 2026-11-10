@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BudgetDialog } from "@/components/cards/budget-dialog";
 import { errorMessage, submitProposal } from "@/lib/client/api";
-import { CAPABILITY_LABELS, describeEstimate, describeSpendWarning, describeTarget, summarizeSubmit } from "@/lib/client/format";
+import { CAPABILITY_LABELS, budgetBlock, describeBudgetBlock, describeEstimate, describeSpendWarning, describeTarget, summarizeSubmit } from "@/lib/client/format";
 import type { GenerationProposal, SubmitResult } from "@/lib/client/types";
 import type { BudgetCrossing, SpendWarning } from "@/lib/domain/spend";
 
@@ -23,8 +23,8 @@ type GateState =
   | { state: "submitted"; results: SubmitResult[] }
   | { state: "needs_confirmation"; message: string }
   /** Approving would cross this month's remaining budget; the extend dialog is open. */
-  | { state: "over_budget"; crossing: BudgetCrossing; confirmUnquoted: boolean }
-  | { state: "cancelled" }
+  | { state: "over_budget"; crossing: BudgetCrossing; confirmUnquoted: boolean; ran: number }
+  | { state: "cancelled"; ran?: number }
   | { state: "error"; message: string };
 
 export interface ProposalCardProps {
@@ -51,11 +51,14 @@ export function ProposalCard({ proposal, autoApprove = false, onSubmitted, initi
   async function send(confirmUnquoted = false) {
     try {
       const { results, warning: level } = await submitProposal(proposal, confirmUnquoted);
-      const over = results.find((result) => result.outcome === "blocked" && result.budget);
-      if (over?.budget) {
-        // Nothing ran: the whole proposal would cross this month's budget. Ask before spending more.
-        setGate({ state: "over_budget", crossing: over.budget, confirmUnquoted });
+      const block = budgetBlock(results);
+      if (block) {
+        // The rest of the proposal would cross this month's budget: ask before spending more. This
+        // also covers a resubmission after an extension that still falls short, which reopens the
+        // dialog with the new figures rather than showing an error.
+        setGate({ state: "over_budget", crossing: block.crossing, confirmUnquoted, ran: block.ran });
         setDialogOpen(true);
+        if (block.ran > 0) onSubmitted?.(results.filter((result) => result.job !== null));
         return;
       }
       const confirm = results.find((result) => result.outcome === "needs_confirmation");
@@ -137,7 +140,7 @@ export function ProposalCard({ proposal, autoApprove = false, onSubmitted, initi
             </div>
           </div>
         ) : null}
-        {gate.state === "cancelled" ? <span className="text-xs text-muted-foreground">Cancelled. Nothing was generated.</span> : null}
+        {gate.state === "cancelled" ? <span className="text-xs text-muted-foreground">{gate.ran ? `Cancelled. ${gate.ran} candidate${gate.ran === 1 ? " had" : "s had"} already run; the rest were not started.` : "Cancelled. Nothing was generated."}</span> : null}
         {gate.state === "error" ? (
           <div className="flex w-full flex-col gap-2">
             <Notice>{gate.message}</Notice>
@@ -146,10 +149,10 @@ export function ProposalCard({ proposal, autoApprove = false, onSubmitted, initi
         ) : null}
         {gate.state === "over_budget" ? (
           <div className="flex w-full flex-col gap-2">
-            <Notice tone="warn">Approving this would go over this month&apos;s budget. Nothing was generated.</Notice>
+            <Notice tone="warn">{describeBudgetBlock(gate.ran)}</Notice>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>Review the budget</Button>
-              <Button size="sm" variant="ghost" onClick={() => setGate({ state: "cancelled" })}>Cancel</Button>
+              <Button size="sm" variant="ghost" onClick={() => setGate({ state: "cancelled", ran: gate.ran })}>Cancel</Button>
             </div>
           </div>
         ) : null}

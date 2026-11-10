@@ -80,11 +80,16 @@ export const BudgetExtensionSchema = z
 export type BudgetExtension = z.infer<typeof BudgetExtensionSchema>;
 
 /** The "add to this month" request; `periodKey` is the period the person saw, so a rollover is a conflict. */
+export const MIN_EXTENSION_USD = 0.01;
+
 export const ExtendBudgetRequestSchema = z
   .object({
     id: IdSchema,
     periodKey: PeriodKeySchema,
-    amountUsd: z.number().positive("Enter an amount above zero.").max(MAX_BUDGET_USD),
+    amountUsd: z
+      .number("Enter an amount in USD.")
+      .min(MIN_EXTENSION_USD, "Enter at least $0.01 to add to this month.")
+      .max(MAX_BUDGET_USD, `Enter at most $${MAX_BUDGET_USD.toLocaleString("en-US")}.`),
   })
   .strict();
 export type ExtendBudgetRequest = z.infer<typeof ExtendBudgetRequestSchema>;
@@ -124,7 +129,10 @@ export const SpendPolicySchema = z
     ceilingPeriod: BudgetPeriodSchema,
     ceilingSpentUsd: Usd,
     ceilingReservedUsd: Usd,
-    /** The most an extension can add this period before the effective limit meets the ceiling. */
+    /**
+     * The most an extension can usefully add this period: before the effective limit meets the
+     * ceiling, and before what remains meets what the ceiling's calendar month still allows.
+     */
     maxExtensionUsd: Usd,
     warning: SpendWarningSchema,
   })
@@ -177,7 +185,9 @@ export function composeSpendPolicy(input: {
     ceilingPeriod: input.ceilingPeriod,
     ceilingSpentUsd: roundUsd(input.ceilingTotals.spentUsd),
     ceilingReservedUsd: roundUsd(input.ceilingTotals.reservedUsd),
-    maxExtensionUsd: roundUsd(Math.max(0, ceilingUsd - limitUsd - extensionUsd)),
+    // Room under the ceiling for this period's limit, and no more than the ceiling's calendar month
+    // still allows beyond what the budget already leaves: an extension past that would buy nothing.
+    maxExtensionUsd: roundUsd(Math.max(0, Math.min(ceilingUsd - limitUsd - extensionUsd, ceilingLeft - budgetLeft))),
     warning: spendWarning(input.totals.spentUsd + input.totals.reservedUsd, effectiveLimitUsd),
   });
 }
@@ -242,7 +252,9 @@ export function describeCrossing(crossing: BudgetCrossing): string {
  * above the operator ceiling; a zero ceiling refuses every extension.
  */
 export function extendBudget(policy: SpendPolicy, request: ExtendBudgetRequest, now: number): BudgetExtension {
-  const parsed = ExtendBudgetRequestSchema.parse(request);
+  const checked = ExtendBudgetRequestSchema.safeParse(request);
+  if (!checked.success) fail("invalid", checked.error.issues[0]?.message ?? "Enter an amount to add to this month.");
+  const parsed = checked.data;
   if (parsed.periodKey !== policy.period.key) {
     fail("conflict", "A new budget period has started since this was opened. Reload to see this month's budget.");
   }

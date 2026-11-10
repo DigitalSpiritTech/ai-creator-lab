@@ -97,6 +97,19 @@ describe("spend policy (pure)", () => {
     assert.equal(policy({ limit: 5, ceiling: 10, spent: 7 }).remainingUsd, 0);
   });
 
+  test("the most an extension can add stops where the ceiling's calendar month runs out", () => {
+    assert.equal(policy({ limit: 5, ceiling: 10, spent: 4, ceilingSpent: 7, resetDay: 15 }).maxExtensionUsd, 2, "3 left in the month, 1 left in the budget");
+    assert.equal(policy({ limit: 5, ceiling: 6, spent: 0, ceilingSpent: 5.5, resetDay: 15 }).maxExtensionUsd, 0, "the month has less left than the budget");
+    assert.equal(policy({ limit: 5, ceiling: 10, spent: 4.8 }).maxExtensionUsd, 5, "same window: only the limit's headroom applies");
+    const capped = policy({ limit: 5, ceiling: 10, spent: 4, ceilingSpent: 7, resetDay: 15 });
+    const id = randomUUID();
+    assert.throws(() => extendBudget(capped, { id, periodKey: capped.period.key, amountUsd: 2.5 }, 1), (error) => /At most \$2\.00/.test(toFailure(error).message));
+    const added = extendBudget(capped, { id, periodKey: capped.period.key, amountUsd: 2 }, 1);
+    const after = policy({ limit: 5, ceiling: 10, extension: added.amountUsd, spent: 4, ceilingSpent: 7, resetDay: 15 });
+    assert.equal(after.remainingUsd, 3, "every dollar added is usable");
+    assert.equal(after.maxExtensionUsd, 0);
+  });
+
   test("50, 80, and 100 percent warnings count spent plus reserved", () => {
     assert.equal(spendWarning(2.49, 5), 0);
     assert.equal(spendWarning(2.5, 5), 50);
@@ -138,7 +151,12 @@ describe("spend policy (pure)", () => {
     };
     assert.equal(code(() => extendBudget(current, { id, periodKey: "2026-10-01", amountUsd: 1 }, 7)), "conflict");
     assert.equal(code(() => extendBudget(current, { id, periodKey: "2026-11-01", amountUsd: 1.01 }, 7)), "invalid");
-    assert.equal(code(() => extendBudget(current, { id, periodKey: "2026-11-01", amountUsd: 0 }, 7)), "storage", "zero is not an extension (schema)");
+    assert.equal(code(() => extendBudget(current, { id, periodKey: "2026-11-01", amountUsd: 0 }, 7)), "invalid");
+    assert.throws(
+      () => extendBudget(current, { id, periodKey: "2026-11-01", amountUsd: 1e-9 }, 7),
+      (error) => toFailure(error).code === "invalid" && toFailure(error).message === "Enter at least $0.01 to add to this month.",
+      "a tiny amount gets the friendly message, not a raw schema error",
+    );
     assert.equal(code(() => extendBudget(policy({ limit: 5, ceiling: 0 }), { id, periodKey: "2026-11-01", amountUsd: 1 }, 7)), "invalid");
     assert.equal(periodExtensionUsd([extension, { ...extension, id: randomUUID(), periodKey: "2026-10-01" }], "2026-11-01"), 1);
   });
@@ -196,7 +214,7 @@ function setup(options: { ceiling: number; budget: number; resetDay?: number; st
     async submit(proposal: GenerationProposal) {
       const result = await callTool(context, "submit_proposal", { proposal, wait: true });
       assert.ok(result.ok, result.ok ? "" : result.failure.message);
-      return result.output as { results: { outcome: string; message: string | null; budget: ReturnType<typeof budgetCrossing> }[]; warning: number };
+      return result.output as { results: { outcome: string; job: Job | null; assetIds: string[]; message: string | null; budget: ReturnType<typeof budgetCrossing> }[]; warning: number };
     },
   };
 }
@@ -294,6 +312,29 @@ describe("acceptance: a 5 USD monthly budget with an extension", () => {
     assert.equal(blocked.results[0].outcome, "blocked");
     assert.equal(blocked.results[0].budget!.costUsd, 2, "the crossing uses the executor's own estimate");
     assert.equal(run.store.jobs.listByProject(run.project.id).length, 0);
+  });
+
+  test("the whole-proposal check prices on the server: a raised client estimate does not block what fits", async () => {
+    const run = setup({ ceiling: 10, budget: 1, start: utc(2026, 11, 20) });
+    const proposal = await run.propose("Avery Lane, wide shot", 0.4, 2);
+    const inflated = { ...proposal, estimate: { ...proposal.estimate, usd: 9, credits: 1890 } };
+    const ran = await run.submit(inflated);
+    assert.deepEqual(ran.results.map((result) => result.outcome), ["completed", "completed"]);
+    assert.equal(currentSpendPolicy(run.deps).spentUsd, 0.8);
+  });
+
+  test("a block after some candidates already ran reports them, not just the block", async () => {
+    const run = setup({ ceiling: 10, budget: 5, start: utc(2026, 11, 20) });
+    const one = await run.propose("Avery Lane at the gym bench", 2, 1);
+    assert.equal((await run.submit(one)).results[0].outcome, "completed");
+    const more = await run.submit({ ...one, count: 3 });
+    assert.deepEqual(more.results.map((result) => result.outcome), ["existing", "blocked"]);
+    const [existing, blocked] = more.results;
+    assert.equal(existing.job?.status, "completed");
+    assert.equal(existing.assetIds.length, 1);
+    assert.equal(blocked.budget!.costUsd, 4, "two new candidates at the executor's price");
+    assert.equal(blocked.budget!.remainingUsd, 3);
+    assert.equal(run.store.jobs.listByProject(run.project.id).length, 1);
   });
 
   test("no tool can raise the budget: extending is a person's click on a route", () => {

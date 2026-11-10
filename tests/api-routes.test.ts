@@ -149,6 +149,9 @@ describe("settings", () => {
       assert.match(((await over.json()) as { error: string }).error, /At most \$0\.50/);
       const stale = await routes.budget.POST(json("/api/settings/budget", { id: randomUUID(), periodKey: "2001-01-01", amountUsd: 0.1 }));
       assert.equal(stale.status, 409);
+      const tiny = await routes.budget.POST(json("/api/settings/budget", { id: randomUUID(), periodKey, amountUsd: 1e-9 }));
+      assert.equal(tiny.status, 400);
+      assert.deepEqual(await tiny.json(), { error: "Enter at least $0.01 to add to this month." });
       const crossSite = await routes.budget.POST(
         new Request(url("/api/settings/budget"), {
           method: "POST",
