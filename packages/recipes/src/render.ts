@@ -5,7 +5,7 @@
  *
  * | Style | Native renderers | Module |
  * | --- | --- | --- |
- * | standard | every kind | `prompts.ts` (Z-Image, Qwen Image Edit, FLUX.2, LTX and the other video models) |
+ * | standard | every kind | `prompts.ts` (Z-Image, Qwen Image Edit, FLUX.2, LTX and the other video models, the take, Whisper's vocabulary) |
  * | krea | face | `prompts.ts` (`kreaFacePrompt`) |
  * | gemini-image | face, body, sheet, product photo, still, refine | `prompts-gemini-image.ts` |
  * | gpt-image | face, body, sheet, product photo, still, refine | `prompts-gpt-image.ts` |
@@ -32,6 +32,7 @@ import {
   referenceSheetPrompt,
   refinePrompt,
   stillPrompt,
+  takePrompt,
   withoutProductName,
 } from "./prompts";
 
@@ -54,6 +55,9 @@ const STANDARD: Required<ShotRenderers> = {
   refine: (spec) => refinePrompt(spec.instruction, spec.subject),
   clip: (spec) => clipPrompt(spec.beat, { product: spec.product, speech: spec.mode === "speech" }),
   speech: (spec) => spec.line,
+  take: (spec) => takePrompt({ setting: spec.setting, lines: spec.lines, product: spec.product }),
+  // Whisper reads its prompt as earlier context, so the script's own words make the spelling stick.
+  transcript: (spec) => spec.vocabulary,
   free: (spec) => spec.prompt,
 };
 

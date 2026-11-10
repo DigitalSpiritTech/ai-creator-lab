@@ -5,10 +5,11 @@
  * @packageDocumentation
  */
 import { z } from "zod";
-import { AspectRatioSchema, CapabilitySchema, MAX_TAKE_SECONDS, type Recipe, placeRecipe, placementNote } from "@creator-lab/core/catalog";
+import { AspectRatioSchema, CapabilitySchema, MAX_TAKE_SECONDS, PlannedRecipeSchema, type Recipe, placeRecipe, placementNote } from "@creator-lab/core/catalog";
+import { PLANNED_TRANSCRIPTION_RECIPES } from "@creator-lab/recipes/transcription";
 import { IdSchema, RecipeIdSchema, text } from "@creator-lab/core/domain/common";
 import { type Asset, AssetSchema } from "@creator-lab/core/domain/asset";
-import { type ContentPiece, ExportRecordSchema } from "@creator-lab/core/domain/content";
+import { AssemblyStrategySchema, type ContentPiece, ExportRecordSchema } from "@creator-lab/core/domain/content";
 import { fail } from "@creator-lab/core/domain/failure";
 import {
   type CharacterItem,
@@ -37,14 +38,14 @@ import { referenceableIn } from "@/server/tools/shared";
 
 const count = z.number().int().min(1).max(4).default(4);
 
-interface ProjectCast {
+export interface ProjectCast {
   character?: { item: CharacterItem; link: CharacterLink };
   product?: ProductItem;
   sets: SetItem[];
 }
 
 /** The project's linked, unarchived Library items: the first character and product, and every set. */
-function projectCast(store: Store, projectId: string): ProjectCast {
+export function projectCast(store: Store, projectId: string): ProjectCast {
   const cast: ProjectCast = { sets: [] };
   for (const link of store.library.listLinks(projectId)) {
     const item = store.library.get(link.itemId);
@@ -713,13 +714,14 @@ async function submitChained(
 export const assembleAd = defineTool({
   name: "assemble_ad",
   description:
-    "Join the approved clips in cut order into one 1080 x 1920, 24 fps MP4 with the beats' on-screen text burned in (unless captions is false) and audio kept (unless mute is true). Every beat needs an approved clip first. Returns the saved export record (sources, hashes, script version, options, output hash, duration) and the export asset. Passing the same exportId again returns the same export instead of rendering twice.",
+    "Assemble the Ad into one 1080 x 1920, 24 fps MP4. strategy component (the default) joins the approved clips in cut order with the beats' on-screen text burned in; every beat needs an approved clip. strategy take_cutaways keeps the approved talking take whole, its sound untouched, replaces the picture with each b-roll window's approved clip, and burns the captions at the edit decision list's times (generate_take, transcribe_take, and save_edl first); editing the list and exporting again re-renders from the same media, nothing is generated. captions false skips captions; mute true drops the sound. Returns the saved export record (strategy, sources, hashes, script version, options, output hash, duration) and the export asset. Passing the same exportId again returns the same export instead of rendering twice.",
   input: z
     .object({
       contentId: IdSchema,
       exportId: IdSchema.optional().describe("Optional id that makes retries safe; reuse it to get the same export back."),
       mute: z.boolean().optional(),
       captions: z.boolean().optional(),
+      strategy: AssemblyStrategySchema.default("component").describe("component joins one clip per beat; take_cutaways cuts b-roll into the approved take at the edit decision list's windows."),
     })
     .strict(),
   output: z.object({ export: ExportRecordSchema, asset: AssetSchema.nullable() }),
@@ -749,6 +751,8 @@ export const listRecipes = defineTool({
         backendNote: z.string().nullable(),
       }),
     ),
+    /** Recipes named in the catalog that cannot run yet (unverified, with their ceiling and what is pending). */
+    planned: z.array(PlannedRecipeSchema).default([]),
   }),
   run: async (context, input) => {
     const recipes = context.generation ? await context.generation.recipes() : await defaultRecipes();
@@ -773,6 +777,7 @@ export const listRecipes = defineTool({
         backendNote: placement ? (placement.ok ? placementNote(placement) || null : placement.reason) : null,
         };
       }),
+      planned: PLANNED_TRANSCRIPTION_RECIPES.filter((recipe) => !input.capability || recipe.capability === input.capability),
     };
   },
 });

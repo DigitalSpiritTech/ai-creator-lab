@@ -1,5 +1,5 @@
 /**
- * Version history of the brief, character bibles, product cards, and plugin piece bodies. Rows are immutable; the next
+ * Version history of the brief, character bibles, product cards, plugin piece bodies, and Ads' edit decision lists. Rows are immutable; the next
  * version is the latest plus one. Script history is kept by the script repository.
  * @packageDocumentation
  */
@@ -10,6 +10,7 @@ import {
   BriefVersionSchema,
   type DocumentAuthor,
   type DocumentContent,
+  EdlVersionSchema,
   PieceVersionSchema,
   ProductVersionSchema,
   type StoredDocumentKind,
@@ -23,6 +24,7 @@ const StoredVersionSchema: z.ZodType<StoredDocumentVersion> = z.discriminatedUni
   BibleVersionSchema,
   ProductVersionSchema,
   PieceVersionSchema,
+  EdlVersionSchema,
 ]);
 
 export interface DocumentEntry<K extends StoredDocumentKind> {

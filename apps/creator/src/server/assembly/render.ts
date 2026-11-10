@@ -75,7 +75,8 @@ export async function preflightRender(options: { captions: boolean; texts: strin
   return font;
 }
 
-async function prepareSegment(store: Store, record: ExportRecord, index: number, work: string): Promise<Segment> {
+/** Copies one export source into the work folder (hash-checked) and describes it for a plan. */
+export async function prepareSegment(store: Store, record: ExportRecord, index: number, work: string): Promise<Segment> {
   const source = record.sources[index];
   const beat = `beat ${source.beatIndex}`;
   const asset = store.assets.get(source.assetId);

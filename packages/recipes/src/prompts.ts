@@ -372,6 +372,29 @@ export function clipPrompt(beat: Beat, parts: ClipPromptParts = {}): string {
     .join(" ");
 }
 
+/**
+ * The full talking take of a take-then-cutaways Ad, in the clip paragraph's grammar: the creator
+ * says every line of the script, in order, in one continuous shot from the opening still. B-roll is
+ * cut over some lines at export, so the take never has to show them.
+ */
+export function takePrompt(spec: { setting: string; lines: { text: string }[]; product?: ProductLook }): string {
+  const ambient = spec.setting ? clause(spec.setting) : "the room";
+  const quoted = spec.lines.map(({ text }) => {
+    const line = text.trim();
+    return `"${/[.!?]$/.test(line) ? line : `${line}.`}"`;
+  });
+  return [
+    START_IMAGE,
+    `The person in the start image looks into the phone camera and talks to it in one continuous take, like a friend recommending something, in a relaxed, natural voice: ${quoted.join(" ")}`,
+    "A short natural pause between sentences, small head movements and easy hand gestures.",
+    spec.product ? "The product keeps the shape and proportions it has in the start image." : "",
+    `Handheld phone framing with a subtle natural sway, ${REAL_TIME}.`,
+    `Quiet ambient sound of ${ambient}, no music.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 /** A refinement edit that changes one thing and keeps the rest; sheets also keep their layout. */
 export function refinePrompt(instruction: string, kind: "still" | "sheet" = "still"): string {
   const keep =

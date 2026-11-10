@@ -103,11 +103,16 @@ export function escapeDrawtext(value: string): string {
   return option.replace(/[\\'[\],;]/g, (character) => `\\${character}`);
 }
 
-/** One `drawtext` filter per caption line, joined for a filter chain; empty when there is no text. */
-export function captionFilters(text: string, fontPath: string): string {
+/**
+ * One `drawtext` filter per caption line, joined for a filter chain; empty when there is no text.
+ * With `between`, the caption shows only from `start` to `end` seconds of the stream (the cutaway
+ * export's captions, timed from the take's transcript).
+ */
+export function captionFilters(text: string, fontPath: string, between?: { start: number; end: number }): string {
   const layout = layoutCaption(text);
   if (!layout) return "";
   const font = escapeDrawtext(fontPath);
+  const enable = between ? [`enable='between(t,${between.start.toFixed(3)},${between.end.toFixed(3)})'`] : [];
   return layout.lines
     .map((line, index) =>
       [
@@ -121,6 +126,7 @@ export function captionFilters(text: string, fontPath: string): string {
         `shadowy=${SHADOW_OFFSET}`,
         "x=(w-text_w)/2",
         `y=${layout.baselines[index]}-ascent`,
+        ...enable,
       ].join(":"),
     )
     .join(",");

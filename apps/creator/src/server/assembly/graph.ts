@@ -90,8 +90,12 @@ function inputArgs(segment: Segment): string[] {
   return segment.voice ? [...main, "-i", segment.voice.path] : main;
 }
 
-function videoChain(index: number, input: number, segment: Segment, fontPath: string | undefined): string {
-  const filters = [
+/**
+ * One source onto the 1080 x 1920, 24 fps canvas, held on its last frame and cut to `frames`:
+ * fill-and-crop or fit-and-pad (see `fillsCanvas`), square pixels. Also used by the cutaway plan.
+ */
+export function canvasFilters(segment: Pick<Segment, "width" | "height" | "frames">): string[] {
+  return [
     "setpts=PTS-STARTPTS",
     ...(fillsCanvas(segment)
       ? [`scale=${EXPORT_WIDTH}:${EXPORT_HEIGHT}:force_original_aspect_ratio=increase:force_divisible_by=2:flags=lanczos`, `crop=${EXPORT_WIDTH}:${EXPORT_HEIGHT}`]
@@ -105,6 +109,10 @@ function videoChain(index: number, input: number, segment: Segment, fontPath: st
     `trim=end_frame=${segment.frames}`,
     "setpts=PTS-STARTPTS",
   ];
+}
+
+function videoChain(index: number, input: number, segment: Segment, fontPath: string | undefined): string {
+  const filters = canvasFilters(segment);
   const caption = fontPath ? captionFilters(segment.caption, fontPath) : "";
   if (caption) filters.push(caption);
   filters.push("format=yuv420p");

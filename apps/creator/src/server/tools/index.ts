@@ -1,5 +1,5 @@
 /**
- * The domain tool registry. The agent loop and the MCP server read this one list: the 34 core
+ * The domain tool registry. The agent loop and the MCP server read this one list: the 37 core
  * roster tools, then the tools content plugins register (named with their plugin's id as a prefix,
  * `<plugin_id>_<action>`), each offered to the assistant only in projects of its own content type.
  * @packageDocumentation
@@ -38,6 +38,7 @@ import { startQuickAd } from "@/server/tools/quick-ad";
 import { type Tool, type ToolContext, toJsonSchemaTools } from "@/server/tools/registry";
 import { planShots, resetShots, saveScript, setCutOrder } from "@/server/tools/script";
 import { extractVoiceSampleTool, generateVoiceOver } from "@/server/tools/voice";
+import { generateTake, saveEdl, transcribeTake } from "@/server/tools/cutaways";
 import { type PortScope, manifestOf, pluginTool, scopeOf } from "@/server/tools/plugins";
 import { serverPlugins } from "@/plugins/server";
 
@@ -51,7 +52,8 @@ export { createGenerationContext } from "@/server/tools/generation-context";
  * archive_asset, delete_asset_everywhere, assemble_ad, list_assets, list_recipes, then the Library
  * tools link_library_item, unlink_library_item, archive_library_item, create_set, set_cut_order, reset_shots,
  * the document tools list_document_versions and restore_document_version, the model override
- * tools set_recipe_preference and regenerate_with, and start_quick_ad (the Quick Ad, v0.2 F11).
+ * tools set_recipe_preference and regenerate_with, start_quick_ad (the Quick Ad, v0.2 F11), and the
+ * take-then-cutaways tools generate_take, transcribe_take, and save_edl (v0.2 F5).
  */
 export const TOOLS: readonly Tool[] = [
   getProjectState,
@@ -88,6 +90,9 @@ export const TOOLS: readonly Tool[] = [
   setRecipePreferenceTool,
   regenerateWith,
   startQuickAd,
+  generateTake,
+  transcribeTake,
+  saveEdl,
 ];
 
 /**

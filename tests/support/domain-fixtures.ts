@@ -138,6 +138,7 @@ const MIME_FOR: Record<AssetKind, AssetMime> = {
   video: "video/mp4",
   export: "video/mp4",
   audio: "audio/flac",
+  transcript: "application/json",
 };
 
 /**

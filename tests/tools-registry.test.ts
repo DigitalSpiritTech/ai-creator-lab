@@ -42,6 +42,9 @@ const ROSTER = [
   "set_recipe_preference",
   "regenerate_with",
   "start_quick_ad",
+  "generate_take",
+  "transcribe_take",
+  "save_edl",
 ];
 
 const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));

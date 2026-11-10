@@ -19,6 +19,11 @@ export const AssetUsageSchema = z.discriminatedUnion("kind", [
   /** A candidate or the approved choice in a plugin content piece's slot. */
   z.object({ kind: z.literal("piece_candidate"), contentId: IdSchema, slot: z.string() }),
   z.object({ kind: z.literal("piece_approval"), contentId: IdSchema, slot: z.string() }),
+  /** A candidate or the approved take of an Ad (take-then-cutaways). */
+  z.object({ kind: z.literal("take_candidate"), contentId: IdSchema }),
+  z.object({ kind: z.literal("take_approval"), contentId: IdSchema }),
+  /** The Ad's edit decision list names it: its take, or the transcript it was drafted from. */
+  z.object({ kind: z.literal("edl_source"), contentId: IdSchema }),
   z.object({ kind: z.literal("export_source"), exportId: IdSchema }),
   z.object({ kind: z.literal("export_output"), exportId: IdSchema }),
   z.object({ kind: z.literal("asset_input"), assetId: IdSchema }),
@@ -67,6 +72,9 @@ export function findAssetUsage(graph: AssetGraph, assetId: string): AssetUsage[]
         }
       }
     }
+    if (content.take.state === "approved" && content.take.assetId === assetId) usage.push({ kind: "take_approval", contentId: content.id });
+    else if (content.take.state !== "empty" && content.take.candidateIds.includes(assetId)) usage.push({ kind: "take_candidate", contentId: content.id });
+    if (content.edl && (content.edl.take.assetId === assetId || content.edl.transcriptAssetId === assetId)) usage.push({ kind: "edl_source", contentId: content.id });
   }
   for (const piece of graph.pieces ?? []) {
     for (const [slot, state] of Object.entries(piece.slots)) {
@@ -75,7 +83,7 @@ export function findAssetUsage(graph: AssetGraph, assetId: string): AssetUsage[]
     }
   }
   for (const record of graph.exports) {
-    if (record.sources.some((source) => source.assetId === assetId || source.voice?.assetId === assetId)) usage.push({ kind: "export_source", exportId: record.id });
+    if (exportUses(record, assetId)) usage.push({ kind: "export_source", exportId: record.id });
     if (record.status === "completed" && record.assetId === assetId) usage.push({ kind: "export_output", exportId: record.id });
   }
   for (const asset of graph.assets) {
@@ -88,11 +96,20 @@ export function findAssetUsage(graph: AssetGraph, assetId: string): AssetUsage[]
   return usage;
 }
 
+/** Whether an export was made from the asset: a clip, a voice-over, or a take-then-cutaways take. */
+function exportUses(record: ExportRecord, assetId: string): boolean {
+  return record.sources.some((source) => source.assetId === assetId || source.voice?.assetId === assetId) || record.take?.assetId === assetId;
+}
+
 /** Usage that makes archiving unsafe: the asset is an approved, load-bearing choice. */
 export function blockingArchiveUsage(usage: AssetUsage[]): AssetUsage[] {
   return usage.filter(
     (entry) =>
-      entry.kind === "character_reference" || entry.kind === "reference_sheet" || entry.kind === "shot_approval" || entry.kind === "piece_approval",
+      entry.kind === "character_reference" ||
+      entry.kind === "reference_sheet" ||
+      entry.kind === "shot_approval" ||
+      entry.kind === "piece_approval" ||
+      entry.kind === "take_approval",
   );
 }
 
@@ -185,12 +202,17 @@ export function planDeleteEverywhere(
   }
   const contents: ContentPiece[] = [];
   for (const content of graph.contents) {
-    const touched = content.shots.some((shot) =>
-      [shot.still, shot.clip].some((slot) => slot.state !== "empty" && slot.candidateIds.includes(id)),
-    );
+    const touched =
+      content.shots.some((shot) => [shot.still, shot.clip].some((slot) => slot.state !== "empty" && slot.candidateIds.includes(id))) ||
+      (content.take.state !== "empty" && content.take.candidateIds.includes(id)) ||
+      (content.edl !== null && (content.edl.take.assetId === id || content.edl.transcriptAssetId === id));
     if (!touched) continue;
+    // An EDL without its take means nothing (its versions stay in the history); one without its transcript still cuts.
+    const edl = !content.edl || content.edl.take.assetId === id ? null : content.edl.transcriptAssetId === id ? { ...content.edl, transcriptAssetId: null } : content.edl;
     contents.push({
       ...nextRevision(content, now),
+      take: dropFromSlot(content.take, id),
+      edl,
       shots: content.shots.map((shot) => {
         const wasApproved = [shot.still, shot.clip].some((slot) => slot.state === "approved" && slot.assetId === id);
         return {
@@ -215,8 +237,7 @@ export function planDeleteEverywhere(
   }
   const exports: ExportRecord[] = [];
   for (const record of graph.exports) {
-    const depends =
-      record.sources.some((source) => source.assetId === id || source.voice?.assetId === id) || (record.status === "completed" && record.assetId === id);
+    const depends = exportUses(record, id) || (record.status === "completed" && record.assetId === id);
     if (depends) exports.push({ ...record, brokenAssetIds: addBroken(record.brokenAssetIds, id) });
   }
   return { asset: markAssetDeleted(asset, now), usage, libraryItems, links, contents, exports, pieces };

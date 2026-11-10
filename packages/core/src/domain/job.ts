@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { AspectRatioSchema, BackendIdSchema, PromptStyleSchema, RecipeSchema } from "../catalog";
+import { TranscriptionMetadataSchema } from "./asset";
 import { CapabilitySchema } from "./capability";
 import { IdSchema, RecipeIdSchema, RevisionSchema, Sha256Schema, TimestampSchema, text } from "./common";
 import { SlotKindSchema } from "./content";
@@ -27,6 +28,11 @@ export const GenerationTargetSchema = z.discriminatedUnion("kind", [
     .strict(),
   /** A named slot of a plugin content piece (such as its 4:5 still). */
   z.object({ kind: z.literal("piece"), contentId: IdSchema, slot: SlotKeySchema }).strict(),
+  /**
+   * An Ad's take-then-cutaways inputs: `clip` is a candidate for its full talking take, and
+   * `transcript` the approved take's words with their times, which the EDL is drafted from.
+   */
+  z.object({ kind: z.literal("take"), contentId: IdSchema, slot: z.enum(["clip", "transcript"]) }).strict(),
   z.object({ kind: z.literal("loose") }).strict(),
 ]);
 export type GenerationTarget = z.infer<typeof GenerationTargetSchema>;
@@ -94,8 +100,8 @@ export type JobError = z.infer<typeof JobErrorSchema>;
 /** A verified file the executor copied into managed storage, waiting for the output commit. */
 export const RetrievedFileSchema = z
   .object({
-    relativePath: z.string().regex(/^[\w-]+(\/[\w-]+)*\/[\w.-]+\.(png|jpg|webp|svg|mp4|flac|mp3|wav)$/),
-    mime: z.enum(["image/png", "image/jpeg", "image/webp", "image/svg+xml", "video/mp4", "audio/flac", "audio/mpeg", "audio/wav"]),
+    relativePath: z.string().regex(/^[\w-]+(\/[\w-]+)*\/[\w.-]+\.(png|jpg|webp|svg|mp4|flac|mp3|wav|json)$/),
+    mime: z.enum(["image/png", "image/jpeg", "image/webp", "image/svg+xml", "video/mp4", "audio/flac", "audio/mpeg", "audio/wav", "application/json"]),
     /** Pixels; 0 for audio. */
     width: z.number().int().nonnegative(),
     height: z.number().int().nonnegative(),
@@ -110,6 +116,8 @@ export const RetrievedFileSchema = z
       .strict()
       .optional(),
     audio: z.object({ durationSeconds: z.number().positive(), codec: z.string().min(1).max(32) }).strict().optional(),
+    /** A transcript (JSON in the app's transcript shape): what it holds. */
+    transcription: TranscriptionMetadataSchema.optional(),
   })
   .strict();
 export type RetrievedFile = z.infer<typeof RetrievedFileSchema>;

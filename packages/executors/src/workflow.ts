@@ -243,7 +243,7 @@ export function planWorkflow(recipe: WorkflowRecipe, input: GenerationInput, gra
   }
 
   const media = capabilityMedia(recipe.capability);
-  if (media === "text") throw invalid("Text workflows are not supported by this executor yet.");
+  if (media === "text" || media === "transcript") throw invalid(`${media === "text" ? "Text" : "Transcription"} workflows are not supported by this executor yet.`);
   const expectation: OutputExpectation =
     media === "image"
       ? { media, width, height }

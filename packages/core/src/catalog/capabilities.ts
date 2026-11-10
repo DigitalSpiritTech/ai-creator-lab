@@ -10,13 +10,14 @@ export { CapabilitySchema, type Capability } from "../domain/capability";
 /** Capabilities the MVP flow uses; every one needs at least one verified recipe. */
 export const MVP_CAPABILITIES: readonly Capability[] = ["text_to_image", "image_edit", "image_to_video"];
 
-export type OutputMedia = "image" | "video" | "audio" | "text";
+export type OutputMedia = "image" | "video" | "audio" | "text" | "transcript";
 
 /** The kind of file a capability produces. */
 export function capabilityMedia(capability: Capability): OutputMedia {
   if (capability === "text_to_image" || capability === "image_edit") return "image";
   if (capability === "text_to_speech") return "audio";
   if (capability === "text_generation") return "text";
+  if (capability === "speech_to_text") return "transcript";
   return "video";
 }
 

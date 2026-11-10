@@ -105,6 +105,7 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
   ].join(" "),
   assemble_ad: [
     "Join the approved clips in order into the final 1080 x 1920 MP4 with the on-screen text burned in (captions false to skip, mute true to drop audio) and approved voice-overs mixed over their clips, and save it as an export. Every beat needs an approved clip first; a beat with a line and no approved voice-over exports with ambient sound only.",
+    "strategy take_cutaways instead keeps the approved talking take whole with its own sound and cuts the b-roll clips in at the edit decision list's windows; exporting again after an EDL edit regenerates nothing.",
     "Example: all clips are approved and the user asks for the final ad.",
   ].join(" "),
   list_assets: ["List assets, newest first, filtered by project, kind, state, or recipe.", 'Example: the user asks "what did I archive?"'].join(" "),
@@ -137,7 +138,7 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     'Example: the user says "redo everything from beat 3", so reset from beat 3 and propose its stills.',
   ].join(" "),
   list_document_versions: [
-    "List every saved version of one document, oldest first: kind brief (subjectId is the project id), bible or product (the Library item id), or script (the script id). Each version shows who saved it, assistant or user, and current marks the one in use.",
+    "List every saved version of one document, oldest first: kind brief (subjectId is the project id), bible or product (the Library item id), script (the script id), or edl (the Ad's id). Each version shows who saved it, assistant or user, and current marks the one in use.",
     'Example: the user asks "what did the brief say before I changed it?", so list the brief\'s versions.',
   ].join(" "),
   restore_document_version: [
@@ -157,6 +158,18 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     "Start a Quick Ad from two lines: what is sold (productSummary) and who it is for (audience). Saves the brief, a one-beat four-second talking script, and the Ad in quick mode; nothing is generated.",
     "Then three approvals, each the user's: the frame (compose_still with count 1), the talking clip (generate_clip), the export (assemble_ad). Pass spokenLine or onScreenText only when the user gave them.",
     'Example: "quick ad: Ridgeline 32 oz bottle keeps drinks cold 24 hours, for commuters on TikTok" gives productSummary "Ridgeline 32 oz bottle keeps drinks cold 24 hours" and audience "Commuters, on TikTok".',
+  ].join(" "),
+  generate_take: [
+    `Propose the Ad's full talking take for a take-then-cutaways export: one continuous clip from the first talking beat's approved still in which the creator says every beat's line in order. Approve one with approve kind take. ${PROPOSAL_NOTE}`,
+    'Example: the user wants one natural continuous delivery with b-roll cut over it instead of separate clips per beat.',
+  ].join(" "),
+  transcribe_take: [
+    `Propose a transcription of the approved take with word timestamps, so the beats can be placed on it; then save_edl drafts the edit decision list. ${PROPOSAL_NOTE}`,
+    "Example: the take is approved and the user asks to line the b-roll up with what was said.",
+  ].join(" "),
+  save_edl: [
+    "Draft the Ad's edit decision list from the take's transcript (draft true, or the first save), or save edited windows ({ beatIndex, start, end } in seconds on the take, b-roll and text card beats only) and captions ({ start, end, text }). Each save is a new version; nothing is generated. Then assemble_ad with strategy take_cutaways.",
+    'Example: the user says "start the dishwasher shot two seconds later", so save the windows with that window moved by 2 s and export again.',
   ].join(" "),
 };
 

@@ -11,6 +11,8 @@ export const CapabilitySchema = z.enum([
   /** A still plus a speech recording: the clip's mouth and gestures follow the audio. */
   "speech_to_video",
   "text_to_speech",
+  /** A recording (a talking take) to its words with start and end times (Whisper). */
+  "speech_to_text",
   "text_generation",
 ]);
 export type Capability = z.infer<typeof CapabilitySchema>;

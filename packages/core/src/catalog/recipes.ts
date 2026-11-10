@@ -144,3 +144,27 @@ export type RouterRecipe = z.infer<typeof RouterRecipeSchema>;
 export type WorkflowRecipe = z.infer<typeof WorkflowRecipeSchema>;
 export type MockRecipe = z.infer<typeof MockRecipeSchema>;
 export type RecipeKind = Recipe["kind"];
+
+/**
+ * A recipe the catalog names but cannot run yet, because its request body or its workflow node is
+ * not verified. It is listed (unverified, with its ceiling and what is pending) so the choice is
+ * visible, and it is never proposed, placed, or submitted. It becomes a `Recipe` once the pending
+ * piece is written and one real run passes (docs/VERIFICATION.md).
+ */
+export const PlannedRecipeSchema = z
+  .object({
+    id: RecipeIdSchema,
+    title: z.string().min(1).max(120),
+    capability: CapabilitySchema,
+    kind: z.enum(["router", "workflow"]),
+    openWeights: z.boolean(),
+    verified: z.null(),
+    costHint: z.string().max(200),
+    ceilingUsd: z.number().nonnegative(),
+    /** The Router model id, or the workflow node it is expected to use. */
+    candidate: z.string().min(1).max(200),
+    /** What must be written and verified before it can run. */
+    pending: z.string().min(1).max(800),
+  })
+  .strict();
+export type PlannedRecipe = z.infer<typeof PlannedRecipeSchema>;

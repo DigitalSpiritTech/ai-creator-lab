@@ -244,8 +244,8 @@ test("mock recipes stay out of the catalog unless MOCK_RECIPES=1 or the caller a
     assert.ok(hidden.some((recipe) => recipe.id === "ltx-2.5-i2v"));
     process.env.MOCK_RECIPES = "1";
     const listed = await defaultRecipes(workflowsDir);
-    assert.equal(listed.filter((recipe) => recipe.kind === "mock").length, 7);
-    assert.equal((await defaultRecipes(workflowsDir, { mocks: true })).filter((recipe) => recipe.kind === "mock").length, 7);
+    assert.equal(listed.filter((recipe) => recipe.kind === "mock").length, 8);
+    assert.equal((await defaultRecipes(workflowsDir, { mocks: true })).filter((recipe) => recipe.kind === "mock").length, 8);
   } finally {
     if (previous === undefined) delete process.env.MOCK_RECIPES;
     else process.env.MOCK_RECIPES = previous;

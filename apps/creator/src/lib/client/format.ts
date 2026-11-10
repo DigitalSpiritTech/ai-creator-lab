@@ -17,6 +17,7 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   references_to_video: "References to video",
   speech_to_video: "Speech to video (lip sync)",
   text_to_speech: "Text to speech (voice-over)",
+  speech_to_text: "Speech to text (transcription)",
   text_generation: "Text generation",
 };
 
@@ -87,6 +88,8 @@ export function describeTarget(target: GenerationTarget): string {
       return `Beat ${target.beatIndex} ${target.slot === "voice" ? "voice-over" : target.slot}`;
     case "piece":
       return `${target.slot} still`;
+    case "take":
+      return target.slot === "clip" ? "Talking take" : "Take transcript";
     case "loose":
       return "Loose generation";
   }
@@ -153,6 +156,7 @@ export const ASSET_KINDS: Record<AssetKind, { label: string; plural: string; pla
   storyboard: { label: "Storyboard", plural: "Storyboards", playable: false },
   export: { label: "Export", plural: "Exports", playable: true },
   audio: { label: "Voice", plural: "Voice recordings", playable: false },
+  transcript: { label: "Transcript", plural: "Transcripts", playable: false },
 };
 
 export function assetKindInfo(kind: string): { label: string; plural: string; playable: boolean } {
