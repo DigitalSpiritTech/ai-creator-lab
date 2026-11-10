@@ -1,6 +1,8 @@
 /**
  * Output verification and atomic commits: temp file, decode check, rename, SHA-256.
- * ffprobe and ffmpeg come from FFPROBE_PATH or FFMPEG_PATH, else Homebrew's ffmpeg-full, else PATH.
+ * ffprobe and ffmpeg come from FFPROBE_PATH or FFMPEG_PATH, else the binaries bundled with the
+ * install (`ffmpeg-static` and `@derhuerst/ffprobe-static`, built with drawtext), else Homebrew's
+ * ffmpeg-full, else PATH.
  * @packageDocumentation
  */
 import { execFile } from "node:child_process";
@@ -9,6 +11,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { promisify } from "node:util";
+import bundledFfprobe from "@derhuerst/ffprobe-static";
+import bundledFfmpeg from "ffmpeg-static";
 import sharp from "sharp";
 import { z } from "zod";
 import { jobError, ExecutorFailure } from "./jobs";
@@ -19,26 +23,41 @@ const execute = promisify(execFile);
 
 /**
  * Homebrew ships a lean `ffmpeg` on PATH and a keg-only `ffmpeg-full` (with drawtext for
- * captions) beside it. When no path is configured and the full build is installed, it wins.
+ * captions) beside it. When nothing is configured or bundled and the full build is installed, it wins.
  */
 const HOMEBREW_FULL = ["/opt/homebrew/opt/ffmpeg-full/bin", "/usr/local/opt/ffmpeg-full/bin"];
 
-function found(tool: "ffmpeg" | "ffprobe"): string {
+/** Where the ffmpeg and ffprobe in use came from, for the Settings report. */
+export type MediaToolSource = "environment" | "bundled" | "homebrew-full" | "path";
+
+/**
+ * The binaries `npm ci` downloads for this platform (macOS arm64 and x64, Linux x64, arm64, arm,
+ * and ia32, Windows x64). Null when the platform has none or the install scripts were skipped.
+ */
+function bundled(tool: "ffmpeg" | "ffprobe"): string | null {
+  const path = tool === "ffmpeg" ? bundledFfmpeg : bundledFfprobe;
+  return path && existsSync(path) ? path : null;
+}
+
+/** One tool's path and where it came from: FFMPEG_PATH or FFPROBE_PATH, the bundled binary, Homebrew's ffmpeg-full, or PATH. */
+export function resolveMediaTool(tool: "ffmpeg" | "ffprobe"): { path: string; source: MediaToolSource } {
   const configured = process.env[tool === "ffmpeg" ? "FFMPEG_PATH" : "FFPROBE_PATH"]?.trim();
-  if (configured) return configured;
+  if (configured) return { path: configured, source: "environment" };
+  const shipped = bundled(tool);
+  if (shipped) return { path: shipped, source: "bundled" };
   for (const directory of HOMEBREW_FULL) {
     const candidate = `${directory}/${tool}`;
-    if (existsSync(candidate)) return candidate;
+    if (existsSync(candidate)) return { path: candidate, source: "homebrew-full" };
   }
-  return tool;
+  return { path: tool, source: "path" };
 }
 
 export function ffprobePath(): string {
-  return found("ffprobe");
+  return resolveMediaTool("ffprobe").path;
 }
 
 export function ffmpegPath(): string {
-  return found("ffmpeg");
+  return resolveMediaTool("ffmpeg").path;
 }
 
 export function sha256(bytes: Uint8Array): string {

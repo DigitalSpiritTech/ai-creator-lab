@@ -14,6 +14,10 @@ The components in `packages/ui/src/` are adapted from shadcn/ui (https://ui.shad
 
 Runtime and build dependencies listed in `package.json` (including Next.js, React, Zod, sharp, Lucide icons, `@anthropic-ai/sdk`, and `@comfyorg/sdk`) are installed from npm and keep their own licenses. They are not copied into this repository. Run `npm ls` and read each package's license file for details.
 
+## FFmpeg (bundled binaries)
+
+`npm ci` downloads static FFmpeg and ffprobe builds for your platform through the `ffmpeg-static` and `@derhuerst/ffprobe-static` packages (GPL-3.0-or-later; the binaries are FFmpeg builds configured with `--enable-gpl`, so they are under the GPL as a whole). They are separate programs the app runs as child processes; they are not part of this repository's source and keep their own licenses. Each package's folder in `node_modules` carries the binary's `LICENSE` and `README` (the build configuration and where its source comes from). The Docker image copies the same binaries in with `node_modules`. Set `FFMPEG_PATH` and `FFPROBE_PATH` to use another FFmpeg instead.
+
 ## Models and services
 
 No model weights are included. The starter workflows reference Z-Image, Qwen Image Edit, and LTX 2.5 model files by name; you use them through Comfy under the licenses and terms that apply to them and to your Comfy account. Hosted models used through Comfy Router are subject to their providers' terms.

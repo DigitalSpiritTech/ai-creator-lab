@@ -12,6 +12,8 @@
     "@comfyorg/sdk": "0.5.0",
     "@creator-lab/core": "0.0.1",
     "@creator-lab/recipes": "0.0.1",
+    "@derhuerst/ffprobe-static": "5.3.0",
+    "ffmpeg-static": "5.3.0",
     "sharp": "0.35.5",
     "zod": "4.6.7"
   }

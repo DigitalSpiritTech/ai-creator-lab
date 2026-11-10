@@ -69,7 +69,7 @@ export async function preflightRender(options: { captions: boolean; texts: strin
   if (!(await supportsDrawtext())) {
     fail(
       "invalid",
-      `The FFmpeg at ${describeFfmpeg()} has no drawtext filter, so captions cannot be burned in. Install an FFmpeg built with libfreetype (on macOS: brew install ffmpeg-full, which the app finds by itself), or point FFMPEG_PATH and FFPROBE_PATH at one, or turn captions off.`,
+      `The FFmpeg at ${describeFfmpeg()} has no drawtext filter, so captions cannot be burned in. Remove FFMPEG_PATH to use the bundled build (it has drawtext), or point FFMPEG_PATH and FFPROBE_PATH at a build with libfreetype, or turn captions off.`,
     );
   }
   return font;

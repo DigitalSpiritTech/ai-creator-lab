@@ -7,7 +7,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { supportsDrawtext } from "@/server/assembly/render";
-import { ffmpegPath, ffprobePath } from "@creator-lab/executors/media";
+import { type MediaToolSource, ffprobePath, resolveMediaTool } from "@creator-lab/executors/media";
 import { captionFontPath } from "@/server/assembly/captions";
 import { childEnv } from "@creator-lab/executors/process";
 
@@ -19,7 +19,7 @@ export interface VideoToolsReport {
   /** Whether captions can be burned in: drawtext present and the font file found. */
   captions: boolean;
   /** Where the paths came from, for the hint under the report. */
-  source: "environment" | "homebrew-full" | "path";
+  source: MediaToolSource;
   message: string;
   checkedAt: number;
 }
@@ -36,17 +36,16 @@ async function version(binary: string): Promise<string | null> {
 
 /** Runs the two binaries and the drawtext check; never throws. */
 export async function checkVideoToolsReport(now = Date.now()): Promise<VideoToolsReport> {
-  const ffmpeg = ffmpegPath();
+  const { path: ffmpeg, source } = resolveMediaTool("ffmpeg");
   const ffprobe = ffprobePath();
   const [ffmpegVersion, ffprobeVersion] = await Promise.all([version(ffmpeg), version(ffprobe)]);
   const drawtext = ffmpegVersion ? await supportsDrawtext() : false;
   const font = !!captionFontPath();
-  const source = process.env.FFMPEG_PATH?.trim() ? "environment" : ffmpeg.includes("/opt/ffmpeg-full/") ? "homebrew-full" : "path";
   let message: string;
   if (!ffmpegVersion || !ffprobeVersion) {
-    message = `${!ffmpegVersion ? "ffmpeg" : "ffprobe"} did not respond at ${!ffmpegVersion ? ffmpeg : ffprobe}. Install FFmpeg, or set FFMPEG_PATH and FFPROBE_PATH in .env.local and restart.`;
+    message = `${!ffmpegVersion ? "ffmpeg" : "ffprobe"} did not respond at ${!ffmpegVersion ? ffmpeg : ffprobe}. Run npm ci again to restore the bundled binaries (the install downloads them), or set FFMPEG_PATH and FFPROBE_PATH in .env.local and restart.`;
   } else if (!drawtext) {
-    message = `FFmpeg ${ffmpegVersion} runs, but this build has no drawtext filter, so captions cannot be burned in. On macOS run "brew install ffmpeg-full"; elsewhere install a build with libfreetype. Exports without captions still work.`;
+    message = `FFmpeg ${ffmpegVersion} runs, but this build has no drawtext filter, so captions cannot be burned in. Remove FFMPEG_PATH to use the bundled build (it has drawtext), or point it at a build with libfreetype. Exports without captions still work.`;
   } else if (!font) {
     message = `FFmpeg ${ffmpegVersion} runs with drawtext, but the caption font is missing. Restore assets/fonts/DejaVuSans-Bold.ttf or set CAPTION_FONT_PATH.`;
   } else {

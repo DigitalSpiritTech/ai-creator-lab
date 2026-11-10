@@ -269,9 +269,11 @@ export function SettingsForm() {
             <p className="text-xs text-muted-foreground">
               {tools.source === "environment"
                 ? "From FFMPEG_PATH and FFPROBE_PATH in .env.local."
-                : tools.source === "homebrew-full"
-                  ? "Homebrew's ffmpeg-full, found automatically. Set FFMPEG_PATH and FFPROBE_PATH in .env.local to use another."
-                  : "The first ffmpeg and ffprobe on PATH. Set FFMPEG_PATH and FFPROBE_PATH in .env.local to use another."}
+                : tools.source === "bundled"
+                  ? "The ffmpeg and ffprobe bundled with the install (ffmpeg-static), with captions. Set FFMPEG_PATH and FFPROBE_PATH in .env.local to use another."
+                  : tools.source === "homebrew-full"
+                    ? "Homebrew's ffmpeg-full, found automatically. Set FFMPEG_PATH and FFPROBE_PATH in .env.local to use another."
+                    : "The first ffmpeg and ffprobe on PATH. Set FFMPEG_PATH and FFPROBE_PATH in .env.local to use another."}
             </p>
           </>
         ) : (
@@ -460,7 +462,7 @@ interface VideoToolsView {
   ffmpeg: { path: string; version: string | null };
   ffprobe: { path: string; version: string | null };
   captions: boolean;
-  source: "environment" | "homebrew-full" | "path";
+  source: "environment" | "bundled" | "homebrew-full" | "path";
   message: string;
   checkedAt: number;
 }

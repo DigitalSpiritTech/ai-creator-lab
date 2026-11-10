@@ -18,7 +18,7 @@ import { ridgelineBeats } from "./domain-fixtures";
 
 const execute = promisify(execFile);
 
-/** The same ffmpeg the app uses: FFMPEG_PATH, else Homebrew's ffmpeg-full, else PATH. */
+/** The same ffmpeg the app uses: FFMPEG_PATH, else the bundled build, else Homebrew's ffmpeg-full, else PATH. */
 export function ffmpeg(): string {
   return ffmpegPath();
 }
