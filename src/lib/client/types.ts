@@ -12,6 +12,7 @@ import type { Project } from "@/lib/domain/project";
 import type { BudgetCrossing, SpendPolicy, SpendWarning } from "@/lib/domain/spend";
 import type { WorkspaceSettings } from "@/lib/domain/workspace";
 import type { AssetUsage } from "@/lib/domain/usage";
+import type { RecipeOptionSchema } from "@/server/tools/overrides";
 import type { ProjectStateSchema } from "@/server/tools/project";
 
 export type ProjectState = z.infer<typeof ProjectStateSchema>;
@@ -35,6 +36,18 @@ export interface RecipeSummary {
   openWeights: boolean;
   costHint: string;
   available: boolean;
+}
+
+/** One entry in the proposal card's recipe selector. */
+export type RecipeOption = z.infer<typeof RecipeOptionSchema>;
+
+/** What the recipe selector lists, with this project's preference and the Settings default. */
+export interface RecipeOptionsView {
+  capability: string;
+  references: number;
+  options: RecipeOption[];
+  preference: string | null;
+  settingsDefault: string | null;
 }
 
 export interface SubmitResult {

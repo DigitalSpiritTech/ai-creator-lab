@@ -14,6 +14,7 @@ import { contentRepository } from "@/server/store/content";
 import { documentRepository } from "@/server/store/documents";
 import { jobRepository } from "@/server/store/jobs";
 import { libraryRepository } from "@/server/store/library";
+import { preferencesRepository } from "@/server/store/preferences";
 import { projectRepository } from "@/server/store/projects";
 import { scriptRepository } from "@/server/store/scripts";
 import { workspaceRepository } from "@/server/store/workspace";
@@ -40,6 +41,8 @@ export interface Store {
   readonly budget: ReturnType<typeof budgetRepository>;
   /** Servers recipes run on (Comfy Cloud, Router, self-hosted ComfyUI, deployments). */
   readonly backends: ReturnType<typeof backendRepository>;
+  /** Per-project recipe preferences by capability. */
+  readonly preferences: ReturnType<typeof preferencesRepository>;
   /** Runs synchronous store work atomically; nested calls become savepoints. */
   transaction<T>(work: () => T): T;
   close(): void;
@@ -66,6 +69,7 @@ export function openStore(dataDir: string): Store {
     documents: documentRepository(database),
     budget: budgetRepository(database),
     backends: backendRepository(database),
+    preferences: preferencesRepository(database),
     transaction: (work) => transaction(database, work),
     close: () => database.close(),
   };

@@ -79,6 +79,11 @@ const TITLES: Record<string, (input: Dict, output: Dict) => string> = {
   create_set: (input) => `Created the set${str(input.name) ? ` ${str(input.name)}` : ""}`,
   set_cut_order: () => "Set the clip order",
   reset_shots: (input) => join(["Reset the shots", beat(input)]).replace(" · ", " from "),
+  set_recipe_preference: (input, output) =>
+    output.recipeTitle
+      ? `Set ${str(output.recipeTitle)} for ${str(input.capability)?.replaceAll("_", " ") ?? "this step"} in this project`
+      : `Cleared this project's ${str(input.capability)?.replaceAll("_", " ") ?? ""} preference`.replace("  ", " "),
+  regenerate_with: () => "Proposed the same shot with another model",
 };
 
 /** Tools whose output is a proposal: the detail line names the recipe and the estimate. */
@@ -92,6 +97,7 @@ const PROPOSALS = new Set([
   "refine_still",
   "generate_clip",
   "generate_voice_over",
+  "regenerate_with",
 ]);
 
 export function toolLabel(name: string): string {

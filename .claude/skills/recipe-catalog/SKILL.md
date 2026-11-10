@@ -19,6 +19,12 @@ Router recipe adds `provider`, `model`, `fieldMap` (semantic field to schema pat
 
 Workflow recipe adds `file` (path under `workflows/`), `target` hint, and the slot map from the sidecar.
 
+## Prompt styles and shot specs
+
+Steps never write a model's prompt. Each generation tool writes a shot spec (`src/lib/domain/shot-spec.ts`: face, body, sheet, product photo, still, refine, clip, speech, or free), and `renderPrompt` in `src/server/tools/render.ts` renders it in the recipe's prompt style: `standard` (Z-Image, Qwen Image Edit, FLUX.2, the LTX clip paragraph, every model without its own style), `krea`, `gemini-image` (Nano Banana), `gpt-image`, `minimax-h3`. A recipe may set `promptStyle`; otherwise `inferPromptStyle` reads the Router model id or the workflow id. A new model family gets a style plus renderers for the spec kinds it reads differently; everything else falls back to `standard`. Snapshots live in `tests/prompts-renderers.test.ts`.
+
+Which recipe runs: the per-run choice, then the project preference (`set_recipe_preference`), then the Settings default, then the purpose and starter defaults. What the proposal card offers comes from `src/server/catalog/availability.ts`, the one place that decides what is available on the configured backends.
+
 ## Slot sidecar format (`workflows/<name>.slots.json`)
 
 ```json

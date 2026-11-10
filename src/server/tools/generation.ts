@@ -18,14 +18,15 @@ import {
   chooseWardrobe,
 } from "@/lib/domain/library";
 import { GenerationProposalSchema, GenerationTargetSchema, type Job, JobSchema } from "@/lib/domain/job";
+import { EditedPromptSchema, type ShotSpecInput } from "@/lib/domain/shot-spec";
 import { assembleAd as assembleExport } from "@/server/assembly";
 import { defaultRecipes, recipesFor } from "@/server/catalog/defaults";
 import { BudgetCrossingSchema, SpendWarningSchema, budgetCrossing, describeCrossing } from "@/lib/domain/spend";
 import { reservationUsd } from "@/server/executors/allowance";
 import { runToCompletion, spendPolicy, startGeneration } from "@/server/executors/run";
 import type { Store } from "@/server/store";
-import { BODY_REFERENCE, FACE_LOCK, bodyPrompt, clipPrompt, faceLockPrompt, productPhotoPrompt, referenceSheetPrompt, refinePrompt, stillPrompt, type StillPromptParts } from "@/server/tools/prompts";
-import { buildProposal, candidateRequestId, nearestAspect, proposalRecipe, proposalRequest, runDeps } from "@/server/tools/proposals";
+import { BODY_REFERENCE, FACE_GARMENT, FACE_LOCK, inline } from "@/server/tools/prompts";
+import { buildProposal, candidateRequestId, nearestAspect, proposalRequest, runDeps } from "@/server/tools/proposals";
 import { defineTool } from "@/server/tools/registry";
 import { referenceableIn } from "@/server/tools/shared";
 
@@ -123,17 +124,13 @@ export const generateFaceCandidates = defineTool({
     if (!link || link.kind !== "character") fail("not_found", "Link this character to the project first.");
     const item = store.library.getRequired(input.characterId);
     if (item.kind !== "character") fail("invalid", "Choose a character from the Library.");
-    const spec = {
+    // The prompt follows the recipe that runs: Krea 2 reads sentences, Nano Banana a narrative, and so on.
+    return buildProposal(context, {
       capability: FACE_LOCK.capability,
       recipeId: input.recipeId,
       target: { kind: "character_reference", characterId: item.id, slot: "face" },
-    } as const;
-    // The prompt follows the recipe that will run: Krea 2 reads sentences, the rest the standard prompt.
-    const recipe = await proposalRecipe(context, spec, 0);
-    return buildProposal(context, {
-      ...spec,
       projectId: input.projectId,
-      prompt: faceLockPrompt(item.bible, recipe.id),
+      shot: { kind: "face", visualCore: item.bible.visualCore, garment: FACE_GARMENT },
       references: [],
       count: input.count,
       aspectRatio: FACE_LOCK.aspectRatio,
@@ -166,7 +163,7 @@ export const generateBodyReference = defineTool({
       projectId: input.projectId,
       capability: BODY_REFERENCE.capability,
       recipeId: input.recipeId,
-      prompt: bodyPrompt(item.bible, "gray", { photographed: isPhoto(store, faceAssetId) }),
+      shot: { kind: "body", build: item.bible.build, backdrop: "gray", face: 1, photographed: isPhoto(store, faceAssetId) },
       references: [{ role: "image1", assetId: faceAssetId }],
       count: input.count,
       target: { kind: "character_reference", characterId: item.id, slot: "body" },
@@ -200,7 +197,7 @@ export const generateProductImages = defineTool({
       projectId: input.projectId,
       capability: "text_to_image",
       recipeId: input.recipeId,
-      prompt: productPhotoPrompt(item, input.setting),
+      shot: { kind: "product_photo", product: { name: item.name, appearance: item.appearance }, ...(input.setting ? { setting: input.setting } : {}) },
       references: [],
       count: input.count,
       target: { kind: "product_image", productId: item.id },
@@ -241,7 +238,7 @@ export const generateReferenceSheet = defineTool({
       projectId: input.projectId,
       capability: "image_edit",
       recipeId: input.recipeId,
-      prompt: referenceSheetPrompt(item.bible, link.wardrobe, { photographed: isPhoto(store, faceAssetId) }),
+      shot: { kind: "sheet", visualCore: item.bible.visualCore, wardrobe: link.wardrobe, face: 1, body: 2, photographed: isPhoto(store, faceAssetId) },
       references: [
         { role: "image1", assetId: faceAssetId },
         { role: "image2", assetId: bodyAssetId },
@@ -277,10 +274,10 @@ export const composeStill = defineTool({
       references.push({ role: `image${references.length + 1}`, assetId });
       return references.length;
     };
-    const parts: StillPromptParts = { beat };
+    const parts: Extract<ShotSpecInput, { kind: "still" }> = { kind: "still", beat };
     if (character && beat.type === "talking") {
       const { link, item } = character;
-      parts.bible = item.bible;
+      parts.visualCore = item.bible.visualCore;
       parts.wardrobe = link.wardrobe;
       const photographed = isPhoto(store, item.bible.references.faceAssetId);
       if (link.sheetAssetId) {
@@ -293,18 +290,18 @@ export const composeStill = defineTool({
     }
     if (product) {
       const photo = product.imageAssetIds.find((id) => store.assets.get(id)?.state.state === "active");
-      parts.product = { name: product.name, appearance: product.appearance || undefined, image: photo ? add(photo) : undefined };
+      parts.product = { name: product.name, ...(product.appearance ? { appearance: product.appearance } : {}), ...(photo ? { image: add(photo) } : {}) };
     }
     const set = setForBeat(sets, beat.setting);
     if (set) {
       const photo = set.imageAssetIds.find((id) => store.assets.get(id)?.state.state === "active");
-      parts.set = { name: set.name, image: photo ? add(photo) : undefined, photo: isPhoto(store, photo) };
+      parts.set = { name: set.name, ...(photo ? { image: add(photo) } : {}), photo: isPhoto(store, photo) };
     }
     return buildProposal(context, {
       projectId: content.projectId,
       capability: references.length ? "image_edit" : "text_to_image",
       recipeId: input.recipeId,
-      prompt: stillPrompt(parts),
+      shot: parts,
       references,
       count: input.count,
       target: { kind: "shot", contentId: content.id, beatIndex: beat.index, slot: "still" },
@@ -340,7 +337,7 @@ export const refineStill = defineTool({
       projectId,
       capability: "image_edit",
       recipeId: input.recipeId,
-      prompt: refinePrompt(input.instruction, asset.kind === "sheet" ? "sheet" : "still"),
+      shot: { kind: "refine", instruction: input.instruction, subject: asset.kind === "sheet" ? "sheet" : "still" },
       references: [{ role: "image1", assetId: asset.id }],
       count: 1,
       target,
@@ -405,14 +402,30 @@ export const generateClip = defineTool({
       if (take.kind !== "audio" || !take.audio) fail("invalid", "The approved voice take is not an audio recording.");
     }
     const cast = projectCast(store, content.projectId);
+    // A lip-synced clip lasts as long as its take plus a breath; the recipe caps it at one chunk.
+    const durationSeconds = take?.audio ? Math.min(beat.durationSeconds, take.audio.durationSeconds + 0.4) : beat.durationSeconds;
+    const person = cast.character?.item.bible;
     return buildProposal(context, {
       projectId: content.projectId,
       capability: firstLast ? "first_last_to_video" : speech ? "speech_to_video" : "image_to_video",
       recipeId: input.recipeId,
-      prompt: clipPrompt(beat, {
-        product: cast.product ? { name: cast.product.name, appearance: cast.product.appearance || undefined } : undefined,
-        speech,
-      }),
+      shot: {
+        kind: "clip",
+        beat,
+        mode: input.mode,
+        durationSeconds,
+        ...(person
+          ? {
+              character: {
+                name: person.name,
+                visualCore: person.visualCore,
+                wardrobe: cast.character!.link.wardrobe ?? person.wardrobeDefaults[0] ?? "the outfit shown in the start image",
+                voice: `a natural voice, ${inline(person.voice.pace)}`.slice(0, 200),
+              },
+            }
+          : {}),
+        ...(cast.product ? { product: { name: cast.product.name, ...(cast.product.appearance ? { appearance: cast.product.appearance } : {}) } } : {}),
+      },
       references: lastAssetId
         ? [
             { role: "first", assetId: shot.still.assetId },
@@ -427,8 +440,7 @@ export const generateClip = defineTool({
       count: input.count,
       target: { kind: "shot", contentId: content.id, beatIndex: beat.index, slot: "clip" },
       aspectRatio: "9:16",
-      // A lip-synced clip lasts as long as its take plus a breath; the recipe caps it at one chunk.
-      durationSeconds: take?.audio ? Math.min(beat.durationSeconds, take.audio.durationSeconds + 0.4) : beat.durationSeconds,
+      durationSeconds,
     });
   },
 });
@@ -462,6 +474,11 @@ export const submitProposal = defineTool({
   }),
   run: async (context, input) => {
     const { proposal } = input;
+    // A prompt edited on the card is user input: bounded and checked here, whatever the client sent.
+    if (proposal.promptEdited) {
+      const edited = EditedPromptSchema.safeParse(proposal.prompt);
+      if (!edited.success) fail("invalid", edited.error.issues[0]?.message ?? "The edited prompt is not valid.");
+    }
     const deps = runDeps(context);
     const request = await proposalRequest(context, proposal);
     const results: z.input<typeof SubmitResultSchema>[] = [];

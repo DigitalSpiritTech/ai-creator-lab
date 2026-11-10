@@ -29,6 +29,7 @@ import {
   selectReference,
   unlinkLibraryItem,
 } from "@/server/tools/library";
+import { recipeOptions, regenerateWith, rerenderProposal, setRecipePreferenceTool } from "@/server/tools/overrides";
 import { getProjectState, saveBriefTool } from "@/server/tools/project";
 import { type Tool, type ToolContext, toJsonSchemaTools } from "@/server/tools/registry";
 import { planShots, resetShots, saveScript, setCutOrder } from "@/server/tools/script";
@@ -43,7 +44,8 @@ export { createGenerationContext } from "@/server/tools/generation-context";
  * save_product, save_script, plan_shots, compose_still, refine_still, generate_clip, extract_voice_sample, generate_voice_over, approve,
  * archive_asset, delete_asset_everywhere, assemble_ad, list_assets, list_recipes, then the Library
  * tools link_library_item, unlink_library_item, archive_library_item, create_set, set_cut_order, reset_shots,
- * and the document tools list_document_versions and restore_document_version.
+ * the document tools list_document_versions and restore_document_version, and the model override
+ * tools set_recipe_preference and regenerate_with.
  */
 export const TOOLS: readonly Tool[] = [
   getProjectState,
@@ -77,10 +79,15 @@ export const TOOLS: readonly Tool[] = [
   resetShots,
   listDocumentVersions,
   restoreDocumentVersion,
+  setRecipePreferenceTool,
+  regenerateWith,
 ];
 
-/** Tools the UI calls but the assistant is not offered (the spending gate). */
-export const INTERNAL_TOOLS: readonly Tool[] = [submitProposal];
+/**
+ * Tools the UI calls but the assistant is not offered: the spending gate, and the proposal card's
+ * recipe selector (its options and the re-render for another recipe), each behind its own route.
+ */
+export const INTERNAL_TOOLS: readonly Tool[] = [submitProposal, rerenderProposal, recipeOptions];
 
 /**
  * The roster the assistant is offered: everything except permanent deletion, which stays a

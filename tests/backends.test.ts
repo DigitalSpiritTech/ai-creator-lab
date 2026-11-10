@@ -29,6 +29,7 @@ import {
 } from "@/lib/catalog";
 import { type GenerationProposal, type Job, createJob } from "@/lib/domain/job";
 import { compareWorkflowRecipes, fetchObjectInfo, objectInfoRequests, probeAndSave, probeBackend } from "@/server/catalog/backend-probe";
+import { availableRecipes } from "@/server/catalog/availability";
 import { addBackend, backendRouting, builtInBackends, listBackends, markVerifiedRun, removeBackend, updateBackend } from "@/server/catalog/backends";
 import { defaultRecipes, recipeAvailability, recipesFor } from "@/server/catalog/defaults";
 import { createExecutors, legacyClient } from "@/server/executors";
@@ -440,6 +441,34 @@ describe("acceptance: a local ComfyUI without the LTX nodes", () => {
     const detail = recipeAvailability(catalog, "image_to_video", noKey).find((entry) => entry.recipe.id === "ltx-2.5-i2v")!;
     assert.ok(!detail.placement.ok && /LTXVConditioning/.test(detail.placement.reason));
     assert.equal(recipesFor(catalog, "image_to_video").length, catalog.filter((recipe) => recipe.capability === "image_to_video").length, "without routing nothing is filtered");
+  });
+
+  test("model override (F3): the card's selector shows where each recipe runs, and a switch recomputes the backend on the server", async () => {
+    const { studio, project, local, still, tool } = await setup();
+    type Options = { options: { id: string; fits: boolean; note: string | null }[] };
+    const video = await tool<Options>("recipe_options", { projectId: project.id, capability: "image_to_video", references: 1 });
+    const ltx = video.options.find((option) => option.id === "ltx-2.5-i2v");
+    assert.match(ltx?.note ?? "", /^Runs on Comfy Cloud because Studio PC cannot run it/);
+    const stills = await tool<Options>("recipe_options", { projectId: project.id, capability: "text_to_image", references: 0 });
+    assert.equal(stills.options.find((option) => option.id === "z-image-turbo-t2i")?.note, "Runs on Studio PC.");
+
+    const noKey = { ...backendRouting(studio, true, { env: {} }), hasComfyKey: false };
+    const offeredWithoutKey = availableRecipes(await recipes(), "image_to_video", { executors: { forRecipe: () => undefined }, routerModels: [], routing: noKey });
+    assert.ok(!offeredWithoutKey.some(({ recipe }) => recipe.id === "ltx-2.5-i2v"), "a recipe no configured backend can run is not offered");
+
+    const onLocal = await tool<GenerationProposal>("propose_candidates", { projectId: project.id, capability: "text_to_image", prompt: "A plain studio portrait.", count: 1 });
+    assert.equal(onLocal.backendId, local.id);
+    const hosted = await tool<GenerationProposal>("rerender_proposal", { proposal: onLocal, recipeId: "router-nano-banana-pro-t2i" });
+    assert.equal(hosted.backendId, undefined, "a Router recipe carries no workflow backend");
+    const back = await tool<GenerationProposal>("rerender_proposal", { proposal: { ...hosted, backendId: "cloud" }, recipeId: "z-image-turbo-t2i" });
+    assert.equal(back.backendId, local.id, "the server places it again; a client-sent backendId is ignored");
+    assert.equal(back.recipeTitle, "Z-Image Turbo on Studio PC");
+
+    const clip = await tool<GenerationProposal>("propose_candidates", { projectId: project.id, capability: "image_to_video", recipeId: "router-kling-3-omni-i2v", prompt: "A slow push in.", referenceAssetIds: [still.id], count: 1 });
+    assert.equal(clip.backendId, undefined);
+    const fallback = await tool<GenerationProposal>("rerender_proposal", { proposal: clip, recipeId: "ltx-2.5-i2v" });
+    assert.equal(fallback.backendId, "cloud");
+    assert.match(fallback.estimate.note, /^Runs on Comfy Cloud because Studio PC cannot run it/);
   });
 
   test("a backend with a generation in flight cannot be removed", async () => {
