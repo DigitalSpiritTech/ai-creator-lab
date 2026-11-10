@@ -294,6 +294,15 @@ describe("generation gate, jobs, and assets", () => {
     }
     assert.equal(assetIds.length, 2, "mock jobs did not finish");
 
+    // Regenerate with (F3) finds its project from the asset: another project's route refuses it.
+    const regenerate = (project: string, input: Record<string, unknown>) =>
+      routes.tools.POST(json(`/api/projects/${project}/tools/regenerate_with`, { assetId: assetIds[0], recipeId: "mock-text-to-image", ...input }), params({ id: project, name: "regenerate_with" }));
+    assert.equal((await regenerate(otherProject, {})).status, 400, "no projectId in the input: the output's project is checked");
+    assert.equal((await regenerate(otherProject, { projectId: otherProject })).status, 400, "a projectId that is not the asset's is refused");
+    const own = await regenerate(id, { projectId: id });
+    assert.equal(own.status, 200);
+    assert.equal(((await own.json()) as { projectId: string }).projectId, id);
+
     // Submitting the same proposal again never runs it twice.
     const again = await routes.submit.POST(json(`/api/projects/${id}/proposals/submit`, { proposal }), params({ id }));
     const repeat = ((await again.json()) as { results: { outcome: string }[] }).results;

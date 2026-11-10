@@ -8,7 +8,7 @@
  * prompt is rewritten in the model's style and the estimate is redone there (the spend gate prices
  * again at submit). The prompt is editable; an edit is sent flagged and the server bounds it. "Just
  * this run" is the default; "Use for the rest of this project" saves the recipe as the project's
- * preference for the capability before submitting. After submitting, "Regenerate with..." proposes
+ * preference for the capability once the gate accepts the run (a blocked or failed one saves none). After submitting, "Regenerate with..." proposes
  * the same spec with another recipe as a new card.
  * @packageDocumentation
  */
@@ -87,10 +87,6 @@ export function ProposalCard({ proposal: initialProposal, autoApprove = false, o
 
   async function send(confirmUnquoted = false) {
     try {
-      if (scope === "project" && !confirmUnquoted) {
-        await callTool("set_recipe_preference", { projectId: proposal.projectId, capability: proposal.capability, recipeId: proposal.recipeId }, proposal.projectId);
-        project?.notify("ok", `${proposal.recipeTitle} is now this project's ${CAPABILITY_LABELS[proposal.capability].toLowerCase()} recipe.`);
-      }
       const { results, warning: level } = await submitProposal(submission(), confirmUnquoted);
       const block = budgetBlock(results);
       if (block) {
@@ -110,8 +106,20 @@ export function ProposalCard({ proposal: initialProposal, autoApprove = false, o
       setWarning(level);
       setGate({ state: "submitted", results });
       onSubmitted?.(results);
+      // Only a run the gate accepted makes the recipe the project's choice; a blocked, unconfirmed,
+      // or failed submission leaves no preference behind.
+      if (scope === "project") await savePreference();
     } catch (cause) {
       setGate({ state: "error", message: errorMessage(cause) });
+    }
+  }
+
+  async function savePreference() {
+    try {
+      await callTool("set_recipe_preference", { projectId: proposal.projectId, capability: proposal.capability, recipeId: proposal.recipeId }, proposal.projectId);
+      project?.notify("ok", `${proposal.recipeTitle} is now this project's ${CAPABILITY_LABELS[proposal.capability].toLowerCase()} recipe.`);
+    } catch (cause) {
+      project?.notify("warn", `The run was submitted, but the project preference was not saved: ${errorMessage(cause)}`);
     }
   }
 

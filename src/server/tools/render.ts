@@ -106,6 +106,20 @@ function plain(value: string): string {
   return value.replace(/["“”]/g, "").replace(/<[^<>]*>/g, "").replace(/\s{2,}/g, " ").trim();
 }
 
+/**
+ * Text cut to an H3 field's limit at a word boundary, without a trailing comma or ellipsis (H3
+ * reads an ellipsis as trailing speech). The script and bible allow longer fields than H3 does.
+ */
+export function clampWords(value: string, max: number): string {
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  return (space > max / 2 ? cut.slice(0, space) : value.slice(0, max)).replace(/[\s,;:.\-]+$/, "");
+}
+
+/** The H3 spec's field limits for text that comes from the script and the bible. */
+const H3_LIMITS = { name: 60, description: 600, wardrobe: 200, voice: 200, shows: 300, setting: 300 } as const;
+
 function speakerId(name: string): string {
   const first = name.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z0-9-]/g, "") ?? "";
   return /^[a-z]/.test(first) ? first.slice(0, 40) : "creator";
@@ -122,13 +136,13 @@ export function h3ClipSpec(spec: ClipSpec): H3ShotSpecInput {
   const { beat, character, product } = spec;
   const talking = beat.type === "talking" && !!character;
   const id = character ? speakerId(character.name) : "creator";
-  const name = character ? character.name.trim().split(/\s+/)[0] : "";
-  const visual = plain(product ? withoutProductName(beat.visual, product) : beat.visual);
-  const setting = plain(beat.setting) || "the setting shown in <Picture 1>";
+  const name = character ? clampWords(character.name.trim().split(/\s+/)[0], H3_LIMITS.name) : "";
+  const visual = clampWords(plain(product ? withoutProductName(beat.visual, product) : beat.visual), H3_LIMITS.shows);
+  const setting = clampWords(plain(beat.setting), H3_LIMITS.setting) || "the setting shown in <Picture 1>";
   const subjects = talking ? [id] : [];
   return {
     durationSeconds: spec.durationSeconds,
-    subjects: talking ? [{ id, name, description: plain(character.visualCore), wardrobe: plain(character.wardrobe), ...(character.voice ? { voice: plain(character.voice).slice(0, 200) } : {}) }] : [],
+    subjects: talking ? [{ id, name, description: clampWords(plain(character.visualCore), H3_LIMITS.description), wardrobe: clampWords(plain(character.wardrobe), H3_LIMITS.wardrobe), ...(character.voice ? { voice: clampWords(plain(character.voice), H3_LIMITS.voice) } : {}) }] : [],
     pictures: [
       { index: 1, role: "first_frame", shot: 1, ...(talking ? { subject: id } : {}), shows: visual },
       ...(spec.mode === "first_last" ? [{ index: 2, role: "last_frame" as const, shot: 1, ...(talking ? { subject: id } : {}), shows: "the same shot a few seconds later" }] : []),
@@ -162,6 +176,7 @@ export function h3ClipSpec(spec: ClipSpec): H3ShotSpecInput {
 export function renderH3Clip(spec: ClipSpec): string | { error: string } {
   if (spec.mode === "speech") return { error: "MiniMax H3 does not lip-sync to a recording; use a speech to video recipe." };
   const rendered = renderH3SingleShot(h3ClipSpec(spec));
-  if (!rendered.ok) return { error: `MiniMax H3 cannot render beat ${spec.beat.index}: ${rendered.errors[0]}` };
+  // The H3 schema's messages are plain sentences behind a field path; the path means nothing to a person.
+  if (!rendered.ok) return { error: `MiniMax H3 cannot render beat ${spec.beat.index}: ${rendered.errors[0].replace(/^[\w.]+: /, "")}` };
   return rendered.prompt;
 }

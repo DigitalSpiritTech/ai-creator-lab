@@ -214,7 +214,7 @@ describe("the proposal card's prompt and estimate", () => {
     assert.equal(store.jobs.listByProject(card.projectId).length, 0, "nothing ran");
 
     const edited = "Close detail shot of the bottle in a dishwasher rack, morning light. No text in the image.";
-    const run = await ok<{ results: { assetIds: string[] }[] }>("submit_proposal", { proposal: { ...card, prompt: edited, promptEdited: true }, wait: true });
+    const run = await ok<{ results: { assetIds: string[] }[] }>("submit_proposal", { proposal: { ...card, prompt: `  ${edited}\n\n`, promptEdited: true }, wait: true });
     const asset = store.assets.getRequired(run.results[0].assetIds[0]);
     assert.ok(asset.provenance.source === "generated");
     assert.equal(store.jobs.get(asset.provenance.jobId)!.request.input.prompt, edited);
@@ -246,11 +246,25 @@ describe("the proposal card's prompt and estimate", () => {
   });
 
   test("a proposal saved before shot specs keeps its prompt as written on another recipe", async () => {
-    const { contentId, ok } = await setup();
+    const { tools, contentId, ok } = await setup();
     const card = await ok<GenerationProposal>("compose_still", { contentId, beatIndex: 4, recipeId: QWEN.id, count: 1 });
     const legacy: GenerationProposal = { ...card, spec: undefined, promptStyle: undefined };
     const moved = await ok<GenerationProposal>("rerender_proposal", { proposal: legacy, recipeId: NANO.id });
     assert.equal(moved.prompt, card.prompt);
     assert.equal(moved.spec?.kind, "free");
+    const tooLong = await callTool(tools, "rerender_proposal", { proposal: { ...legacy, prompt: "word ".repeat(1700) }, recipeId: NANO.id });
+    assert.equal(!tooLong.ok && tooLong.failure.code, "invalid");
+    assert.match(!tooLong.ok ? tooLong.failure.message : "", /^This prompt is 8,499 characters, longer than the 8,000 another recipe takes\. Shorten it on the card first\.$/);
+  });
+
+  test("regenerate_with refuses a projectId that is not the candidate's", async () => {
+    const { tools, store, contentId, ok, submit } = await setup();
+    const card = await ok<GenerationProposal>("compose_still", { contentId, beatIndex: 4, recipeId: QWEN.id, count: 1 });
+    const still = await submit(card);
+    const other = seedProject(store, tools.now, "Gym bag launch");
+    const refused = await callTool(tools, "regenerate_with", { assetId: still, projectId: other.id, recipeId: NANO.id });
+    assert.equal(!refused.ok && refused.failure.message, "This candidate belongs to another project.");
+    const own = await ok<GenerationProposal>("regenerate_with", { assetId: still, projectId: card.projectId, recipeId: NANO.id });
+    assert.equal(own.projectId, card.projectId);
   });
 });

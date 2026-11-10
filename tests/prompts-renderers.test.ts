@@ -12,7 +12,7 @@ import { defaultRecipes } from "@/server/catalog/defaults";
 import { adapterRecipes } from "@/server/catalog/router-adapters";
 import { H3_PROMPT_LIMIT } from "@/server/tools/prompts-minimax-h3";
 import { PROMPT_LIMIT, clipPrompt, facePrompt, kreaFacePrompt, stillPrompt } from "@/server/tools/prompts";
-import { renderPrompt, rendersNatively } from "@/server/tools/render";
+import { clampWords, h3ClipSpec, renderPrompt, rendersNatively } from "@/server/tools/render";
 import { RIDGELINE_APPEARANCE } from "./support/domain-fixtures";
 import { CLIP_CASES, IMAGE_CASES, IMAGE_STYLES, renderCases, renderSpecs, styleRecipe } from "./support/render-cases";
 
@@ -162,12 +162,33 @@ describe("prompt renderers", () => {
     assert.ok(qwen.ok && qwen.prompt === stillPrompt({ beat: broll.beat, wardrobe: null, product: broll.product }));
   });
 
+  test("H3 takes the longest beat visual and wardrobe the script and bible allow, cut at a word to its own limits", () => {
+    const talking = renderSpecs().clipTalking;
+    assert.ok(talking.kind === "clip" && talking.character);
+    const visual = "Avery leans on the bright kitchen counter by the window and lifts the bottle toward the phone camera while morning light falls across the steel. ".repeat(4).slice(0, 400).trim();
+    const wardrobe = "an olive utility jacket with brass buttons over a crisp white cotton tee, dark straight-leg jeans, and white canvas sneakers, ".repeat(3).slice(0, 300).trim();
+    assert.ok(visual.length > 390 && wardrobe.length > 290);
+    const long = { ...talking, beat: { ...talking.beat, visual }, character: { ...talking.character, wardrobe } };
+    const rendered = renderPrompt(long, styleRecipe("minimax-h3", "image_to_video"));
+    assert.ok(rendered.ok, rendered.ok ? "" : rendered.error);
+    const spec = h3ClipSpec(long);
+    const shows = spec.pictures?.[0]?.shows ?? "";
+    assert.ok(shows.length > 200 && shows.length <= 300, `${shows.length} characters`);
+    assert.ok(visual.startsWith(shows) && visual[shows.length] === " ", "cut at a word boundary, nothing added");
+    assert.ok(rendered.prompt.includes(shows.slice(1)));
+    assert.ok((spec.subjects?.[0]?.wardrobe.length ?? 0) <= 200);
+    assert.doesNotMatch(spec.subjects?.[0]?.wardrobe ?? "", /[ ,]$/);
+    assert.equal(clampWords("one two three", 9), "one two");
+    assert.equal(clampWords("short", 9), "short");
+  });
+
   test("a spec the model cannot take comes back as a readable error, never a throw", () => {
     const talking = renderSpecs().clipTalking;
     assert.ok(talking.kind === "clip");
     const tooFast = renderPrompt({ ...talking, durationSeconds: 2 }, styleRecipe("minimax-h3", "image_to_video"));
     assert.equal(tooFast.ok, false);
-    assert.match(!tooFast.ok ? tooFast.error : "", /MiniMax H3 cannot render beat 1: .*words per second/);
+    assert.match(!tooFast.ok ? tooFast.error : "", /^MiniMax H3 cannot render beat 1: Shot 1 holds 12 spoken words, .*words per second/);
+    assert.doesNotMatch(!tooFast.ok ? tooFast.error : "", /dialogue:|shots\.\d|pictures\.\d/, "no schema path reaches the person");
     const speech = renderPrompt({ ...talking, mode: "speech" }, styleRecipe("minimax-h3", "speech_to_video"));
     assert.equal(speech.ok, false);
   });

@@ -16,7 +16,7 @@ import {
   type GenerationTarget,
   type JobInput,
 } from "@/lib/domain/job";
-import { type ShotSpec, type ShotSpecInput, ShotSpecSchema } from "@/lib/domain/shot-spec";
+import { EDITED_PROMPT_LIMIT, type ShotSpec, type ShotSpecInput, ShotSpecSchema } from "@/lib/domain/shot-spec";
 import { DEFAULT_RECIPE_IDS, purposeRecipe } from "@/server/catalog/defaults";
 import type { EstimateOutcome, ExecutorSet } from "@/server/executors";
 import type { RunDeps } from "@/server/executors/run";
@@ -224,7 +224,11 @@ export function placeForProposal(context: ToolContext, recipe: Recipe): { recipe
 export function shotOf(spec: Pick<ProposalSpec, "shot" | "prompt">): ShotSpec {
   if (spec.shot) return ShotSpecSchema.parse(spec.shot);
   if (!spec.prompt) fail("invalid", "A proposal needs a prompt or a shot spec.");
-  return ShotSpecSchema.parse({ kind: "free", prompt: spec.prompt });
+  const prompt = spec.prompt.trim();
+  if (prompt.length > EDITED_PROMPT_LIMIT) {
+    fail("invalid", `This prompt is ${prompt.length.toLocaleString("en-US")} characters, longer than the ${EDITED_PROMPT_LIMIT.toLocaleString("en-US")} another recipe takes. Shorten it on the card first.`);
+  }
+  return ShotSpecSchema.parse({ kind: "free", prompt });
 }
 
 /** The spec rendered in the recipe's prompt style; a spec the model cannot take is refused readably. */

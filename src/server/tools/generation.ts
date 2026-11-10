@@ -473,11 +473,13 @@ export const submitProposal = defineTool({
     warning: SpendWarningSchema,
   }),
   run: async (context, input) => {
-    const { proposal } = input;
-    // A prompt edited on the card is user input: bounded and checked here, whatever the client sent.
+    let { proposal } = input;
+    // A prompt edited on the card is user input: bounded and checked here, whatever the client sent,
+    // and what runs is the trimmed text.
     if (proposal.promptEdited) {
       const edited = EditedPromptSchema.safeParse(proposal.prompt);
       if (!edited.success) fail("invalid", edited.error.issues[0]?.message ?? "The edited prompt is not valid.");
+      proposal = { ...proposal, prompt: edited.data };
     }
     const deps = runDeps(context);
     const request = await proposalRequest(context, proposal);

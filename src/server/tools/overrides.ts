@@ -16,10 +16,10 @@ import { IdSchema, RecipeIdSchema } from "@/lib/domain/common";
 import { fail } from "@/lib/domain/failure";
 import { GenerationProposalSchema } from "@/lib/domain/job";
 import { ProjectPreferencesSchema, setRecipePreference } from "@/lib/domain/preferences";
-import { type ShotSpec, ShotSpecSchema } from "@/lib/domain/shot-spec";
+import type { ShotSpec } from "@/lib/domain/shot-spec";
 import { availableRecipes, recipeRunnable } from "@/server/catalog/availability";
 import { defaultRecipes } from "@/server/catalog/defaults";
-import { buildProposal, referenceRange } from "@/server/tools/proposals";
+import { buildProposal, referenceRange, shotOf } from "@/server/tools/proposals";
 import { type ToolContext, defineTool, requireGeneration } from "@/server/tools/registry";
 
 async function catalog(context: ToolContext): Promise<Recipe[]> {
@@ -92,6 +92,7 @@ export const regenerateWith = defineTool({
   input: z
     .object({
       assetId: IdSchema.describe("The candidate to redo, approved or not, active or archived."),
+      projectId: IdSchema.optional().describe("The project you are working in; the candidate must belong to it."),
       recipeId: RecipeIdSchema,
       count: z.number().int().min(1).max(4).default(1),
     })
@@ -102,9 +103,10 @@ export const regenerateWith = defineTool({
     const asset = store.assets.getRequired(input.assetId);
     if (asset.provenance.source !== "generated") fail("invalid", "Only generated candidates can be regenerated; an upload has no recipe to swap.");
     const job = store.jobs.get(asset.provenance.jobId) ?? fail("not_found", "The job that made this candidate is missing.");
+    if (input.projectId && input.projectId !== job.projectId) fail("invalid", "This candidate belongs to another project.");
     const { request } = job;
     // Candidates made before shot specs carry only their prompt; it goes over as written.
-    const shot: ShotSpec = request.spec ?? ShotSpecSchema.parse({ kind: "free", prompt: request.input.prompt.slice(0, 8000) });
+    const shot: ShotSpec = request.spec ?? shotOf({ prompt: request.input.prompt });
     return buildProposal(context, {
       projectId: job.projectId,
       capability: job.capability,
@@ -131,7 +133,7 @@ export const rerenderProposal = defineTool({
       projectId: proposal.projectId,
       capability: proposal.capability,
       recipeId,
-      shot: proposal.spec ?? { kind: "free", prompt: proposal.prompt },
+      shot: proposal.spec ?? shotOf({ prompt: proposal.prompt }),
       references: proposal.references,
       count: count ?? proposal.count,
       target: proposal.target,

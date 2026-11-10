@@ -200,7 +200,7 @@ function CandidateCard({
             label="Regenerate with another recipe"
             onChange={(recipeId) =>
               void act("regenerate", async () => {
-                const proposal = await callTool<GenerationProposal>("regenerate_with", { assetId: asset.id, recipeId }, asset.projectId ?? undefined);
+                const proposal = await callTool<GenerationProposal>("regenerate_with", { assetId: asset.id, projectId: asset.projectId ?? undefined, recipeId }, asset.projectId ?? undefined);
                 propose(proposal, "workspace");
                 setSwapping(false);
               })
