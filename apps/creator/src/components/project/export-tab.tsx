@@ -1,5 +1,6 @@
 /**
- * Export tab: clip order (`set_cut_order`), mute and captions toggles, Export (`assemble_ad`), and a player with
+ * Export tab: the build (one clip per beat, or take then cutaways), clip order (`set_cut_order`),
+ * the take-then-cutaways steps, mute and captions toggles, Export (`assemble_ad`), and a player with
  * download and source record for finished exports.
  * @packageDocumentation
  */
@@ -8,6 +9,7 @@
 import { ArrowDown, ArrowUp, Download, Film } from "lucide-react";
 import { useState } from "react";
 import { AssetMedia } from "@/components/media/asset-media";
+import { CutawaysPanel, cutawaysReady } from "@/components/project/cutaways-panel";
 import { useProject } from "@/components/project/project-context";
 import { EmptyState, Notice } from "@/components/shell/page-header";
 import { Badge } from "@creator-lab/ui/badge";
@@ -16,6 +18,7 @@ import { NativeSelect, NativeSelectOption } from "@creator-lab/ui/native-select"
 import { assetUrl, callTool, errorMessage } from "@/lib/client/api";
 import { formatDate } from "@/lib/client/format";
 import type { ExportRecord } from "@/lib/client/types";
+import type { AssemblyStrategy } from "@creator-lab/core/domain/content";
 
 export function ExportTab() {
   const { projectId, view, refresh } = useProject();
@@ -23,13 +26,17 @@ export function ExportTab() {
   const content = view.contents.find((entry) => entry.id === contentId) ?? view.contents[0];
   const [mute, setMute] = useState<boolean | null>(null);
   const [captions, setCaptions] = useState<boolean | null>(null);
+  const [strategy, setStrategy] = useState<AssemblyStrategy | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ tone: "ok" | "error" | "warn"; text: string } | null>(null);
   if (!content) return <EmptyState title="Nothing to export yet">Plan shots and approve a clip for every beat first.</EmptyState>;
 
   const script = view.scripts.find((entry) => entry.id === content.scriptId);
   const shots = new Map(content.shots.map((shot) => [shot.id, shot]));
-  const ready = content.shots.every((shot) => shot.clip.state === "approved");
+  // A drafted EDL means the person chose take then cutaways for this Ad, until they switch back.
+  const build: AssemblyStrategy = strategy ?? (content.edl ? "take_cutaways" : "component");
+  const cutaways = build === "take_cutaways";
+  const ready = cutaways ? cutawaysReady(content) : content.shots.every((shot) => shot.clip.state === "approved");
   const exports = view.exports.filter((record) => record.contentId === content.id);
   const finished = exports.find((record) => record.status === "completed");
   const muteValue = mute ?? content.cut.mute;
@@ -57,13 +64,13 @@ export function ExportTab() {
     setBusy(true);
     setResult(null);
     try {
-      const { export: record } = await callTool<{ export: ExportRecord }>("assemble_ad", { contentId: content.id, mute: muteValue, captions: captionsValue }, projectId);
+      const { export: record } = await callTool<{ export: ExportRecord }>("assemble_ad", { contentId: content.id, mute: muteValue, captions: captionsValue, strategy: build }, projectId);
       setResult(
         record.status === "completed"
           ? { tone: "ok", text: "Export finished." }
           : record.status === "failed"
             ? { tone: "error", text: record.error }
-            : { tone: "ok", text: `Rendering ${record.sources.length} clips in order.` },
+            : { tone: "ok", text: cutaways ? `Cutting ${record.sources.length} b-roll windows into the take.` : `Rendering ${record.sources.length} clips in order.` },
       );
       await refresh();
     } catch (cause) {
@@ -80,7 +87,15 @@ export function ExportTab() {
           {view.contents.map((entry) => <NativeSelectOption key={entry.id} value={entry.id}>{entry.title}</NativeSelectOption>)}
         </NativeSelect>
       ) : null}
-      <section>
+      <section className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-semibold">Build</span>
+        <NativeSelect value={build} onChange={(event) => setStrategy(event.target.value as AssemblyStrategy)} aria-label="Build">
+          <NativeSelectOption value="component">One clip per beat</NativeSelectOption>
+          <NativeSelectOption value="take_cutaways">Take then cutaways</NativeSelectOption>
+        </NativeSelect>
+      </section>
+      {cutaways ? <CutawaysPanel content={content} /> : null}
+      <section className={cutaways ? "hidden" : undefined}>
         <h2 className="mb-2 text-sm font-semibold">Order</h2>
         <ol className="space-y-1 text-xs">
           {content.cut.order.map((shotId, position) => {
@@ -106,11 +121,15 @@ export function ExportTab() {
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={captionsValue} onChange={(event) => setCaptions(event.target.checked)} /> Burn on-screen text
         </label>
-        <Button onClick={() => void exportAd()} disabled={busy || !ready} title={ready ? undefined : "Every beat needs an approved clip"}>
+        <Button onClick={() => void exportAd()} disabled={busy || !ready} title={ready ? undefined : cutaways ? "Approve a take and draft its edit decision list" : "Every beat needs an approved clip"}>
           <Film /> Export 1080 x 1920
         </Button>
       </section>
-      {!ready ? <Notice tone="muted">Every beat needs an approved clip before export.</Notice> : null}
+      {!ready ? (
+        <Notice tone="muted">
+          {cutaways ? "Approve a talking take, transcribe it, and draft its edit decision list before export. Every b-roll beat with a window needs an approved clip." : "Every beat needs an approved clip before export."}
+        </Notice>
+      ) : null}
       {result ? <Notice tone={result.tone}>{result.text}</Notice> : null}
       {finished && finished.status === "completed" ? (
         <section className="space-y-2">
@@ -131,7 +150,7 @@ export function ExportTab() {
             {exports.map((record) => (
               <li key={record.id} className="flex gap-2">
                 <Badge variant={record.status === "failed" ? "destructive" : "secondary"}>{record.status}</Badge>
-                {formatDate(record.createdAt)} · {record.sources.length} clips · {record.options.mute ? "muted" : "with audio"} · {record.options.captions ? "captions" : "no captions"}
+                {formatDate(record.createdAt)} · {record.strategy === "take_cutaways" ? `take with ${record.sources.length} cutaways (list v${record.edlVersion})` : `${record.sources.length} clips`} · {record.options.mute ? "muted" : "with audio"} · {record.options.captions ? "captions" : "no captions"}
                 {record.brokenAssetIds.length ? <span className="text-destructive">source deleted</span> : null}
               </li>
             ))}
@@ -147,8 +166,12 @@ function SourceRecord({ record }: { record: ExportRecord }) {
     <details className="text-xs">
       <summary className="cursor-pointer text-muted-foreground">Source record</summary>
       <ul className="mt-1 space-y-0.5 font-mono text-[11px]">
+        {record.take ? <li>take {record.take.assetId.slice(0, 8)} · sha256 {record.take.sha256.slice(0, 12)} · {record.take.durationSeconds.toFixed(2)} s · edit decision list v{record.edlVersion}</li> : null}
         {record.sources.map((source) => (
-          <li key={source.shotId}>beat {source.beatIndex} · clip {source.assetId.slice(0, 8)} · sha256 {source.sha256.slice(0, 12)}</li>
+          <li key={source.shotId}>
+            beat {source.beatIndex} · clip {source.assetId.slice(0, 8)} · sha256 {source.sha256.slice(0, 12)}
+            {source.window ? ` · ${source.window.start.toFixed(2)} to ${source.window.end.toFixed(2)} s` : ""}
+          </li>
         ))}
       </ul>
     </details>

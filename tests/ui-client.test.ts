@@ -375,3 +375,15 @@ describe("real photo references", () => {
     assert.match(html, /object-cover object-top/);
   });
 });
+
+describe("take-then-cutaways in the client", () => {
+  test("take targets, EDL saves, and transcript assets read in plain words", () => {
+    assert.equal(describeTarget({ kind: "take", contentId: randomUUID(), slot: "clip" }), "Talking take");
+    assert.equal(describeTarget({ kind: "take", contentId: randomUUID(), slot: "transcript" }), "Take transcript");
+    assert.equal(summarizeTool("save_edl", { contentId: randomUUID() }, { version: 1, edl: { windows: [{}, {}] } }, "ok").title, "Drafted the edit decision list (version 1), 2 windows");
+    assert.equal(summarizeTool("save_edl", { contentId: randomUUID(), windows: [] }, { version: 2, edl: { windows: [] } }, "ok").title, "Saved the edit decision list (version 2), 0 windows");
+    const html = renderToStaticMarkup(createElement(AssetMedia, { asset: { id: randomUUID(), kind: "transcript", mime: "application/json", transcription: { durationSeconds: 8, wordCount: 17, language: "en" } } }));
+    assert.match(html, /17 words with times over 8\.0 s \(en\)/);
+    assert.doesNotMatch(html, /<img/);
+  });
+});

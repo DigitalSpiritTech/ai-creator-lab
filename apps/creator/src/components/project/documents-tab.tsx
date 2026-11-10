@@ -1,7 +1,8 @@
 /**
- * Documents tab, the artifact panel: the brief, each linked character's bible, and each linked
- * product card, edited in place through the same save tools the assistant uses, with every saved
- * version listed and restorable. The script is edited in the Script tab and has its history there.
+ * Documents tab, the artifact panel: the brief, each linked character's bible, each linked
+ * product card, and each Ad's edit decision list (take then cutaways), edited in place through the
+ * same save tools the assistant uses, with every saved version listed and restorable. The script
+ * is edited in the Script tab and has its history there.
  * @packageDocumentation
  */
 "use client";
@@ -9,6 +10,7 @@
 import { History, RotateCcw, Save } from "lucide-react";
 import { useCallback, useState } from "react";
 import { ProductForm } from "@/components/library/product-form";
+import { EdlEditor } from "@/components/project/edl-editor";
 import { useProject } from "@/components/project/project-context";
 import { EmptyState, Notice } from "@/components/shell/page-header";
 import { Button } from "@creator-lab/ui/button";
@@ -23,7 +25,7 @@ import type { CharacterBibleFields } from "@creator-lab/core/domain/library";
 import type { Brief } from "@creator-lab/core/domain/project";
 import { cn } from "@creator-lab/ui/utils";
 
-type Selection = { kind: "brief" } | { kind: "bible"; id: string } | { kind: "product"; id: string };
+type Selection = { kind: "brief" } | { kind: "bible"; id: string } | { kind: "product"; id: string } | { kind: "edl"; id: string };
 
 const lines = (value: string) => value.split("\n").map((line) => line.trim()).filter(Boolean);
 
@@ -34,10 +36,12 @@ export function DocumentsTab({ openScript }: { openScript: () => void }) {
     { key: "brief", label: "Brief", selection: { kind: "brief" } },
     ...view.characters.map(({ item }) => ({ key: item.id, label: `Bible: ${item.bible.name}`, selection: { kind: "bible", id: item.id } as Selection })),
     ...view.products.map((product) => ({ key: product.id, label: `Product: ${product.name}`, selection: { kind: "product", id: product.id } as Selection })),
+    ...view.contents.filter((content) => content.edl).map((content) => ({ key: content.id, label: `Edit list: ${content.title}`, selection: { kind: "edl", id: content.id } as Selection })),
   ];
   const selectedKey = selection.kind === "brief" ? "brief" : selection.id;
   const character = selection.kind === "bible" ? view.characters.find(({ item }) => item.id === selection.id)?.item : undefined;
   const product = selection.kind === "product" ? view.products.find((entry) => entry.id === selection.id) : undefined;
+  const cut = selection.kind === "edl" ? view.contents.find((entry) => entry.id === selection.id && entry.edl) : undefined;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[180px_1fr]">
@@ -82,7 +86,14 @@ export function DocumentsTab({ openScript }: { openScript: () => void }) {
             <VersionHistory key={`product-history:${product.revision}`} kind="product" subjectId={product.id} />
           </>
         ) : null}
-        {selection.kind !== "brief" && !character && !product ? <EmptyState title="This document is no longer linked to the project." /> : null}
+        {cut?.edl ? (
+          <>
+            {/* Keyed on the list itself, so a save or restore reloads the rows. */}
+            <EdlEditor key={`${cut.id}:${JSON.stringify(cut.edl)}`} content={cut} edl={cut.edl} />
+            <VersionHistory key={`edl-history:${cut.revision}`} kind="edl" subjectId={cut.id} />
+          </>
+        ) : null}
+        {selection.kind !== "brief" && !character && !product && !cut ? <EmptyState title="This document is no longer linked to the project." /> : null}
       </div>
     </div>
   );

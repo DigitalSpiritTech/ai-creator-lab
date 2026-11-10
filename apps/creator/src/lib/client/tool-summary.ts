@@ -84,6 +84,14 @@ const TITLES: Record<string, (input: Dict, output: Dict) => string> = {
       ? `Set ${str(output.recipeTitle)} for ${str(input.capability)?.replaceAll("_", " ") ?? "this step"} in this project`
       : `Cleared this project's ${str(input.capability)?.replaceAll("_", " ") ?? ""} preference`.replace("  ", " "),
   regenerate_with: () => "Proposed the same shot with another model",
+  generate_take: () => "Proposed the full talking take",
+  transcribe_take: () => "Proposed a transcription of the take",
+  save_edl: (input, output) => {
+    const version = num(output.version);
+    const windows = Array.isArray(dict(output.edl).windows) ? (dict(output.edl).windows as unknown[]).length : undefined;
+    const what = input.draft || (!input.windows && !input.captions) ? "Drafted the edit decision list" : "Saved the edit decision list";
+    return `${what}${version ? ` (version ${version})` : ""}${windows !== undefined ? `, ${windows} window${windows === 1 ? "" : "s"}` : ""}`;
+  },
 };
 
 /** Tools whose output is a proposal: the detail line names the recipe and the estimate. */
@@ -98,6 +106,8 @@ const PROPOSALS = new Set([
   "generate_clip",
   "generate_voice_over",
   "regenerate_with",
+  "generate_take",
+  "transcribe_take",
 ]);
 
 export function toolLabel(name: string): string {
