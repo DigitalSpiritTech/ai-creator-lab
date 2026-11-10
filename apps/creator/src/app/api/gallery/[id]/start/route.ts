@@ -7,6 +7,7 @@
  */
 import { ExampleIdSchema } from "@creator-lab/core/domain/gallery";
 import { serverPlugins } from "@/plugins/server";
+import { assertLocalRequest } from "@/server/http";
 import { loadExample, prepareExampleInbound } from "@/server/gallery";
 import { route, toolContextFor, withStore } from "@/app/api/_lib/server";
 
@@ -14,6 +15,8 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   return route(async () => {
+    // A write (it can add Library items): the same host, origin, read-only, and sign-in rules as every route.
+    assertLocalRequest(request);
     const id = ExampleIdSchema.safeParse((await params).id);
     if (!id.success) return Response.json({ error: "There is no such example in the gallery." }, { status: 404 });
     const example = await loadExample(id.data);

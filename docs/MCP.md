@@ -6,7 +6,7 @@ The studio ships an MCP server over the same tools the in-app assistant uses, so
 
 The server is a stdio process started from the clone: `npm run --silent mcp` (the `--silent` matters: npm's banner on stdout would break the protocol). It opens the same data folder as the app (`STUDIO_DATA_DIR`, default `.data` in the clone), so projects you make over MCP show up in the app and the other way round. Keys come from `.env.local` (loaded when present) or from the `secrets.json` Settings writes in the data folder. The app does not need to be running.
 
-A project-scoped `.mcp.json` in the clone's root (Claude Code reads it when you start `claude` there):
+The repository does not ship a `.mcp.json`. To add the server for your clone only, create `.mcp.json` in the clone's root (Claude Code reads it when you start `claude` there, and asks you to approve the server the first time). This one allows spending; leave out the `env` block for a server that can only propose:
 
 ```json
 {
@@ -47,7 +47,7 @@ With `MCP_ALLOW_SPEND=1`, from the clone. What you type is quoted; the tool call
 
 > "Make a Quick Ad in a new project called Ridgeline quick: Ridgeline 32 oz insulated bottle, keeps drinks cold 24 hours, for commuters who leave a drink in the car, on TikTok."
 
-There is no project-creation tool over MCP; projects are made in the app (Projects, Quick Ad) or with `POST /api/projects` on a running app. So first create the project in the app and give Claude its id from the address bar, or ask it to use an existing one: it can list projects through the `project://` resources.
+There is no project-creation tool over MCP; projects are made in the app (Projects, Quick Ad) or with `POST /api/projects` on a running app. So first create the project in the app and give Claude its id from the address bar, or ask it to use an existing one: the server lists every project as a `project://{id}/state` resource (the MCP resources list, which Claude Code can read), and reading one returns that project's state.
 
 1. `start_quick_ad` with `projectId` and the two lines as `brief.productSummary` and `brief.audience`. It saves the brief, a one-beat four-second talking script (the spoken line and caption from the first line), and the Ad in quick mode, and returns `contentId` and the plan: a frame (`text_to_image` with nothing in the Library, `image_edit` with a linked character or product photo) and an `image_to_video` clip, one candidate each. Nothing has spent.
 2. `compose_still` with `contentId` and `beatIndex: 1`. It returns a proposal: recipe, prompt, one candidate, estimate. Claude shows it to you and stops.

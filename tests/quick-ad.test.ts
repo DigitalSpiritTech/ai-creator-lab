@@ -18,6 +18,7 @@ import {
   quickAdProgress,
   quickBrief,
 } from "@creator-lab/core/domain/quick-ad";
+import { createProject } from "@creator-lab/core/domain/project";
 import { createScript, maxWords } from "@creator-lab/core/domain/script";
 import { wordCount } from "@creator-lab/core/domain/common";
 import type { RouterRecipe } from "@creator-lab/core/catalog";
@@ -214,6 +215,16 @@ describe("Quick Ad on the mock executor", () => {
     assert.equal(frame.count, 1);
     assert.deepEqual(frame.references.map((reference) => reference.assetId), [face.id, photo.id]);
     assert.doesNotMatch(frame.prompt, /Ridgeline/, "the product is described by its appearance, never its name");
+  });
+
+  test("is refused in a project whose App does not make Ads", async () => {
+    const { store, tools, now } = setup();
+    const post = store.projects.create(createProject({ name: "Cup holder post", appId: "social-post" }, randomUUID(), now()));
+    const refused = await callTool(tools, "start_quick_ad", { projectId: post.id, brief: TWO_LINES });
+    assert.equal(refused.ok, false);
+    assert.equal(!refused.ok && refused.failure.code, "invalid");
+    assert.match(!refused.ok ? refused.failure.message : "", /A Quick Ad is an Ad, and this project was made in Social Post/);
+    assert.equal(store.projects.getRequired(post.id).brief, null, "nothing was saved");
   });
 
   test("a full Ad still proposes four stills by default", async () => {

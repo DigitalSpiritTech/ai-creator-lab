@@ -21,6 +21,7 @@ import {
   quickBrief,
 } from "@creator-lab/core/domain/quick-ad";
 import { ScriptSchema, createScript } from "@creator-lab/core/domain/script";
+import { serverPlugins } from "@/plugins/server";
 import type { Store } from "@/server/store";
 import { recordDocument } from "@/server/tools/documents";
 import { defineTool, ownerOf } from "@/server/tools/registry";
@@ -70,6 +71,9 @@ export const startQuickAd = defineTool({
       const time = context.now();
       const current = store.projects.getRequired(projectId);
       if (current.ownerId !== ownerOf(context)) fail("not_found", "This project could not be found.");
+      // A Quick Ad is an Ad: only a project whose App makes Ads (UGC Creator) can hold one.
+      const type = serverPlugins.contentTypeForApp(current.appId);
+      if (type?.pieceType !== "ad") fail("invalid", `A Quick Ad is an Ad, and this project was made in ${type?.app.label ?? current.appId}, which does not make Ads. Start a UGC Creator project for it.`);
       const references = quickAdReferences(store, projectId);
       const project = store.projects.update(saveBrief(current, quickBrief(input), time));
       recordDocument(context, "brief", project.id, briefContent(project.brief!));

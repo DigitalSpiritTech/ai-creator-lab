@@ -178,7 +178,7 @@ describe("gallery routes: start from this example", () => {
   });
 
   test("lists the draft as not yet generated, seeds a project from it, and reuses the Library items the second time", async () => {
-    const listed = (await (await routes.gallery.GET()).json()) as { examples: { id: string; statusLabel: string; outputs: unknown[] }[]; problems: unknown[] };
+    const listed = (await (await routes.gallery.GET(new Request("http://localhost:3000/api/gallery"))).json()) as { examples: { id: string; statusLabel: string; outputs: unknown[] }[]; problems: unknown[] };
     assert.deepEqual(listed.problems, []);
     const draft = listed.examples.find((example) => example.id === "ridgeline-quick-ad");
     assert.ok(draft);
@@ -205,6 +205,16 @@ describe("gallery routes: start from this example", () => {
     assert.deepEqual(second.body.reused.sort(), first.body.created.sort(), "the same Library items, not copies");
     const library = (await (await routes.library.GET(new Request("http://localhost:3000/api/library"))).json()) as { items: unknown[] };
     assert.equal(library.items.length, 3);
+  });
+
+  test("the gallery routes refuse cross-site requests like every other route", async () => {
+    const crossSite = { origin: "https://elsewhere.example", "sec-fetch-site": "cross-site", "content-type": "application/json" };
+    const start = await routes.start.POST(new Request("http://localhost:3000/api/gallery/ridgeline-quick-ad/start", { method: "POST", headers: crossSite, body: "{}" }), params({ id: "ridgeline-quick-ad" }));
+    assert.equal(start.status, 403);
+    const listed = await routes.gallery.GET(new Request("http://localhost:3000/api/gallery", { headers: { "sec-fetch-site": "cross-site" } }));
+    assert.equal(listed.status, 403);
+    const file = await routes.file.GET(new Request("http://evil.example/api/gallery/ridgeline-quick-ad/files/ad.mp4", { headers: { host: "evil.example" } }), params({ id: "ridgeline-quick-ad", name: "ad.mp4" }));
+    assert.equal(file.status, 403, "a DNS-rebinding host is refused");
   });
 
   test("an unknown example or a file the example does not list is a 404", async () => {

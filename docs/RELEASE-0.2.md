@@ -4,7 +4,7 @@ Draft for the maintainer. Not tagged yet: `v0.2.0` is tagged on `main` by the ma
 
 ## Highlights
 
-- Quick Ad: two lines, one frame, one talking clip, the export. Three approvals, under 1 USD on Comfy Router.
+- Quick Ad: two lines, one frame, one talking clip, the export. Three approvals; on Comfy Router it reserves under 1 USD from the catalog's price ceilings (assuming clip prices scale linearly with length, which no real run has measured yet).
 - `npx ai-creator-lab`: one command from a clone to a running studio, with ffmpeg bundled (captions work without Homebrew).
 - A Gallery of examples with the cost settled from the credit balance, and "Start from this example".
 - A monthly budget you can extend for the current month only, under a fixed operator ceiling.
@@ -42,7 +42,7 @@ Social Post is the second App and the first content type added purely as a plugi
 ### Install, Quick Ad, Gallery, MCP examples (item 10, F9 to F12)
 
 - Install (F9): ffmpeg and ffprobe now come with `npm ci` (`ffmpeg-static` and `@derhuerst/ffprobe-static`, macOS arm64 and x64, Linux, Windows), with `drawtext` for the captions; `FFMPEG_PATH` and `FFPROBE_PATH` still override them. `npx ai-creator-lab` checks Node 22.13, prepares the data folder, builds on the first run in a clone, and serves on 127.0.0.1. The Docker image uses the same binaries instead of the distro ffmpeg. [docs/QUICKSTART.md](QUICKSTART.md) goes from a fresh computer to a finished Quick Ad.
-- Quick Ad (F11): a mode of the Ad. `start_quick_ad` (a new roster tool, 34 in all) turns two lines into the brief, a one-beat four-second talking script, and the Ad; then the frame, the clip, and the export, each approved by a person, and each generation through the spend gate. A Quick Ad tab and a Quick Ad button on Projects. From the catalog's ceilings on Comfy Router: about 0.79 USD composed from a Library character and product photo, 0.89 USD from text.
+- Quick Ad (F11): a mode of the Ad. `start_quick_ad` (a new roster tool, 34 in all) turns two lines into the brief, a one-beat four-second talking script, and the Ad; then the frame, the clip, and the export, each approved by a person, and each generation through the spend gate. A Quick Ad tab and a Quick Ad button on Projects. On Comfy Router it reserves under 1 USD from the catalog's ceilings: about 0.79 USD composed from a Library character and product photo, 0.89 USD from text. The clip's share is the Kling ceiling scaled linearly to four seconds; that pricing is assumed until the first real Quick Ad run is logged in docs/VERIFICATION.md.
 - Gallery (F10): `examples/` with a schema (brief, recipe choices, Library items, cost from the balance before and after, outputs, flaws), a Gallery page with "Start from this example", and a static site builder (`npm run gallery:build`) with a manual-only GitHub Pages workflow. One example ships as a draft ("not yet generated"); the six real examples follow the maintainer's paid runs.
 - MCP (F12): [docs/MCP.md](MCP.md) shows Claude Code driving a Quick Ad, a `.mcp.json` snippet, and what `MCP_ALLOW_SPEND` and `MCP_ALLOW_DELETE` allow.
 
