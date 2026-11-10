@@ -12,6 +12,7 @@ import { join, resolve } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
 import { createSseParser } from "@/lib/client/sse";
+import type { SpendPolicy } from "@/lib/domain/spend";
 
 // Route modules import `server-only`; outside the React server build it would throw on import.
 const empty = pathToFileURL(resolve("node_modules/server-only/empty.js")).href;
@@ -35,6 +36,8 @@ const json = (path: string, body: unknown, method = "POST") =>
 
 let routes: Awaited<ReturnType<typeof loadRoutes>>;
 
+type SettingsBody = { workspace: { autoApprove: boolean }; spend: SpendPolicy; creditsPerUsd: number };
+
 async function loadRoutes() {
   return {
     projects: await import("@/app/api/projects/route"),
@@ -48,6 +51,7 @@ async function loadRoutes() {
     assets: await import("@/app/api/assets/route"),
     settings: await import("@/app/api/settings/route"),
     keys: await import("@/app/api/settings/keys/route"),
+    budget: await import("@/app/api/settings/budget/route"),
     recipes: await import("@/app/api/recipes/route"),
     library: await import("@/app/api/library/route"),
     chat: await import("@/app/api/projects/[id]/chat/route"),
@@ -94,13 +98,16 @@ describe("settings", () => {
     assert.equal(body.keys.anthropicApiKey.present, true);
     assert.equal(body.keys.llmModel.value, "claude-opus-5-5");
 
-    const updated = await routes.settings.PUT(json("/api/settings", { autoApprove: true, allowanceUsd: 2 }, "PUT"));
+    const updated = await routes.settings.PUT(json("/api/settings", { autoApprove: true, monthlyBudgetUsd: 2, budgetResetDay: 15 }, "PUT"));
     const updatedText = await updated.text();
     assert.equal(updated.status, 200);
     assert.ok(!updatedText.includes(FAKE_COMFY) && !updatedText.includes(FAKE_ANTHROPIC));
-    const settings = JSON.parse(updatedText) as { workspace: { autoApprove: boolean }; allowance: { effectiveUsd: number } };
+    const settings = JSON.parse(updatedText) as SettingsBody;
     assert.equal(settings.workspace.autoApprove, true);
-    assert.equal(settings.allowance.effectiveUsd, 0, "no operator allowance means no paid runs");
+    assert.equal(settings.spend.limitUsd, 2);
+    assert.equal(settings.spend.period.resetDay, 15);
+    assert.equal(settings.spend.effectiveLimitUsd, 0, "no operator ceiling means no paid runs");
+    assert.equal(settings.creditsPerUsd, 210);
 
     // Clear the keys so the rest of the suite runs offline on the mock executor.
     const cleared = await routes.keys.POST(json("/api/settings/keys", { comfyApiKey: null, anthropicApiKey: "" }));
@@ -114,6 +121,52 @@ describe("settings", () => {
     assert.equal(plain.status, 415);
     const extra = await routes.settings.PUT(json("/api/settings", { theme: "dark" }, "PUT"));
     assert.equal(extra.status, 400);
+    const ceiling = await routes.settings.PUT(json("/api/settings", { budgetResetDay: 31 }, "PUT"));
+    assert.equal(ceiling.status, 400, "the reset day is 1 to 28");
+    const operator = await routes.settings.PUT(json("/api/settings", { ceilingUsd: 100 }, "PUT"));
+    assert.equal(operator.status, 400, "the operator ceiling is not a setting");
+  });
+
+  test("add to this month raises only this period, once per id, never past the operator ceiling", async () => {
+    const before = (await (await routes.settings.GET()).json()) as SettingsBody;
+    const periodKey = before.spend.period.key;
+    const off = await routes.budget.POST(json("/api/settings/budget", { id: randomUUID(), periodKey, amountUsd: 1 }));
+    assert.equal(off.status, 400, "a zero operator ceiling refuses every extension");
+    process.env.GENERATION_ALLOWANCE_USD = "3";
+    try {
+      const id = randomUUID();
+      const added = await routes.budget.POST(json("/api/settings/budget", { id, periodKey, amountUsd: 0.5 }));
+      assert.equal(added.status, 201);
+      const view = (await added.json()) as SettingsBody;
+      assert.equal(view.spend.extensionUsd, 0.5);
+      assert.equal(view.spend.effectiveLimitUsd, 2.5);
+      assert.equal(view.spend.ceilingUsd, 3);
+      const again = await routes.budget.POST(json("/api/settings/budget", { id, periodKey, amountUsd: 0.5 }));
+      assert.equal(again.status, 200);
+      assert.equal(((await again.json()) as SettingsBody).spend.extensionUsd, 0.5, "a repeated click adds once");
+      const over = await routes.budget.POST(json("/api/settings/budget", { id: randomUUID(), periodKey, amountUsd: 1 }));
+      assert.equal(over.status, 400);
+      assert.match(((await over.json()) as { error: string }).error, /At most \$0\.50/);
+      const stale = await routes.budget.POST(json("/api/settings/budget", { id: randomUUID(), periodKey: "2001-01-01", amountUsd: 0.1 }));
+      assert.equal(stale.status, 409);
+      const tiny = await routes.budget.POST(json("/api/settings/budget", { id: randomUUID(), periodKey, amountUsd: 1e-9 }));
+      assert.equal(tiny.status, 400);
+      assert.deepEqual(await tiny.json(), { error: "Enter at least $0.01 to add to this month." });
+      const crossSite = await routes.budget.POST(
+        new Request(url("/api/settings/budget"), {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: "https://example.com", "sec-fetch-site": "cross-site" },
+          body: JSON.stringify({ id: randomUUID(), periodKey, amountUsd: 0.1 }),
+        }),
+      );
+      assert.equal(crossSite.status, 403);
+    } finally {
+      delete process.env.GENERATION_ALLOWANCE_USD;
+    }
+    const ceilingOff = (await (await routes.settings.GET()).json()) as SettingsBody;
+    assert.equal(ceilingOff.spend.effectiveLimitUsd, 0, "the extension never outlives a zero ceiling");
+    const tool = await routes.workspaceTools.POST(json("/api/tools/extend_budget", {}), params({ name: "extend_budget" }));
+    assert.equal(tool.status, 404, "extending is not a tool");
   });
 });
 

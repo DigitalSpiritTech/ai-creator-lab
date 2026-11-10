@@ -25,10 +25,10 @@ Open http://localhost:3000. `npm run dev` works too and reloads on edits, but th
 
 Then, in this order:
 
-1. `.env.local`: set `GENERATION_ALLOWANCE_USD` to the most you are willing to spend across every project (25 is enough for all four runs with room to redo steps). The app never raises this itself. Restart after changing it.
+1. `.env.local`: set `GENERATION_ALLOWANCE_USD` to the most you are willing to spend in a calendar month (UTC) across every project; it is the operator ceiling, read-only in Settings (25 is enough for all four runs with room to redo steps). The app never raises this itself. Restart after changing it.
 2. Settings, keys: the Comfy and Anthropic keys from `.env.local` show as set. If you keep keys only in Settings instead, paste them and click Save keys; they go to a 0600 file inside the data folder.
 3. Settings, Comfy connection: run the check. It should name the account and show the credit balance. If it reports no API access, the Cloud plan is missing and only Router recipes will run.
-4. Settings, Generation allowance: set your allowance (this is the second cap; the lower of the two is what is in force). Spent and Reserved should both read zero on a fresh data folder.
+4. Settings, Monthly budget: set your monthly budget and the day it resets (the ceiling above caps it, extensions included). Spent and Reserved should both read zero on a fresh data folder. If a proposal would go over what is left, a dialog shows spent, remaining and the cost, and "Add to this month" raises the current period only.
 5. Settings, Default recipe per capability: leave every field on the starter default for run 1. The starter defaults are the open-weights set: Z-Image Turbo for text to image, Qwen Image Edit 2511 for compositions, LTX 2.5 for image to video and for first and last frame.
 6. Leave Auto-approve off. You want to see every proposal card and its estimate.
 
@@ -93,4 +93,4 @@ Set the premium defaults from run 2 and repeat run 3. Expected cost about 450 to
 
 ## Resetting
 
-Everything lives in the data folder (`STUDIO_DATA_DIR`, default `.data`): the database, media, exports and the keys file. To start over, stop the server and move that folder aside; the next start creates a fresh one. To keep the projects and clear only the credits ledger, raise the allowance instead; the ledger is per workspace and never resets on its own.
+Everything lives in the data folder (`STUDIO_DATA_DIR`, default `.data`): the database, media, exports and the keys file. To start over, stop the server and move that folder aside; the next start creates a fresh one. To keep the projects and get room to spend, add to this month or raise the monthly budget in Settings; spend resets on the budget reset day, and the operator ceiling counts per calendar month.

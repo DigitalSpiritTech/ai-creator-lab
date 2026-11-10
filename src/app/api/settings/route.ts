@@ -1,35 +1,16 @@
 /**
- * Settings: which keys are configured (never their values), workspace settings, the allowance in
- * force with spend and reservations, and the data directory. PUT edits allowance, auto-approve, and
- * default recipes.
+ * Settings: which keys are configured (never their values), workspace settings, the spend policy in
+ * force (monthly budget, this period's extension and spend, the read-only operator ceiling), and the
+ * data directory. PUT edits the monthly budget, its reset day, auto-approve, and default recipes;
+ * the operator ceiling is GENERATION_ALLOWANCE_USD and cannot be changed here.
  * @packageDocumentation
  */
-import { UpdateWorkspaceSettingsSchema, effectiveAllowanceUsd } from "@/lib/domain/workspace";
-import { readAllowanceUsd } from "@/server/executors/allowance";
-import { allowanceState } from "@/server/executors/run";
+import { UpdateWorkspaceSettingsSchema } from "@/lib/domain/workspace";
 import { readJson } from "@/server/http";
-import { secretsStatus } from "@/server/secrets";
-import type { Store } from "@/server/store";
-import { generationFor, route, withStore } from "@/app/api/_lib/server";
+import { settingsView } from "@/app/api/_lib/settings";
+import { route, withStore } from "@/app/api/_lib/server";
 
 export const dynamic = "force-dynamic";
-
-function settingsView(store: Store) {
-  const workspace = store.workspace.get();
-  const operatorUsd = readAllowanceUsd();
-  const state = allowanceState({ store, executors: generationFor(store).executors });
-  return {
-    workspace,
-    keys: secretsStatus(store.dataDir),
-    allowance: {
-      operatorUsd,
-      effectiveUsd: effectiveAllowanceUsd(workspace, operatorUsd),
-      spentUsd: state.spentUsd,
-      reservedUsd: state.reservedUsd,
-    },
-    dataDirectory: store.dataDir,
-  };
-}
 
 export async function GET(): Promise<Response> {
   return route(() => withStore((store) => Response.json(settingsView(store))));

@@ -18,9 +18,10 @@ import {
   createJob,
   sameRequest,
 } from "@/lib/domain/job";
-import { effectiveAllowanceUsd } from "@/lib/domain/workspace";
-import { type AllowanceState, checkAllowance, readAllowanceUsd, settleUsd } from "@/server/executors/allowance";
+import type { BudgetCrossing, SpendPolicy } from "@/lib/domain/spend";
+import { type AllowanceState, checkSpend } from "@/server/executors/allowance";
 import type { ExecutorSet } from "@/server/executors/index";
+import { COLLECTION_WINDOW_MS, type SpendDeps, currentSpendPolicy } from "@/server/executors/spend";
 import { claimForSubmit, failJob, jobError, patchJob, toJobError } from "@/server/executors/jobs";
 import { isEmptyOutput } from "@/server/executors/media";
 import type { Executor, PollOutcome, RetrieveDestination, RetrieveOutcome, SubmitOutcome } from "@/server/executors/types";
@@ -29,10 +30,14 @@ import { resolveMediaPath } from "@/server/media/paths";
 import { extractPoster } from "@/server/media/video";
 import type { Store } from "@/server/store";
 
-export interface RunDeps {
+export interface RunDeps extends SpendDeps {
   store: Store;
   executors: ExecutorSet;
-  /** Paid cap in USD; defaults to the lower of the workspace allowance and GENERATION_ALLOWANCE_USD. */
+  /**
+   * A flat paid cap in USD that replaces the spend policy's budget, extension, and ceiling (tests
+   * and scripts). Without it the gate is the monthly budget plus this period's extension, capped by
+   * GENERATION_ALLOWANCE_USD.
+   */
   allowanceUsd?: () => number;
   now?: () => number;
   newId?: () => string;
@@ -56,7 +61,8 @@ export type StartOutcome =
   | { kind: "started"; job: Job; settled: Promise<SubmitOutcome> }
   | { kind: "existing"; job: Job }
   | { kind: "needs_confirmation"; reserveUsd: number; reason: string }
-  | { kind: "blocked"; error: JobError }
+  /** `budget` is set when the run would cross this period's remaining budget. */
+  | { kind: "blocked"; error: JobError; budget?: BudgetCrossing }
   | { kind: "failed"; job: Job | null; error: JobError };
 
 export type StepOutcome =
@@ -67,49 +73,24 @@ export type StepOutcome =
 
 const MEDIA_FOLDER = "media";
 
-/** How long a provider will still answer for a request under the same idempotency key. */
-export const COLLECTION_WINDOW_MS = 23 * 60 * 60 * 1000;
+export { COLLECTION_WINDOW_MS, chargedUsd } from "@/server/executors/spend";
 
 export const UNCERTAIN_EXPIRED_NOTICE =
   "This request could not be confirmed within 23 hours, so its reservation was released and it will not be sent again. Check your Comfy usage before generating again.";
-
-/**
- * What a job counts against the allowance. Reported credits win. A failure before anything reached
- * a provider (no provider reference, error not from the provider) costs nothing; other failures and
- * completions without a report keep their reservation. Unfinished jobs hold their reservation,
- * except uncertain ones past the collection window, which are settled at zero.
- */
-export function chargedUsd(job: Job, now: number): { spentUsd: number; reservedUsd: number } {
-  const reserved = job.reservedUsd ?? 0;
-  if (job.executor === "mock") return { spentUsd: 0, reservedUsd: 0 };
-  if (job.status === "completed") return { spentUsd: settleUsd(job.creditsUsed, reserved), reservedUsd: 0 };
-  if (job.status === "failed") {
-    if (job.creditsUsed !== null) return { spentUsd: settleUsd(job.creditsUsed, reserved), reservedUsd: 0 };
-    const local = job.providerRef === null && job.error.code !== "provider";
-    return { spentUsd: local ? 0 : reserved, reservedUsd: 0 };
-  }
-  if (job.status === "uncertain" && now - job.createdAt > COLLECTION_WINDOW_MS) return { spentUsd: 0, reservedUsd: 0 };
-  return { spentUsd: 0, reservedUsd: reserved };
-}
 
 function clock(deps: RunDeps): number {
   return (deps.now ?? Date.now)();
 }
 
-/** Spent and reserved USD across all paid jobs, for the allowance gate. */
+/** The spend policy in force for these deps (this period's budget, extension, spend, and ceiling). */
+export function spendPolicy(deps: RunDeps): SpendPolicy {
+  return currentSpendPolicy(deps);
+}
+
+/** This period's effective limit, settled spend, and outstanding reservations. */
 export function allowanceState(deps: RunDeps): AllowanceState {
-  const allowanceUsd = deps.allowanceUsd
-    ? deps.allowanceUsd()
-    : effectiveAllowanceUsd(deps.store.workspace.get(), readAllowanceUsd());
-  let spentUsd = 0;
-  let reservedUsd = 0;
-  const now = clock(deps);
-  for (const job of deps.store.jobs.listAll()) {
-    const charge = chargedUsd(job, now);
-    spentUsd += charge.spentUsd;
-    reservedUsd += charge.reservedUsd;
-  }
-  return { allowanceUsd, spentUsd, reservedUsd };
+  const policy = currentSpendPolicy(deps);
+  return { allowanceUsd: policy.effectiveLimitUsd, spentUsd: policy.spentUsd, reservedUsd: policy.reservedUsd };
 }
 
 function executorFor(deps: RunDeps, job: Pick<Job, "request">): Executor | undefined {
@@ -150,8 +131,8 @@ export async function startGeneration(
     return { kind: "blocked", error: jobError("invalid", `${request.recipe.title} needs a Comfy API key in .env.local before it can run.`) };
   }
   const estimate = await executor.estimate({ requestId: request.requestId, projectId: request.projectId, recipe: request.recipe, input: request.input });
-  const decision = checkAllowance(allowanceState(deps), estimate, request.recipe);
-  if (decision.kind === "blocked") return { kind: "blocked", error: decision.error };
+  const decision = checkSpend(currentSpendPolicy(deps), estimate, request.recipe);
+  if (decision.kind === "blocked") return decision.budget ? { kind: "blocked", error: decision.error, budget: decision.budget } : { kind: "blocked", error: decision.error };
   if (decision.kind === "confirm" && !options.confirmUnquoted) {
     return { kind: "needs_confirmation", reserveUsd: decision.reserveUsd, reason: decision.reason };
   }

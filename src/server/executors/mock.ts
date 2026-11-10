@@ -6,6 +6,7 @@
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { capabilityMedia, ratioValue, type AspectRatio } from "@/lib/catalog";
+import { usdToCredits } from "@/lib/domain/spend";
 import {
   ExecutorFailure,
   claimForSubmit,
@@ -37,6 +38,11 @@ export interface MockExecutorOptions {
   jobs: JobStorePort;
   /** Decides whether a request should fail, and where, to exercise error paths without an account. */
   failure?: (request: GenerationInput) => { stage: MockStage; reason: string } | undefined;
+  /**
+   * A simulated price in USD per run, for exercising the spend policy offline: a priced run is quoted
+   * at that amount, reserved like a paid run, and settles at it as reported credits. Never set by the app.
+   */
+  price?: (request: GenerationInput) => number | undefined;
   now?: () => number;
 }
 
@@ -142,15 +148,21 @@ export class MockExecutor implements Executor {
   readonly kind = "mock" as const;
   private readonly jobs: JobStorePort;
   private readonly failure: MockExecutorOptions["failure"];
+  private readonly price: MockExecutorOptions["price"];
   private readonly now: () => number;
 
   constructor(options: MockExecutorOptions) {
     this.jobs = options.jobs;
     this.failure = options.failure;
+    this.price = options.price;
     this.now = options.now ?? Date.now;
   }
 
-  async estimate(): Promise<EstimateOutcome> {
+  async estimate(request?: { input: GenerationInput }): Promise<EstimateOutcome> {
+    const usd = request ? this.price?.(request.input) : undefined;
+    if (usd !== undefined && usd > 0) {
+      return { kind: "quoted", usd, credits: usdToCredits(usd), source: "live", note: "Simulated price (mock run, nothing is charged)." };
+    }
     return { kind: "free", note: "Mock samples are free and labeled; nothing is generated." };
   }
 
@@ -209,7 +221,9 @@ export class MockExecutor implements Executor {
     const output: RetrievedFile = wav
       ? { relativePath: relative, mime: "audio/wav", width: 0, height: 0, sha256: sha256(bytes), audio: { durationSeconds: wav.durationSeconds, codec: "pcm_s16le" } }
       : { relativePath: relative, mime: "image/svg+xml", width, height, sha256: sha256(bytes) };
-    const saved = patchJob(this.jobs, job, { retrieved: [output], creditsUsed: 0, notice: null }, this.now());
+    const priced = this.price?.(job.request.input);
+    const creditsUsed = priced !== undefined && priced > 0 ? usdToCredits(priced) : 0;
+    const saved = patchJob(this.jobs, job, { retrieved: [output], creditsUsed, notice: null }, this.now());
     return { kind: "completed", job: saved, metrics: null };
   }
 

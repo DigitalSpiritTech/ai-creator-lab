@@ -214,6 +214,7 @@ export function runDeps(context: ToolContext): RunDeps {
     store: context.store,
     executors: generation.executors,
     allowanceUsd: generation.allowanceUsd,
+    operatorCeilingUsd: generation.operatorCeilingUsd,
     now: context.now,
     newId: context.newId,
     sleep: generation.sleep,

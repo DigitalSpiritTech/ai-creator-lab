@@ -64,7 +64,7 @@ describe("failures", () => {
 
 describe("workspace and project", () => {
   test("allowance in force is the lower of the setting and the operator cap", () => {
-    const settings = updateWorkspaceSettings(DEFAULT_WORKSPACE_SETTINGS, { allowanceUsd: 3 }, NOW);
+    const settings = updateWorkspaceSettings(DEFAULT_WORKSPACE_SETTINGS, { monthlyBudgetUsd: 3 }, NOW);
     assert.equal(effectiveAllowanceUsd(settings, 5), 3);
     assert.equal(effectiveAllowanceUsd(settings, 0), 0);
     assert.equal(effectiveAllowanceUsd(settings, Number.NaN), 0);

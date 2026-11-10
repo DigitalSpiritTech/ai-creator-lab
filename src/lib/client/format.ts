@@ -5,6 +5,7 @@
 import type { AssetKind } from "@/lib/domain/asset";
 import type { Capability } from "@/lib/domain/capability";
 import type { EstimateSummary, GenerationTarget, JobStatus } from "@/lib/domain/job";
+import { type BudgetCrossing, CREDITS_PER_USD, type SpendWarning } from "@/lib/domain/spend";
 import type { SubmitResult } from "@/lib/client/types";
 
 export const CAPABILITY_LABELS: Record<Capability, string> = {
@@ -23,6 +24,37 @@ export function formatUsd(value: number): string {
   if (value === 0) return "$0.00";
   if (value < 0.01) return `$${value.toFixed(3)}`;
   return `$${value.toFixed(2)}`;
+}
+
+/** USD with the Comfy credits beside it: "$4.80 (1,008 credits)". */
+export function formatUsdCredits(value: number, creditsPerUsd = CREDITS_PER_USD): string {
+  const credits = Math.round(value * creditsPerUsd);
+  return `${formatUsd(value)} (${credits.toLocaleString("en-US")} credit${credits === 1 ? "" : "s"})`;
+}
+
+/** A budget period boundary as a UTC calendar date, "December 15". */
+export function formatPeriodDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+}
+
+/** The 50, 80, and 100 percent notices for this month's budget; null below half. */
+export function describeSpendWarning(warning: SpendWarning, resetsAt: number | null): { tone: "warn" | "error"; text: string } | null {
+  if (warning === 100) {
+    const when = resetsAt === null ? "it resets" : `it resets on ${formatPeriodDate(resetsAt)}`;
+    return { tone: "error", text: `This month's budget is used up. Paid runs wait until ${when}, or add to this month.` };
+  }
+  if (warning === 80) return { tone: "warn", text: "80 percent of this month's budget is spent or reserved." };
+  if (warning === 50) return { tone: "warn", text: "Half of this month's budget is spent or reserved." };
+  return null;
+}
+
+/**
+ * The amount the extend dialog suggests: what the action needs, rounded up to a whole dollar, never
+ * more than the operator ceiling leaves room for.
+ */
+export function suggestedExtensionUsd(crossing: Pick<BudgetCrossing, "neededUsd" | "maxExtensionUsd">): number {
+  const needed = Math.ceil(crossing.neededUsd * 100) / 100;
+  return Math.min(Math.max(Math.ceil(needed), needed), crossing.maxExtensionUsd);
 }
 
 /** The proposal cost line: per-run estimate times the candidate count. */
@@ -74,7 +106,7 @@ export function describeJobStatus(status: JobStatus): string {
 /** One sentence summarizing what the gate did with a proposal. */
 export function summarizeSubmit(results: SubmitResult[]): { tone: "ok" | "warn" | "error"; text: string } {
   const blocked = results.find((result) => result.outcome === "blocked");
-  if (blocked) return { tone: "error", text: blocked.message ?? "The allowance blocked this run." };
+  if (blocked) return { tone: "error", text: blocked.message ?? "This month's budget blocked this run." };
   const confirm = results.find((result) => result.outcome === "needs_confirmation");
   if (confirm) return { tone: "warn", text: confirm.message ?? "This recipe has no live price; confirm a reservation to run it." };
   const failed = results.filter((result) => result.outcome === "failed");
@@ -82,6 +114,24 @@ export function summarizeSubmit(results: SubmitResult[]): { tone: "ok" | "warn" 
   if (failed.length && !running) return { tone: "error", text: failed[0].message ?? "The run failed." };
   const text = `${running} candidate${running === 1 ? "" : "s"} submitted${failed.length ? `, ${failed.length} failed` : ""}.`;
   return { tone: failed.length ? "warn" : "ok", text };
+}
+
+/**
+ * The budget block in a gate response, if any: the crossing for the extend dialog, and how many of
+ * the proposal's candidates already ran (admitted now or by an earlier submission), so the card
+ * never says nothing was generated when some were.
+ */
+export function budgetBlock(results: SubmitResult[]): { crossing: BudgetCrossing; ran: number } | null {
+  const blocked = results.find((result) => result.outcome === "blocked" && result.budget);
+  if (!blocked?.budget) return null;
+  const ran = results.filter((result) => result.job !== null && (result.outcome === "started" || result.outcome === "existing" || result.outcome === "completed")).length;
+  return { crossing: blocked.budget, ran };
+}
+
+/** The card's line while a proposal waits on the budget. */
+export function describeBudgetBlock(ran: number): string {
+  if (ran === 0) return "Approving this would go over this month's budget. Nothing was generated.";
+  return `${ran} candidate${ran === 1 ? " has" : "s have"} already run; the rest would go over this month's budget and were not started.`;
 }
 
 /** Whether the client should keep polling the jobs route. */

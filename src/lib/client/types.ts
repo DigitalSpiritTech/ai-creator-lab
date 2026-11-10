@@ -9,6 +9,7 @@ import type { ExportRecord } from "@/lib/domain/content";
 import type { GenerationProposal, GenerationTarget, Job } from "@/lib/domain/job";
 import type { CharacterItem, LibraryItem, ProjectLink } from "@/lib/domain/library";
 import type { Project } from "@/lib/domain/project";
+import type { BudgetCrossing, SpendPolicy, SpendWarning } from "@/lib/domain/spend";
 import type { WorkspaceSettings } from "@/lib/domain/workspace";
 import type { AssetUsage } from "@/lib/domain/usage";
 import type { ProjectStateSchema } from "@/server/tools/project";
@@ -43,6 +44,15 @@ export interface SubmitResult {
   assetIds: string[];
   message: string | null;
   reserveUsd: number | null;
+  /** Set on a blocked result when the run would cross this month's remaining budget. */
+  budget: BudgetCrossing | null;
+}
+
+/** What the spending gate returns for one proposal. */
+export interface SubmitResponse {
+  results: SubmitResult[];
+  /** The share of this month's budget in use: 0, 50, 80, or 100 percent. */
+  warning: SpendWarning;
 }
 
 export interface SettingsView {
@@ -54,7 +64,9 @@ export interface SettingsView {
     /** Which provider runs the assistant; defaults to "anthropic". */
     llmProvider: { value: string; source: "environment" | "settings" | null };
   };
-  allowance: { operatorUsd: number; effectiveUsd: number; spentUsd: number; reservedUsd: number };
+  /** This period's budget, extension, spend, and the read-only operator ceiling. */
+  spend: SpendPolicy;
+  creditsPerUsd: number;
   dataDirectory: string;
 }
 

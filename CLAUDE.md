@@ -14,7 +14,7 @@ npm run test:acceptance
 npm run build
 ```
 
-Environment lives in `.env.local` (never committed). Variables: `COMFY_API_KEY`, `COMFY_BASE_URL` (blank for Comfy Cloud, a deployment URL, or `http://127.0.0.1:8189` for the local proxy), `ANTHROPIC_API_KEY`, `LLM_MODEL`, `GENERATION_ALLOWANCE_USD` (set by the maintainer only), `STUDIO_DATA_DIR`, `FFMPEG_PATH`, `FFPROBE_PATH`.
+Environment lives in `.env.local` (never committed). Variables: `COMFY_API_KEY`, `COMFY_BASE_URL` (blank for Comfy Cloud, a deployment URL, or `http://127.0.0.1:8189` for the local proxy), `ANTHROPIC_API_KEY`, `LLM_MODEL`, `GENERATION_ALLOWANCE_USD` (set by the maintainer only; the operator ceiling per calendar month, UTC), `STUDIO_DATA_DIR`, `FFMPEG_PATH`, `FFPROBE_PATH`.
 
 ## How to run a build session
 

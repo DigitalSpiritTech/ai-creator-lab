@@ -1,28 +1,31 @@
 /**
- * Spending guard for paid generation: a USD allowance from GENERATION_ALLOWANCE_USD, live Router quotes
- * where the model offers one, reservations from a recipe's ceiling where it does not, and the Comfy
- * credit balance for settling real cost. Zero allowance blocks every paid submission.
+ * Spending guard for paid generation: the spend policy (monthly budget, this period's extension,
+ * and the operator ceiling GENERATION_ALLOWANCE_USD), live Router quotes where the model offers one,
+ * reservations from a recipe's ceiling where it does not, and the Comfy credit balance for settling
+ * real cost. A zero operator ceiling blocks every paid submission.
  * @packageDocumentation
  */
 import { z } from "zod";
+import {
+  type BudgetCrossing,
+  type SpendPolicy,
+  budgetCrossing,
+  budgetPeriod,
+  composeSpendPolicy,
+  creditsToUsd,
+  describeCrossing,
+  usdToCredits,
+} from "@/lib/domain/spend";
 import { jobError } from "@/server/executors/jobs";
 import type { Recipe } from "@/lib/catalog";
 import type { EstimateOutcome, JobError } from "@/server/executors/types";
 
-/** The ledger's conversion: 210 credits per USD, the observed Router rate and the Base plan's monthly rate. */
-export const CREDITS_PER_USD = 210;
+/** The ledger's conversion (210 credits per USD) lives with the spend policy so the UI can show credits too. */
+export { CREDITS_PER_USD, creditsToUsd, usdToCredits } from "@/lib/domain/spend";
 /** The Cloud UI's credit count is `effective_balance_cents` times this factor. */
 export const CREDITS_PER_BALANCE_CENT = 2.11;
 
-export function creditsToUsd(credits: number): number {
-  return Math.round((credits / CREDITS_PER_USD) * 1e6) / 1e6;
-}
-
-export function usdToCredits(usd: number): number {
-  return Math.round(usd * CREDITS_PER_USD * 100) / 100;
-}
-
-/** Reads the allowance; anything missing, negative, or malformed counts as zero (paid runs off). */
+/** Reads the operator ceiling; anything missing, negative, or malformed counts as zero (paid runs off). */
 export function readAllowanceUsd(env: Record<string, string | undefined> = process.env): number {
   const raw = env.GENERATION_ALLOWANCE_USD?.trim();
   if (!raw || !/^\d+(\.\d{1,6})?$/.test(raw)) return 0;
@@ -40,31 +43,50 @@ export interface AllowanceState {
 export type AllowanceDecision =
   | { kind: "allowed"; reserveUsd: number; remainingUsd: number }
   | { kind: "confirm"; reserveUsd: number; remainingUsd: number; reason: string }
-  | { kind: "blocked"; error: JobError };
+  /** `budget` is set when the run would cross this period's remaining budget: the extend modal's numbers. */
+  | { kind: "blocked"; error: JobError; budget?: BudgetCrossing };
+
+export const PAID_GENERATION_OFF = "Paid generation is off. Set GENERATION_ALLOWANCE_USD in .env.local to allow it.";
+
+/** What an estimate reserves: zero when free, the quote, else the ceiling; undefined when there is neither. */
+export function reservationUsd(estimate: EstimateOutcome, recipe: Pick<Recipe, "ceilingUsd">): number | undefined {
+  if (estimate.kind === "free" || estimate.kind === "rejected") return 0;
+  const reserve = estimate.kind === "quoted" ? estimate.usd : (estimate.ceilingUsd ?? recipe.ceilingUsd);
+  return reserve === null || reserve === undefined ? undefined : reserve;
+}
 
 /**
- * Decides whether a priced (or unpriced) request may run under the allowance.
+ * Decides whether a priced (or unpriced) request may run under the spend policy.
  * Free runs always pass; a quote reserves its amount; an unquoted run reserves the recipe ceiling and
- * needs the user's explicit confirmation; anything over the remaining allowance is blocked.
+ * needs the user's explicit confirmation; a zero operator ceiling blocks every paid run; anything
+ * over the remaining budget is blocked with the crossing the extend modal shows.
+ */
+export function checkSpend(policy: SpendPolicy, estimate: EstimateOutcome, recipe: Pick<Recipe, "ceilingUsd" | "title">): AllowanceDecision {
+  if (estimate.kind === "free") return { kind: "allowed", reserveUsd: 0, remainingUsd: policy.remainingUsd };
+  if (estimate.kind === "rejected") return { kind: "blocked", error: estimate.error };
+  if (policy.ceilingUsd <= 0) return { kind: "blocked", error: jobError("budget", PAID_GENERATION_OFF) };
+  const reserveUsd = reservationUsd(estimate, recipe);
+  if (reserveUsd === undefined) {
+    return { kind: "blocked", error: jobError("budget", `${recipe.title} has no price or ceiling, so it cannot be reserved against the budget.`) };
+  }
+  const crossing = budgetCrossing(policy, reserveUsd);
+  if (crossing) return { kind: "blocked", error: jobError("budget", describeCrossing(crossing)), budget: crossing };
+  const remainingUsd = Math.round((policy.remainingUsd - reserveUsd) * 1e6) / 1e6;
+  if (estimate.kind === "unquoted") {
+    return { kind: "confirm", reserveUsd, remainingUsd, reason: `${estimate.note} Up to $${reserveUsd.toFixed(2)} will be reserved.` };
+  }
+  return { kind: "allowed", reserveUsd, remainingUsd };
+}
+
+/**
+ * `checkSpend` for a flat cap without periods or extensions (the cap is both the budget and the
+ * ceiling), for callers that hold only totals, such as executor tests.
  */
 export function checkAllowance(state: AllowanceState, estimate: EstimateOutcome, recipe: Pick<Recipe, "ceilingUsd" | "title">): AllowanceDecision {
-  if (estimate.kind === "free") return { kind: "allowed", reserveUsd: 0, remainingUsd: Math.max(0, state.allowanceUsd - state.spentUsd - state.reservedUsd) };
-  if (estimate.kind === "rejected") return { kind: "blocked", error: estimate.error };
-  if (state.allowanceUsd <= 0) {
-    return { kind: "blocked", error: jobError("budget", "Paid generation is off. Set GENERATION_ALLOWANCE_USD in .env.local to allow it.") };
-  }
-  const remainingUsd = state.allowanceUsd - state.spentUsd - state.reservedUsd;
-  const reserveUsd = estimate.kind === "quoted" ? estimate.usd : (estimate.ceilingUsd ?? recipe.ceilingUsd);
-  if (reserveUsd === undefined || reserveUsd === null) {
-    return { kind: "blocked", error: jobError("budget", `${recipe.title} has no price or ceiling, so it cannot be reserved against the allowance.`) };
-  }
-  if (reserveUsd > remainingUsd) {
-    return { kind: "blocked", error: jobError("budget", `This run may cost up to $${reserveUsd.toFixed(2)}, more than the $${Math.max(0, remainingUsd).toFixed(2)} left in the allowance.`) };
-  }
-  if (estimate.kind === "unquoted") {
-    return { kind: "confirm", reserveUsd, remainingUsd: remainingUsd - reserveUsd, reason: `${estimate.note} Up to $${reserveUsd.toFixed(2)} will be reserved.` };
-  }
-  return { kind: "allowed", reserveUsd, remainingUsd: remainingUsd - reserveUsd };
+  const period = budgetPeriod(0, 1);
+  const totals = { spentUsd: state.spentUsd, reservedUsd: state.reservedUsd };
+  const policy = composeSpendPolicy({ period, ceilingPeriod: period, limitUsd: state.allowanceUsd, ceilingUsd: state.allowanceUsd, extensionUsd: 0, totals, ceilingTotals: totals });
+  return checkSpend(policy, estimate, recipe);
 }
 
 /** Converts a settled credits figure to USD, falling back to the reservation when nothing was reported. */

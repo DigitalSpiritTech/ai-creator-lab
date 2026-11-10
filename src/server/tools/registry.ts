@@ -16,8 +16,10 @@ import type { Store } from "@/server/store";
 export interface GenerationContext {
   executors: ExecutorSet;
   recipes(): Promise<Recipe[]>;
-  /** Paid cap override in USD; defaults to the lower of the workspace setting and GENERATION_ALLOWANCE_USD. */
+  /** A flat paid cap in USD replacing the spend policy (scripts and tests); defaults to the monthly budget policy. */
   allowanceUsd?: () => number;
+  /** The operator ceiling; defaults to GENERATION_ALLOWANCE_USD. Tests inject it. */
+  operatorCeilingUsd?: () => number;
   sleep?: (ms: number) => Promise<unknown>;
   poster?: (videoPath: string, posterPath: string) => Promise<void>;
 }

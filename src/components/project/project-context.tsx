@@ -52,7 +52,7 @@ export function pendingTiles(jobs: { unfinished: Job[]; recent: Job[] }, match: 
 function statusText(job: Job): string {
   switch (job.status) {
     case "queued":
-      return "Waiting for the allowance";
+      return "Waiting for the monthly budget";
     case "submitting":
       return "Sending";
     case "running":

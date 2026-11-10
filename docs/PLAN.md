@@ -25,7 +25,7 @@ The MVP is one App, UGC Creator, with one content type, Ad.
 
 Must have:
 
-- Settings: Comfy API key, Anthropic API key, data directory, generation allowance (USD, zero disables paid runs). Keys never reach the browser.
+- Settings: Comfy API key, Anthropic API key, data directory, monthly budget (USD, a reset day, per-period extensions by click only, capped by the operator ceiling `GENERATION_ALLOWANCE_USD` per calendar month; zero disables paid runs). Keys never reach the browser.
 - Workspace shell: Projects, Assets, Library, Archive. Light and dark theme.
 - Project created from the UGC Creator app with a chat panel, tool-result cards, and the project's asset grid.
 - Capability and recipe catalog with two executors (Router executor, Workflow executor) and a mock executor for credit-free trials.
@@ -63,7 +63,7 @@ Layers, bottom to top:
 3. Catalog: capabilities, recipes, slot maps, live Router model list with schemas, starter workflow files under `workflows/`.
 4. Domain: workspace settings, projects, Library items (character, product, set), assets with provenance, scripts, content pieces (ad), shots (beats with candidate stills and clips, approvals), cuts and exports.
 5. Tools: one typed tool set over the domain (Zod in, Zod out). Used by the in-app agent via Anthropic tool use and, later, by the MCP server.
-6. Agent: the UGC Creator "creative director" system prompt plus stage guidance; proposes actions; never spends without the UI gate or the user's auto-approve setting under the allowance.
+6. Agent: the UGC Creator "creative director" system prompt plus stage guidance; proposes actions; never spends without the UI gate or the user's auto-approve setting under the monthly budget.
 7. UI: workspace shell, chat panel with tool cards (candidate grids with Select, Approve, Archive), asset grid, settings.
 
 Partner-node workflows already in the maintainer's Cloud workspace (for example a Krea 3 image edit) are candidate `image_edit` recipes once a sidecar exists.
@@ -101,7 +101,7 @@ October 30, morning: buffer for submission form issues only.
 - Cloud workflows reference model files by name and the previous project's graphs were built for one specific local machine. Answer: starter workflows are checked against Cloud's model library (done October 26; the names matched).
 - Standard plan allows one concurrent workflow. Answer: the job runner is serial per target; the UI shows queue position.
 - Partner moderation can reject creator content. Answer: errors are surfaced per candidate with the provider's reason; the user can switch recipes.
-- Credits spent by autonomous agents. Answer: allowance defaults to zero; agents never change it; every real run is logged with the credit balance before and after; the whole build, spike included, is capped at the allowance (about 1,050 credits for $5), with notices at 50 and 80 percent and a hard stop at 100.
+- Credits spent by autonomous agents. Answer: the operator ceiling (`GENERATION_ALLOWANCE_USD`) defaults to zero; agents never change it and cannot extend the monthly budget; every real run is logged with the credit balance before and after; paid spend, spike included, is capped at the ceiling per calendar month (UTC), about 210 credits per dollar, with notices at 50 and 80 percent and a hard stop at 100 for the rest of the month. The operator sets it to zero when a build or judging window ends.
 - Private material leaking into a public repo. Answer: privacy grep in verify-release; invented example persona only.
 - Three build days. Answer: cut in this order if behind: MCP server, Set library item, first/last clips, captions, reference sheet (stills then use face and body directly), body reference. Never cut the end-to-end path.
 

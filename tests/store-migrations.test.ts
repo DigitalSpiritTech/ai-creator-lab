@@ -5,8 +5,10 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, test } from "node:test";
 import { toFailure } from "@/lib/domain/failure";
 import { saveBrief } from "@/lib/domain/project";
+import { WorkspaceSettingsSchema } from "@/lib/domain/workspace";
 import { resolveMediaPath } from "@/server/media/paths";
 import { DATABASE_FILE, SCHEMA_VERSION, openStore } from "@/server/store";
+import { MIGRATIONS } from "@/server/store/migrations";
 import { clock, generateAssets, seedProject, tempDir, tempStore } from "./support/domain-fixtures";
 
 const cleanups: (() => void)[] = [];
@@ -18,9 +20,9 @@ describe("migrations", () => {
   test("an empty directory migrates to the latest version with WAL, foreign keys, and media folders", () => {
     const { store, dir, cleanup } = tempStore();
     cleanups.push(cleanup);
-    assert.equal(SCHEMA_VERSION, 3);
+    assert.equal(SCHEMA_VERSION, 4);
     const pragma = (sql: string) => Object.values(store.database.prepare(sql).get()!)[0];
-    assert.equal(pragma("PRAGMA user_version"), 3);
+    assert.equal(pragma("PRAGMA user_version"), 4);
     assert.equal(pragma("PRAGMA journal_mode"), "wal");
     assert.equal(pragma("PRAGMA foreign_keys"), 1);
     const tables = store.database
@@ -29,6 +31,7 @@ describe("migrations", () => {
       .map((row) => row.name);
     assert.deepEqual(tables, [
       "assets",
+      "budget_extensions",
       "content_pieces",
       "conversation_messages",
       "document_versions",
@@ -68,6 +71,48 @@ describe("migrations", () => {
         .prepare("INSERT INTO scripts(id, project_id, data) VALUES (?, ?, ?)")
         .run(id, id, JSON.stringify({ id, projectId: id })),
     );
+  });
+
+  test("version 4 turns a saved allowance into the monthly budget with reset day 1 and adds budget extensions", () => {
+    const dir = tempDir();
+    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+    const raw = new DatabaseSync(join(dir, DATABASE_FILE));
+    for (const [index, sql] of MIGRATIONS.slice(0, 3).entries()) {
+      raw.exec(sql);
+      raw.exec(`PRAGMA user_version = ${index + 1}`);
+    }
+    const legacy = { defaultRecipes: {}, routerModels: [], allowanceUsd: 7.5, autoApprove: true, revision: 4, updatedAt: 1 };
+    raw.prepare("INSERT INTO workspace(id, data) VALUES (1, ?)").run(JSON.stringify(legacy));
+    raw.close();
+
+    const store = openStore(dir);
+    cleanups.push(() => store.close());
+    const settings = store.workspace.get();
+    assert.equal(settings.monthlyBudgetUsd, 7.5);
+    assert.equal(settings.budgetResetDay, 1);
+    assert.equal(settings.autoApprove, true);
+    assert.equal(settings.revision, 4);
+    const stored = JSON.parse(String(store.database.prepare("SELECT data FROM workspace WHERE id = 1").get()!.data)) as Record<string, unknown>;
+    assert.equal("allowanceUsd" in stored, false, "the stored row is rewritten, not only read through");
+
+    const extension = { id: "00000000-0000-4000-8000-0000000000e1", periodKey: "2026-11-01", amountUsd: 1, createdAt: 2 };
+    assert.deepEqual(store.budget.add(extension), { extension, created: true });
+    assert.deepEqual(store.budget.add({ ...extension, amountUsd: 9 }), { extension, created: false });
+    assert.deepEqual(store.budget.listForPeriod("2026-11-01"), [extension]);
+    assert.deepEqual(store.budget.listForPeriod("2026-12-01"), []);
+    assert.throws(() =>
+      store.database
+        .prepare("INSERT INTO budget_extensions(id, period_key, data) VALUES (?, ?, ?)")
+        .run("00000000-0000-4000-8000-0000000000e2", "2026-12-01", JSON.stringify({ ...extension, id: "00000000-0000-4000-8000-0000000000e2" })),
+    );
+  });
+
+  test("an old settings row still parses after the rename", () => {
+    const parsed = WorkspaceSettingsSchema.parse({ allowanceUsd: 3, autoApprove: false });
+    assert.equal(parsed.monthlyBudgetUsd, 3);
+    assert.equal(parsed.budgetResetDay, 1);
+    assert.equal("allowanceUsd" in parsed, false);
+    assert.equal(WorkspaceSettingsSchema.parse({ allowanceUsd: 3, monthlyBudgetUsd: 4 }).monthlyBudgetUsd, 4);
   });
 
   test("records are validated on read", () => {
@@ -122,7 +167,8 @@ describe("durability", () => {
   test("workspace settings default to zero allowance and save with revisions", () => {
     const { store, cleanup } = tempStore();
     cleanups.push(cleanup);
-    assert.equal(store.workspace.get().allowanceUsd, 0);
+    assert.equal(store.workspace.get().monthlyBudgetUsd, 0);
+    assert.equal(store.workspace.get().budgetResetDay, 1);
     const saved = store.workspace.update({ defaultRecipes: { image_to_video: "ltx-2.5-i2v-cloud" } }, 1);
     assert.equal(saved.revision, 1);
     assert.equal(store.workspace.get().defaultRecipes.image_to_video, "ltx-2.5-i2v-cloud");

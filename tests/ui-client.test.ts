@@ -17,14 +17,16 @@ import { sheetChecklist } from "@/components/project/sheet-checklist";
 import { assetQuery } from "@/components/assets/asset-browser";
 import type { ChatItem } from "@/components/project/project-context";
 import { applyAgentEvent, historyToItems, parseAgentEvent } from "@/lib/client/chat";
-import { ASSET_KINDS, assetKindInfo, describeEstimate, describeTarget, shouldPoll, summarizeSubmit } from "@/lib/client/format";
+import { ASSET_KINDS, assetKindInfo, budgetBlock, describeBudgetBlock, describeEstimate, describeSpendWarning, describeTarget, formatPeriodDate, formatUsdCredits, shouldPoll, suggestedExtensionUsd, summarizeSubmit } from "@/lib/client/format";
 import { AssetMedia } from "@/components/media/asset-media";
 import { ProductForm } from "@/components/library/product-form";
-import { ProviderChoice } from "@/components/settings/settings-form";
+import { MonthlyBudget, ProviderChoice } from "@/components/settings/settings-form";
 import { productFields } from "@/lib/client/library";
 import { AssetKindSchema } from "@/lib/domain/asset";
 import { createSseParser, encodeSse } from "@/lib/client/sse";
-import type { GenerationProposal } from "@/lib/client/types";
+import type { GenerationProposal, SettingsView, SubmitResult } from "@/lib/client/types";
+import { budgetCrossing, budgetPeriod, composeSpendPolicy } from "@/lib/domain/spend";
+import { DEFAULT_WORKSPACE_SETTINGS } from "@/lib/domain/workspace";
 
 function proposal(overrides: Partial<GenerationProposal> = {}): GenerationProposal {
   return {
@@ -115,7 +117,7 @@ describe("format", () => {
   });
 
   test("submit summaries and polling decisions", () => {
-    const base = { requestId: randomUUID(), job: null, assetIds: [], reserveUsd: null };
+    const base = { requestId: randomUUID(), job: null, assetIds: [], reserveUsd: null, budget: null };
     assert.deepEqual(summarizeSubmit([{ ...base, outcome: "started", message: null }, { ...base, outcome: "started", message: null }]), { tone: "ok", text: "2 candidates submitted." });
     assert.equal(summarizeSubmit([{ ...base, outcome: "blocked", message: "Allowance is zero." }]).tone, "error");
     assert.equal(summarizeSubmit([{ ...base, outcome: "needs_confirmation", message: "Confirm" }]).tone, "warn");
@@ -123,6 +125,35 @@ describe("format", () => {
     assert.equal(shouldPoll([{ status: "running" }]), true);
     assert.equal(shouldPoll([{ status: "completed" }, { status: "failed" }]), false);
     assert.equal(assetQuery({ state: "archived", projectId: "", kind: "video", recipeId: "" }), "/api/assets?state=archived&kind=video");
+  });
+
+  test("budget helpers: credits beside USD, the 50/80/100 notices, and the suggested extension", () => {
+    assert.equal(formatUsdCredits(4.8), "$4.80 (1,008 credits)");
+    assert.equal(formatUsdCredits(0.5), "$0.50 (105 credits)");
+    assert.equal(formatPeriodDate(Date.UTC(2026, 11, 15)), "December 15");
+    assert.equal(describeSpendWarning(0, null), null);
+    assert.equal(describeSpendWarning(50, null)?.tone, "warn");
+    assert.match(describeSpendWarning(80, null)!.text, /80 percent/);
+    assert.match(describeSpendWarning(100, Date.UTC(2026, 11, 1))!.text, /resets on December 1/);
+    assert.equal(suggestedExtensionUsd({ neededUsd: 0.3, maxExtensionUsd: 5 }), 1);
+    assert.equal(suggestedExtensionUsd({ neededUsd: 1.004, maxExtensionUsd: 5 }), 2);
+    assert.equal(suggestedExtensionUsd({ neededUsd: 0.3, maxExtensionUsd: 0.5 }), 0.5);
+  });
+
+  test("a budget block counts the candidates that already ran, so the card never says nothing ran when some did", () => {
+    const now = Date.UTC(2026, 10, 20);
+    const totals = { spentUsd: 4.8, reservedUsd: 0 };
+    const spend = composeSpendPolicy({ period: budgetPeriod(now, 1), ceilingPeriod: budgetPeriod(now, 1), limitUsd: 5, ceilingUsd: 10, extensionUsd: 0, totals, ceilingTotals: totals });
+    const crossing = budgetCrossing(spend, 0.5)!;
+    const job = { id: randomUUID() } as unknown as SubmitResult["job"];
+    const base = { requestId: randomUUID(), assetIds: [], message: null, reserveUsd: null, budget: null };
+    const blocked = { ...base, outcome: "blocked" as const, job: null, budget: crossing };
+    assert.deepEqual(budgetBlock([blocked]), { crossing, ran: 0 });
+    assert.deepEqual(budgetBlock([{ ...base, outcome: "existing", job }, { ...base, outcome: "started", job }, blocked]), { crossing, ran: 2 });
+    assert.equal(budgetBlock([{ ...base, outcome: "blocked", job: null, message: "Paid generation is off." }]), null, "a block without a crossing is not the extend dialog");
+    assert.equal(describeBudgetBlock(0), "Approving this would go over this month's budget. Nothing was generated.");
+    assert.match(describeBudgetBlock(1), /^1 candidate has already run/);
+    assert.match(describeBudgetBlock(2), /^2 candidates have already run/);
   });
 
   test("shot and sheet helpers", () => {
@@ -147,7 +178,7 @@ describe("cards", () => {
 
   test("auto-approve shows the submission instead of the buttons; a rejected estimate cannot run", () => {
     const auto = renderToStaticMarkup(createElement(ProposalCard, { proposal: proposal(), autoApprove: true }));
-    assert.match(auto, /Auto-approved under your allowance/);
+    assert.match(auto, /Auto-approved under your budget/);
     assert.doesNotMatch(auto, /Approve and generate/);
     const rejected = renderToStaticMarkup(createElement(ProposalCard, { proposal: proposal({ estimate: { kind: "rejected", usd: null, credits: null, note: "No key" } }), autoApprove: true }));
     assert.match(rejected, /disabled/);
@@ -239,6 +270,27 @@ describe("product appearance and assistant provider", () => {
     assert.match(html, /checked="" value="router"/);
     const locked = renderToStaticMarkup(createElement(ProviderChoice, { value: "anthropic", fromEnvironment: true, disabled: false, onChange: () => undefined }));
     assert.match(locked, /LLM_PROVIDER in .env.local/);
+  });
+
+  test("the monthly budget section shows the period, credits, the 80 percent notice, and the ceiling read-only", () => {
+    const now = Date.UTC(2026, 10, 20);
+    const totals = { spentUsd: 4, reservedUsd: 0.2 };
+    const spend = composeSpendPolicy({ period: budgetPeriod(now, 15), ceilingPeriod: budgetPeriod(now, 1), limitUsd: 5, ceilingUsd: 6, extensionUsd: 0, totals, ceilingTotals: totals });
+    const workspace = { ...DEFAULT_WORKSPACE_SETTINGS, monthlyBudgetUsd: 5, budgetResetDay: 15 };
+    const view = { workspace, keys: {} as SettingsView["keys"], spend, creditsPerUsd: 210, dataDirectory: "/data" };
+    const html = renderToStaticMarkup(createElement(MonthlyBudget, { view, busy: false, onSave: () => undefined, onExtended: () => undefined, onError: () => undefined }));
+    assert.match(html, /November 15 to December 15/);
+    assert.match(html, /Remaining \$0\.80 \(168 credits\)/);
+    assert.match(html, /80 percent of this month/);
+    assert.match(html, /Operator ceiling \(GENERATION_ALLOWANCE_USD, read-only\)/);
+    assert.match(html, /\$6\.00 a month/);
+    assert.match(html, /Up to \$1\.00 under the operator ceiling/);
+    assert.doesNotMatch(html, /id="operator/, "the ceiling has no input");
+    const off = renderToStaticMarkup(
+      createElement(MonthlyBudget, { view: { ...view, spend: { ...spend, ceilingUsd: 0, maxExtensionUsd: 0 } }, busy: false, onSave: () => undefined, onExtended: () => undefined, onError: () => undefined }),
+    );
+    assert.match(off, /Zero keeps paid generation off/);
+    assert.match(off, /id="budget-extra"[^>]*disabled=""|disabled=""[^>]*id="budget-extra"/);
   });
 });
 

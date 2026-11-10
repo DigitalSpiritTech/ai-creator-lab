@@ -63,7 +63,7 @@ async function main() {
   const line = process.env.LINE ?? "And it stays that cold through the whole afternoon.";
   await withStore(async (store) => {
     const now = Date.now();
-    store.workspace.update({ allowanceUsd: 5 }, now);
+    store.workspace.update({ monthlyBudgetUsd: 5 }, now);
     const context = createToolContext(store, createGenerationContext(store));
     if (process.env.PROJECT_ID) {
       // Resume: the project from an earlier run, with its b-roll voice-over already approved.

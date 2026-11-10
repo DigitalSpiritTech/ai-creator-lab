@@ -1,7 +1,8 @@
 /**
  * Acceptance smoke: the whole UGC Creator flow with the mock executor, on a temporary data
  * directory, then a restart and a relocated restore. No provider is called: every proposal names a
- * mock recipe, the allowance is zero, and the Comfy and Anthropic keys are placeholders.
+ * mock recipe, the operator ceiling (GENERATION_ALLOWANCE_USD) is zero, and the Comfy and Anthropic
+ * keys are placeholders. A monthly budget is saved and an extension is refused at the zero ceiling.
  *
  * Layers (`ACCEPTANCE_LAYER`):
  * - `http` (default when `src/app/api` exists): builds the app (skip with ACCEPTANCE_SKIP_BUILD=1),
@@ -24,7 +25,9 @@ import type { Asset } from "@/lib/domain/asset";
 import type { ExportRecord } from "@/lib/domain/content";
 import type { GenerationProposal, Job } from "@/lib/domain/job";
 import type { BeatInput } from "@/lib/domain/script";
+import type { SpendPolicy } from "@/lib/domain/spend";
 import { renderMockWav } from "@/server/executors/mock";
+import { addBudgetExtension, currentSpendPolicy } from "@/server/executors/spend";
 import { importAudio } from "@/server/media/audio";
 import { readAssetBytes } from "@/server/media/files";
 import { importImage } from "@/server/media/images";
@@ -46,6 +49,11 @@ interface Client {
   /** Uploads a voice recording (WAV bytes) as an audio asset in a project. */
   uploadVoice(projectId: string, name: string, bytes: Uint8Array): Promise<Asset>;
   download(assetId: string): Promise<Buffer>;
+  /** Saves the monthly budget and reset day; returns the spend policy in force. */
+  setBudget(monthlyBudgetUsd: number, budgetResetDay: number): Promise<SpendPolicy>;
+  /** Tries "add to this month"; returns whether it was refused (it must be, at a zero operator ceiling). */
+  tryExtend(periodKey: string, amountUsd: number): Promise<"added" | "refused">;
+  spend(): Promise<SpendPolicy>;
   /** Stops and starts again on the same data directory, or on a copy of it in a new location. */
   restart(relocate: boolean): Promise<void>;
   close(): Promise<void>;
@@ -275,13 +283,31 @@ async function confirmAfterRestart(client: Client, flow: Awaited<ReturnType<type
   step(client, `${how}: everything is still there`);
 }
 
+/** The spend policy: a monthly budget and reset day save, and a zero operator ceiling refuses any extension. */
+async function checkBudget(client: Client): Promise<void> {
+  const policy = await client.setBudget(5, 15);
+  check(policy.limitUsd === 5 && policy.period.resetDay === 15, "the monthly budget and reset day are saved");
+  check(policy.ceilingUsd === 0 && policy.effectiveLimitUsd === 0, "a zero operator ceiling keeps the effective limit at zero");
+  check((await client.tryExtend(policy.period.key, 1)) === "refused", "a zero operator ceiling refuses an extension");
+  check((await client.spend()).extensionUsd === 0, "nothing was added to this month");
+  step(client, "monthly budget saved; the zero operator ceiling refused an extension");
+}
+
+async function confirmBudget(client: Client, how: string): Promise<void> {
+  const policy = await client.spend();
+  check(policy.limitUsd === 5 && policy.period.resetDay === 15, `${how}: the monthly budget is still there`);
+}
+
 async function runLayer(client: Client): Promise<void> {
   try {
     const flow = await runFlow(client);
+    await checkBudget(client);
     await client.restart(false);
     await confirmAfterRestart(client, flow, "after restart");
+    await confirmBudget(client, "after restart");
     await client.restart(true);
     await confirmAfterRestart(client, flow, "after relocating the data directory");
+    await confirmBudget(client, "after relocating the data directory");
   } finally {
     await client.close();
   }
@@ -317,6 +343,20 @@ async function toolsClient(): Promise<Client> {
     upload: (name, bytes) => importImage(store, { projectId: null, name, bytes }, { now: Date.now(), newId: randomUUID }),
     uploadVoice: (projectId, name, bytes) => importAudio(store, { projectId, name, bytes }, { now: Date.now(), newId: randomUUID }),
     download: async (assetId) => readAssetBytes(store.dataDir, store.assets.getRequired(assetId)),
+    // The tools layer pins the operator ceiling at zero, as the HTTP layer's environment does.
+    setBudget: async (monthlyBudgetUsd, budgetResetDay) => {
+      store.workspace.update({ monthlyBudgetUsd, budgetResetDay }, Date.now());
+      return currentSpendPolicy({ store, operatorCeilingUsd: () => 0 });
+    },
+    tryExtend: async (periodKey, amountUsd) => {
+      try {
+        addBudgetExtension({ store, operatorCeilingUsd: () => 0 }, { id: randomUUID(), periodKey, amountUsd });
+        return "added";
+      } catch {
+        return "refused";
+      }
+    },
+    spend: async () => currentSpendPolicy({ store, operatorCeilingUsd: () => 0 }),
     restart: async (relocate) => {
       store.close();
       if (relocate) {
@@ -453,6 +493,26 @@ async function httpClient(): Promise<Client> {
       check(response.ok, `download returned ${response.status}`);
       return Buffer.from(await response.arrayBuffer());
     },
+    setBudget: async (monthlyBudgetUsd, budgetResetDay) =>
+      (
+        await json<{ spend: SpendPolicy }>("/api/settings", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ monthlyBudgetUsd, budgetResetDay }),
+        })
+      ).spend,
+    tryExtend: async (periodKey, amountUsd) => {
+      const response = await fetch(`${base}/api/settings/budget`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: randomUUID(), periodKey, amountUsd }),
+      });
+      await response.body?.cancel();
+      if (response.ok) return "added";
+      check(response.status === 400, `an extension at a zero ceiling is a 400, not ${response.status}`);
+      return "refused";
+    },
+    spend: async () => (await json<{ spend: SpendPolicy }>("/api/settings")).spend,
     restart: async (relocate) => {
       await stop();
       if (relocate) {
