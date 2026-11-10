@@ -17,7 +17,7 @@ import { WorkspacePanels } from "@/components/project/workspace-panels";
 import { Notice } from "@/components/shell/page-header";
 import { Button } from "@creator-lab/ui/button";
 import { useLoad } from "@/lib/client/use-load";
-import { callTool, errorMessage, getJson } from "@/lib/client/api";
+import { assetUrl, callTool, errorMessage, getJson, isProposal } from "@/lib/client/api";
 import { describeJobStatus, describeTarget } from "@/lib/client/format";
 import type { ProjectView as ProjectViewData } from "@/lib/client/types";
 import { type StoredMessage, historyToItems } from "@/lib/client/chat";
@@ -78,19 +78,26 @@ export function ProjectView({ projectId }: { projectId: string }) {
 
   const contentTypeId = view ? appPlugins.contentTypeForApp(view.project.appId)?.id : undefined;
   const notify = context?.notify;
+  const propose = context?.propose;
   const host = useMemo<PanelHost | null>(
     () =>
-      contentTypeId && notify
+      contentTypeId && notify && propose
         ? {
             projectId,
             contentTypeId,
             openPanel: setPanel,
             refresh,
             notify,
-            callTool: (name, input) => callTool(name, input, projectId),
+            // A panel's spending tool returns a proposal; it goes to the gate in the chat panel.
+            callTool: async <T,>(name: string, input: Record<string, unknown>) => {
+              const output = await callTool<T>(name, input, projectId);
+              if (isProposal(output)) propose(output, "workspace");
+              return output;
+            },
+            assetUrl: (assetId, options) => assetUrl(assetId, options),
           }
         : null,
-    [projectId, contentTypeId, notify, refresh],
+    [projectId, contentTypeId, notify, propose, refresh],
   );
 
   if (!context) {

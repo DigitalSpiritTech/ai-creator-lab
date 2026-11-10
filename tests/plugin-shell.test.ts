@@ -41,6 +41,7 @@ const host: PanelHost = {
   refresh: async () => undefined,
   notify: () => undefined,
   callTool: async () => undefined as never,
+  assetUrl: (assetId) => `/api/assets/${assetId}`,
 };
 
 const render = (contentTypeId: string, active: string | null) => renderToStaticMarkup(createElement(WorkspacePanels, { contentTypeId, active, onSelect: () => undefined, host }));
