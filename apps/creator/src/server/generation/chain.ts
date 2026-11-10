@@ -189,7 +189,8 @@ function budgetBlock(deps: RunDeps, totalUsd: number): Extract<ChainStart, { kin
 export async function startChain(deps: RunDeps, request: NewChain, options: { confirmUnquoted?: boolean } = {}): Promise<ChainStart> {
   const existing = deps.store.chains.getByRequest(request.requestId);
   if (existing) {
-    if (existing.projectId !== request.projectId) return { kind: "failed", chain: null, error: jobError("conflict", "This request id was already used for a different recording.") };
+    const owner = deps.store.projects.get(request.projectId)?.ownerId;
+    if (existing.projectId !== request.projectId || existing.ownerId !== owner) return { kind: "failed", chain: null, error: jobError("conflict", "This request id was already used for a different recording.") };
     if (existing.status !== "paused") return { kind: "existing", chain: existing, job: currentJob(deps, existing) };
     return resumeChain(deps, existing);
   }

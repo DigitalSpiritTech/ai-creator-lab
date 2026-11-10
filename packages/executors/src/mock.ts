@@ -203,6 +203,8 @@ export async function renderMockMp4(job: Pick<Job, "capability" | "request">, ab
     const args = [
       "-nostdin", "-v", "error", "-y", ...video, ...audio,
       "-map", "0:v:0", "-map", "1:a:0",
+      // Exact colour conversion, so a clip started from another clip's handover frame keeps its level.
+      "-sws_flags", "accurate_rnd+full_chroma_int",
       "-vf", `${first ? "scroll=horizontal=0.0015," : ""}format=yuv420p`,
       "-af", `apad=whole_dur=${seconds}`,
       "-t", seconds, "-r", String(MOCK_FPS),

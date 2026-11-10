@@ -30,7 +30,10 @@ export async function extractHandoverFrame(video: string, info: Pick<VideoInfo, 
   const index = Math.max(0, info.frames - 1 - Math.round(overlapSeconds * info.fps));
   const temporary = (await tempBeside(out)).replace(/\.tmp$/, ".png");
   try {
-    await ffmpeg(["-v", "error", "-y", "-i", video, "-map", "0:v:0", "-vf", `select=eq(n\\,${index})`, "-fps_mode", "passthrough", "-frames:v", "1", "-update", "1", "-f", "image2", "-c:v", "png", temporary], 60_000);
+    // Exact colour conversion (accurate_rnd, full_chroma_int): with the default fast path the frame's
+    // trip from YUV to RGB and back into the next segment shifted dark gradients by a level or more,
+    // a visible step at the seam.
+    await ffmpeg(["-v", "error", "-y", "-i", video, "-map", "0:v:0", "-vf", `select=eq(n\\,${index})`, "-sws_flags", "accurate_rnd+full_chroma_int", "-fps_mode", "passthrough", "-frames:v", "1", "-update", "1", "-f", "image2", "-c:v", "png", temporary], 60_000);
     await rename(temporary, out);
   } finally {
     await rm(temporary, { force: true });

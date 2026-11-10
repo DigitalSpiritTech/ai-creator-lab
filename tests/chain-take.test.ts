@@ -572,4 +572,47 @@ describe("a chained take and the budget", () => {
       "Seam check: a visible jump and a click in the audio at 9.9 s. Look at those moments before approving; generating again makes every segment anew.",
     );
   });
+
+  test("cancel only reaches chains in the proposal's own project and owner", async () => {
+    const { harness, contentId } = await priced(10);
+    const { tools, store } = harness;
+    const proposal = await ok<GenerationProposal>(tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 20 });
+    harness.holdPoll.has = (requestId: string) => requestId === store.chains.listByProject(proposal.projectId)[0]?.segments[0].requestId;
+    await ok<Submitted>(tools, "submit_proposal", { proposal });
+    const chain = store.chains.listByProject(proposal.projectId)[0];
+    // The same proposal body with another project's id: refused before anything is canceled.
+    const other = seedProject(store, tools.now, "Someone else's project");
+    const moved = await callTool(tools, "submit_proposal", { proposal: { ...proposal, projectId: other.id }, cancel: true });
+    assert.ok(!moved.ok && moved.failure.code === "conflict", moved.ok ? "it was accepted" : moved.failure.message);
+    // The right project, asked for by another owner: refused too.
+    const stranger = await callTool({ ...tools, ownerId: "another-owner" }, "submit_proposal", { proposal, cancel: true });
+    assert.ok(!stranger.ok && stranger.failure.code === "conflict");
+    assert.equal(store.chains.getRequired(chain.id).status, "running", "the chain was not touched");
+    assert.equal(currentSpendPolicy(runDeps(tools)).reservedUsd, 4, "and it still holds its money");
+    // A resubmit under another project's id cannot resume or reach it either.
+    const resubmitted = await ok<Submitted>(tools, "submit_proposal", { proposal: { ...proposal, projectId: other.id } }).catch((cause: Error) => cause);
+    assert.ok(resubmitted instanceof Error || resubmitted.results.every((result) => result.outcome !== "started" && result.outcome !== "completed"));
+    const canceled = await ok<Submitted>(tools, "submit_proposal", { proposal, cancel: true });
+    assert.match(canceled.results[0].message!, /Canceled after 0 of 4 segments/);
+  });
+
+  test("a finished segment the chain has not recorded yet is already protected from deletion", async () => {
+    const { harness, contentId } = await priced(10);
+    const { tools, store } = harness;
+    const proposal = await ok<GenerationProposal>(tools, "generate_clip", { contentId, beatIndex: 1, recipeId: "mock-image-to-video", durationSeconds: 15 });
+    const segments = () => store.chains.listByProject(proposal.projectId)[0]?.segments;
+    harness.holdPoll.has = (requestId: string) => requestId === segments()?.[0].requestId;
+    await ok<Submitted>(tools, "submit_proposal", { proposal });
+    harness.holdPoll.has = () => false;
+    const { advanceGeneration } = await import("@/server/generation/run");
+    const deps = runDeps(tools);
+    const jobId = segments()![0].jobId!;
+    await advanceGeneration(deps, jobId);
+    const done = await advanceGeneration(deps, jobId);
+    assert.ok(done.kind === "completed" && segments()![0].assetId === null, "the job is done and the chain has not recorded its asset yet");
+    const output = done.kind === "completed" && done.job.status === "completed" ? done.job.outputs[0] : "";
+    assert.match(chainUses(store, output).map(describeChainUse).join(), /uses this as segment 1/);
+    const refused = await callTool(tools, "delete_asset_everywhere", { assetId: output, confirm: true, force: true });
+    assert.ok(!refused.ok && refused.failure.code === "conflict");
+  });
 });

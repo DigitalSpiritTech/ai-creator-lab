@@ -50,7 +50,15 @@ export function chainUses(store: Store, assetId: string): ChainUse[] {
       if (pin.assetId === assetId) uses.push({ chain, role: position === 0 ? "the starting still" : "the identity reference" });
     });
     if (chain.spine?.assetId === assetId) uses.push({ chain, role: "the voice recording" });
-    for (const segment of chain.segments) if (segment.assetId === assetId) uses.push({ chain, role: `segment ${segment.index}` });
+    for (const segment of chain.segments) {
+      if (segment.assetId === assetId) {
+        uses.push({ chain, role: `segment ${segment.index}` });
+        continue;
+      }
+      // A segment whose job has finished but whose asset the chain has not recorded yet.
+      const job = !segment.assetId && segment.jobId ? store.jobs.get(segment.jobId) : undefined;
+      if (job?.status === "completed" && job.outputs.includes(assetId)) uses.push({ chain, role: `segment ${segment.index}` });
+    }
   }
   return uses;
 }

@@ -31,7 +31,7 @@ import type { Store } from "@/server/store";
 import { BODY_REFERENCE, FACE_GARMENT, FACE_LOCK, inline } from "@creator-lab/recipes/prompts";
 import type { ChainedTake } from "@/server/tools/chain";
 import { buildProposal, candidateRequestId, estimateTake, nearestAspect, proposalChain, proposalRequest, runDeps } from "@/server/tools/proposals";
-import type { ToolContext } from "@/server/tools/registry";
+import { type ToolContext, ownerOf } from "@/server/tools/registry";
 import { defineTool } from "@/server/tools/registry";
 import { referenceableIn } from "@/server/tools/shared";
 
@@ -583,15 +583,26 @@ export const submitProposal = defineTool({
   },
 });
 
-/** Cancels the chained recordings a proposal started; a proposal that started none is refused. */
+/**
+ * Cancels the chained recordings a proposal started; a proposal that started none is refused. A
+ * proposal names its project, and the chains its candidates started must be in that project and
+ * belong to the same owner as the request: a proposal body copied to another project (or sent for
+ * another owner) is refused as a conflict before anything is canceled.
+ */
 async function cancelChained(context: ToolContext, proposal: GenerationProposal): Promise<{ results: z.input<typeof SubmitResultSchema>[]; warning: z.infer<typeof SpendWarningSchema> }> {
   const deps = runDeps(context);
+  const project = context.store.projects.getRequired(proposal.projectId);
+  const owner = ownerOf(context);
+  const found = Array.from({ length: proposal.count }, (_, index) => candidateRequestId(proposal.id, index)).flatMap((requestId) => {
+    const chain = context.store.chains.getByRequest(requestId);
+    return chain ? [{ requestId, chain }] : [];
+  });
+  if (found.some(({ chain }) => chain.projectId !== project.id || chain.ownerId !== project.ownerId || chain.ownerId !== owner)) {
+    fail("conflict", "This proposal's chained recording belongs to another project.");
+  }
   const results: z.input<typeof SubmitResultSchema>[] = [];
-  for (let index = 0; index < proposal.count; index++) {
-    const requestId = candidateRequestId(proposal.id, index);
-    const found = context.store.chains.getByRequest(requestId);
-    if (!found) continue;
-    const chain = await cancelChain(deps, found.id);
+  for (const { requestId, chain: started } of found) {
+    const chain = await cancelChain(deps, started.id);
     results.push({ requestId, outcome: chain.status === "completed" ? "completed" : "failed", job: currentJob(deps, chain), assetIds: chain.outputAssetId ? [chain.outputAssetId] : [], message: chainSummary(chain), reserveUsd: chainReserveUsd(chain) });
   }
   if (!results.length) fail("invalid", "Only a chained recording can be canceled, and this proposal started none.");

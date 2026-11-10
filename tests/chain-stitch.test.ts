@@ -15,7 +15,7 @@ import { planChain } from "@creator-lab/core/catalog";
 import { type Job, JobRequestSchema } from "@creator-lab/core/domain/job";
 import { ffmpegPath, ffprobePath, probeVideo } from "@creator-lab/executors/media";
 import { MOCK_RECIPES } from "@creator-lab/recipes/defaults";
-import { renderMockMp4, renderMockWav } from "@creator-lab/executors/mock";
+import { renderMockMp4, renderMockSvg, renderMockWav } from "@creator-lab/executors/mock";
 import { checkSeams, crossfadeOffsets, extractHandoverFrame, sliceAudio, stitchFilter, stitchTake } from "@creator-lab/executors/stitch";
 
 const root = mkdtempSync(join(tmpdir(), "chain-stitch-"));
@@ -123,6 +123,23 @@ describe("chained mock segments, stitched", () => {
     assert.ok(Math.abs(stitched.info.durationSeconds - plan.totalSeconds) < 0.1);
     const report = await checkSeams(out, stitched.seams, stitched.info.durationSeconds);
     for (const seam of report) assert.deepEqual(seam.issues, [], `seam at ${seam.seconds} s: ${JSON.stringify(seam)}`);
+  });
+});
+
+describe("the handover keeps the picture's level", () => {
+  test("a dark mock still (the hue that once stepped by 9 levels at the seam) chains with clean seams", async () => {
+    const plan = planned(10, 5);
+    const stillRecipe = MOCK_RECIPES.find((recipe) => recipe.capability === "text_to_image")!;
+    // The mock's hue comes from the job id: 0x0021 gives hue 223, a dark blue gradient.
+    const svg = renderMockSvg({ id: "0021aaaa-0000-4000-8000-000000000000", capability: "text_to_image", request: JobRequestSchema.parse({ recipe: stillRecipe, input: { prompt: "Avery in the driver's seat holding the bottle, morning light.", aspectRatio: "9:16" } }) });
+    const path = join(root, "dark.svg");
+    writeFileSync(path, svg);
+    const segments = await chainOf(plan, path, "dark");
+    const out = join(root, "dark-take.mp4");
+    const stitched = await stitchTake({ segments, overlapSeconds: plan.overlapSeconds, width: 720, height: 1280, fps: 24, out });
+    const [seam] = await checkSeams(out, stitched.seams, stitched.info.durationSeconds);
+    assert.deepEqual(seam.issues, [], JSON.stringify(seam));
+    assert.ok(seam.videoDifference < seam.videoBaseline * 3, `no step at the seam: ${JSON.stringify(seam)}`);
   });
 });
 
