@@ -34,6 +34,8 @@ COPY --chown=node:node --from=build /app/packages ./packages
 COPY --chown=node:node --from=build /app/apps/creator/package.json /app/apps/creator/next.config.ts ./apps/creator/
 COPY --chown=node:node --from=build /app/apps/creator/.next ./apps/creator/.next
 COPY --chown=node:node --from=build /app/assets ./assets
+# The in-app Gallery reads examples/ from the working directory.
+COPY --chown=node:node --from=build /app/examples ./examples
 COPY --chown=node:node docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh && mkdir -p /data && chown node:node /data
 USER node

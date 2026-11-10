@@ -25,21 +25,29 @@ import type { Store } from "@/server/store";
 import { recordDocument } from "@/server/tools/documents";
 import { defineTool, ownerOf } from "@/server/tools/registry";
 
-/** What the project can compose the frame from: a linked character's sheet or face, a linked product and its photo. */
-export function quickAdReferences(store: Store, projectId: string): { character: boolean; product: boolean; productPhoto: boolean } {
+/**
+ * What the project can compose the frame from: a linked character (its bible's visual core joins
+ * the prompt) and whether it has a sheet or locked face to pass as an image, and a linked product
+ * (its appearance line) and whether it has a photo.
+ */
+export function quickAdReferences(store: Store, projectId: string): { character: boolean; creatorImage: boolean; product: boolean; productPhoto: boolean } {
   let character = false;
+  let creatorImage = false;
   let product = false;
   let productPhoto = false;
   for (const link of store.library.listLinks(projectId)) {
     const item = store.library.get(link.itemId);
     if (!item || item.archived) continue;
-    if (item.kind === "character" && link.kind === "character" && (link.sheetAssetId || item.bible.references.faceAssetId)) character = true;
+    if (item.kind === "character" && link.kind === "character") {
+      character = true;
+      if (link.sheetAssetId || item.bible.references.faceAssetId) creatorImage = true;
+    }
     if (item.kind === "product") {
       product = true;
       if (item.imageAssetIds.some((id) => store.assets.get(id)?.state.state === "active")) productPhoto = true;
     }
   }
-  return { character, product, productPhoto };
+  return { character, creatorImage, product, productPhoto };
 }
 
 const StepSchema = z.object({ capability: z.string(), count: z.number().int().positive() });
@@ -70,6 +78,6 @@ export const startQuickAd = defineTool({
       const script = store.scripts.create(createScript(context.newId(), projectId, title, [beat], time));
       const content = store.content.create(planShots(context.newId(), script, title, time, context.newId, "quick"));
       if (content.shots.length !== QUICK_AD.beats) fail("storage", "A Quick Ad has one shot.");
-      return { project, script, content, plan: quickAdPlan({ creator: references.character, productPhoto: references.productPhoto }) };
+      return { project, script, content, plan: quickAdPlan({ creator: references.creatorImage, productPhoto: references.productPhoto }) };
     }),
 });

@@ -106,7 +106,7 @@ export function defaultOnScreenText(productSummary: string): string {
 
 /** What the project has to compose the frame from. */
 export interface QuickAdCast {
-  /** A Library character with a reference sheet or a locked face is linked. */
+  /** A Library character is linked (the still tool adds its visual core, and its sheet or face when locked). */
   character: boolean;
   /** A Library product is linked (its photo and appearance join the frame). */
   product: boolean;

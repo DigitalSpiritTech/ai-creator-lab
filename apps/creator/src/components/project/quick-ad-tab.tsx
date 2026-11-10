@@ -36,7 +36,8 @@ function QuickAdStart({ onStarted, again }: { onStarted(): void; again: boolean 
   const [spokenLine, setSpokenLine] = useState<string | null>(null);
   const [onScreenText, setOnScreenText] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const character = view.characters.find(({ item, link }) => link.sheetAssetId || item.bible.references.faceAssetId);
+  const character = view.characters[0];
+  const creatorImage = character && (character.link.sheetAssetId ? "reference sheet" : character.item.bible.references.faceAssetId ? "locked face" : null);
   const product = view.products[0];
   const line = spokenLine ?? (productSummary.trim() ? defaultSpokenLine(productSummary) : "");
   const caption = onScreenText ?? (productSummary.trim() ? defaultOnScreenText(productSummary) : "");
@@ -86,7 +87,7 @@ function QuickAdStart({ onStarted, again }: { onStarted(): void; again: boolean 
         <Input value={caption} onChange={(event) => setOnScreenText(event.target.value)} maxLength={80} placeholder="Six words at most; empty for none" />
       </label>
       <p className="text-xs text-muted-foreground">
-        {character ? `The frame uses ${character.item.bible.name}'s ${character.link.sheetAssetId ? "reference sheet" : "locked face"}` : "No Library character is linked, so the frame is made from these lines"}
+        {character ? `The frame uses ${character.item.bible.name}${creatorImage ? `'s ${creatorImage}` : " (described from the bible; no face locked yet)"}` : "No Library character is linked, so the frame is made from these lines"}
         {product ? ` and ${product.name}${product.imageAssetIds.length ? " with its photo" : ""}.` : "."} Link a character and a product with a photo in the Documents tab for a frame composed from them.
       </p>
       <Button type="submit" disabled={busy || !productSummary.trim() || !audience.trim()}>

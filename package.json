@@ -28,7 +28,8 @@
     "e2e-photos": "node --import tsx --conditions=react-server apps/creator/scripts/e2e-photos.ts",
     "live-premium": "node --import tsx --conditions=react-server apps/creator/scripts/live-premium.ts",
     "verify-workflow": "node --import tsx --conditions=react-server apps/creator/scripts/verify-workflow.ts",
-    "e2e-voice": "node --import tsx --conditions=react-server apps/creator/scripts/e2e-voice.ts"
+    "e2e-voice": "node --import tsx --conditions=react-server apps/creator/scripts/e2e-voice.ts",
+    "gallery:build": "node --import tsx apps/creator/scripts/build-gallery.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.5",
