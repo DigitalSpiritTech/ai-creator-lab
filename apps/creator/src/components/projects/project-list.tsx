@@ -1,11 +1,11 @@
 /**
  * Projects page: every project, newest first, and a form to start one from an installed App (one
- * button per App in the plugin registry; UGC Creator today).
+ * button per App in the plugin registry, and one per mode of its content types, such as the Quick Ad).
  * @packageDocumentation
  */
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -37,13 +37,14 @@ export function ProjectList() {
 
   useLoad(load);
 
-  async function create(appId: string | undefined) {
+  /** Creates the project; a mode (the Quick Ad) opens the workspace on that mode's panel. */
+  async function create(appId: string | undefined, panel?: string) {
     if (!name.trim() || !appId) return;
     setBusy(true);
     setError(null);
     try {
       const { project } = await sendJson<{ project: { id: string } }>("/api/projects", { name: name.trim(), appId });
-      router.push(`/projects/${project.id}`);
+      router.push(panel ? `/projects/${project.id}?panel=${encodeURIComponent(panel)}` : `/projects/${project.id}`);
     } catch (cause) {
       setError(errorMessage(cause));
       setBusy(false);
@@ -62,11 +63,16 @@ export function ProjectList() {
         aria-label="New project"
       >
         <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ridgeline bottle, October" maxLength={80} aria-label="Project name" />
-        {apps.map((app, index) => (
+        {apps.map((app, index) => [
           <Button key={app.id} type={index === 0 ? "submit" : "button"} disabled={busy || !name.trim()} onClick={index === 0 ? undefined : () => void create(app.id)}>
             <Plus /> New {app.label} project
-          </Button>
-        ))}
+          </Button>,
+          ...app.modes.map((mode) => (
+            <Button key={`${app.id}/${mode.id}`} type="button" variant="outline" title={mode.description} disabled={busy || !name.trim()} onClick={() => void create(app.id, mode.panel)}>
+              <Zap /> {mode.label}
+            </Button>
+          )),
+        ])}
       </form>
       {error ? <div className="mb-4"><Notice>{error}</Notice></div> : null}
       {projects === null ? (

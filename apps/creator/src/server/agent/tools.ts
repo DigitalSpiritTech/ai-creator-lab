@@ -153,6 +153,11 @@ export const AGENT_TOOL_DESCRIPTIONS: Record<string, string> = {
     `Propose the same generation as an existing candidate with another recipe: same shot spec, references, and destination, the prompt rewritten in that model's style, no re-brief. ${PROPOSAL_NOTE}`,
     'Example: the user rejects beat 4\'s still and says "try that one with GPT Image", so pass its assetId and the GPT Image recipe id.',
   ].join(" "),
+  start_quick_ad: [
+    "Start a Quick Ad from two lines: what is sold (productSummary) and who it is for (audience). Saves the brief, a one-beat four-second talking script, and the Ad in quick mode; nothing is generated.",
+    "Then three approvals, each the user's: the frame (compose_still with count 1), the talking clip (generate_clip), the export (assemble_ad). Pass spokenLine or onScreenText only when the user gave them.",
+    'Example: "quick ad: Ridgeline 32 oz bottle keeps drinks cold 24 hours, for commuters on TikTok" gives productSummary "Ridgeline 32 oz bottle keeps drinks cold 24 hours" and audience "Commuters, on TikTok".',
+  ].join(" "),
 };
 
 /**

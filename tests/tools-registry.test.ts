@@ -41,6 +41,7 @@ const ROSTER = [
   "restore_document_version",
   "set_recipe_preference",
   "regenerate_with",
+  "start_quick_ad",
 ];
 
 const workflowsDir = fileURLToPath(new URL("../packages/recipes/workflows", import.meta.url));

@@ -56,11 +56,21 @@ export const CutSchema = z
   .strict();
 export type Cut = z.infer<typeof CutSchema>;
 
+/**
+ * How an Ad is made: `full` is the whole UGC Creator flow (character, face lock, body, sheet,
+ * product, script, shots, voice-overs); `quick` is the Quick Ad (F11): a two-line brief, one
+ * composed frame, one talking clip, and the export. Both use the same shots, cut, and assembly.
+ */
+export const AdModeSchema = z.enum(["full", "quick"]);
+export type AdMode = z.infer<typeof AdModeSchema>;
+
 export const ContentPieceSchema = z
   .object({
     id: IdSchema,
     projectId: IdSchema,
     type: z.literal("ad"),
+    /** Saved before modes existed means `full`. */
+    mode: AdModeSchema.default("full"),
     title: text(120),
     scriptId: IdSchema,
     scriptVersion: z.number().int().positive(),
@@ -147,6 +157,7 @@ export function planShots(
   title: string,
   now: number,
   newId: () => string,
+  mode: AdMode = "full",
 ): ContentPiece {
   const shots = script.beats.map((beat) => ({
     id: newId(),
@@ -160,6 +171,7 @@ export function planShots(
     id,
     projectId: script.projectId,
     type: "ad",
+    mode,
     title,
     scriptId: script.id,
     scriptVersion: script.version,

@@ -54,7 +54,7 @@ test("a throwaway content type appears in the shell's App list and workspace wit
   appPlugins.registerPlugin(throwaway);
   appPlugins.registerPanelComponents({ "throwaway.lyrics": Lyrics, "throwaway.mix": Mix });
 
-  assert.deepEqual(appChoices(), [...installed, { id: "jingle-maker", label: "Jingle Maker", contentTypes: ["jingle"] }]);
+  assert.deepEqual(appChoices(), [...installed, { id: "jingle-maker", label: "Jingle Maker", contentTypes: ["jingle"], modes: [] }]);
   assert.equal(appLabel("jingle-maker"), "Jingle Maker");
   assert.equal(appPlugins.contentTypeForApp("jingle-maker")?.id, "jingle");
 
@@ -68,9 +68,9 @@ test("a throwaway content type appears in the shell's App list and workspace wit
   assert.match(render("jingle", "ugc-ad.script"), /data-panel="lyrics"/, "a panel of another content type falls back to the default");
 });
 
-test("UGC Ad's workspace still has its five tabs, each with a component", () => {
+test("UGC Ad's workspace has its five tabs and the Quick Ad tab, each with a component", () => {
   const panels = appPlugins.resolvePanels("ad");
-  assert.deepEqual(panels.map(({ panel }) => panel.title), ["Documents", "Script", "Shots", "Assets", "Export"]);
+  assert.deepEqual(panels.map(({ panel }) => panel.title), ["Documents", "Script", "Shots", "Assets", "Export", "Quick Ad"]);
   assert.ok(panels.every(({ component }) => typeof component === "function"));
 });
 

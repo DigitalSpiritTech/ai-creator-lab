@@ -18,6 +18,7 @@ import {
   chooseWardrobe,
 } from "@creator-lab/core/domain/library";
 import { GenerationProposalSchema, GenerationTargetSchema, type Job, JobSchema } from "@creator-lab/core/domain/job";
+import { QUICK_AD } from "@creator-lab/core/domain/quick-ad";
 import { EditedPromptSchema, type ShotSpecInput } from "@creator-lab/core/domain/shot-spec";
 import { assembleAd as assembleExport } from "@/server/assembly";
 import { defaultRecipes, recipesFor } from "@creator-lab/recipes/defaults";
@@ -259,7 +260,7 @@ export const composeStill = defineTool({
       contentId: IdSchema,
       beatIndex: z.number().int().positive(),
       recipeId: RecipeIdSchema.optional(),
-      count,
+      count: z.number().int().min(1).max(4).optional().describe("Candidates to make: 4 by default, 1 in a Quick Ad."),
     })
     .strict(),
   output: GenerationProposalSchema,
@@ -303,7 +304,7 @@ export const composeStill = defineTool({
       recipeId: input.recipeId,
       shot: parts,
       references,
-      count: input.count,
+      count: input.count ?? (content.mode === "quick" ? QUICK_AD.frameCount : 4),
       target: { kind: "shot", contentId: content.id, beatIndex: beat.index, slot: "still" },
       aspectRatio: "9:16",
     });

@@ -1,5 +1,5 @@
 /**
- * The domain tool registry. The agent loop and the MCP server read this one list: the 33 core
+ * The domain tool registry. The agent loop and the MCP server read this one list: the 34 core
  * roster tools, then the tools content plugins register (named with their plugin's id as a prefix,
  * `<plugin_id>_<action>`), each offered to the assistant only in projects of its own content type.
  * @packageDocumentation
@@ -34,6 +34,7 @@ import {
 } from "@/server/tools/library";
 import { recipeOptions, regenerateWith, rerenderProposal, setRecipePreferenceTool } from "@/server/tools/overrides";
 import { getProjectState, saveBriefTool } from "@/server/tools/project";
+import { startQuickAd } from "@/server/tools/quick-ad";
 import { type Tool, type ToolContext, toJsonSchemaTools } from "@/server/tools/registry";
 import { planShots, resetShots, saveScript, setCutOrder } from "@/server/tools/script";
 import { extractVoiceSampleTool, generateVoiceOver } from "@/server/tools/voice";
@@ -49,8 +50,8 @@ export { createGenerationContext } from "@/server/tools/generation-context";
  * save_product, save_script, plan_shots, compose_still, refine_still, generate_clip, extract_voice_sample, generate_voice_over, approve,
  * archive_asset, delete_asset_everywhere, assemble_ad, list_assets, list_recipes, then the Library
  * tools link_library_item, unlink_library_item, archive_library_item, create_set, set_cut_order, reset_shots,
- * the document tools list_document_versions and restore_document_version, and the model override
- * tools set_recipe_preference and regenerate_with.
+ * the document tools list_document_versions and restore_document_version, the model override
+ * tools set_recipe_preference and regenerate_with, and start_quick_ad (the Quick Ad, v0.2 F11).
  */
 export const TOOLS: readonly Tool[] = [
   getProjectState,
@@ -86,6 +87,7 @@ export const TOOLS: readonly Tool[] = [
   restoreDocumentVersion,
   setRecipePreferenceTool,
   regenerateWith,
+  startQuickAd,
 ];
 
 /**

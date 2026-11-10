@@ -30,6 +30,26 @@ export const AppRefSchema = z
 export type AppRef = z.infer<typeof AppRefSchema>;
 
 /**
+ * A mode of a content type: another way through the same content type, with its own steps (a
+ * subset of the content type's, in order) and the panel it opens on. The Ad's Quick Ad is one: a
+ * two-line brief, one frame, one clip, the export. The Projects page offers each mode as its own
+ * start button; the content type itself is the full flow.
+ */
+export const ContentModeSchema = z
+  .object({
+    id: PluginIdSchema,
+    /** "Quick Ad". */
+    label: label(40),
+    description: label(400),
+    /** The panel a project started in this mode opens on. */
+    panel: PanelIdSchema,
+    /** The step ids this mode moves through, in order; each is a step of the content type. */
+    steps: z.array(PluginIdSchema).min(1).max(24),
+  })
+  .strict();
+export type ContentMode = z.infer<typeof ContentModeSchema>;
+
+/**
  * A content type: the kind of content piece a project makes (the Ad), the App it belongs to, and
  * the panel the workspace opens on. Its steps and panels are registered separately (below) and
  * reference it by id, so another plugin can add a step or a panel to an existing content type.
@@ -45,6 +65,8 @@ export const ContentTypeSchema = z
     pieceType: PluginIdSchema,
     /** The panel the project workspace shows first. */
     defaultPanel: PanelIdSchema,
+    /** Other ways through this content type (the Quick Ad), besides the full flow. */
+    modes: z.array(ContentModeSchema).max(8).default([]),
   })
   .strict();
 export type ContentType = z.infer<typeof ContentTypeSchema>;

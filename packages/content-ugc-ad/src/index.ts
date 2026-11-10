@@ -1,6 +1,7 @@
 /**
  * UGC Ad, the first content type, as a plugin: an Ad made in the UGC Creator App (docs/PRODUCT.md),
- * the 13-step flow from brief to the next piece with the domain tools each step uses, and the five
+ * the 13-step flow from brief to the next piece with the domain tools each step uses, the Quick Ad
+ * mode (a two-line brief, one frame, one talking clip, the export: three approvals), and the six
  * workspace panels beside the chat.
  *
  * The declaration is data only. The panels' React components are registered on the client by the
@@ -22,6 +23,7 @@ export const UGC_AD_PANELS = {
   shots: "ugc-ad.shots",
   assets: "ugc-ad.assets",
   export: "ugc-ad.export",
+  quick: "ugc-ad.quick",
 } as const;
 export type UgcAdPanelId = (typeof UGC_AD_PANELS)[keyof typeof UGC_AD_PANELS];
 
@@ -33,6 +35,7 @@ type UgcAdStep = Omit<StepInput, "contentType" | "id" | "panel"> & { id: string;
  */
 export const UGC_AD_STEPS = [
   { id: "brief", number: 3, title: "Brief", tools: ["save_brief"], panel: UGC_AD_PANELS.documents },
+  { id: "quick", number: 3, title: "Quick Ad brief", tools: ["start_quick_ad"], panel: UGC_AD_PANELS.quick },
   { id: "character", number: 4, title: "Character", tools: ["save_character_bible", "link_library_item"], panel: UGC_AD_PANELS.documents },
   { id: "face", number: 5, title: "Face lock", tools: ["generate_face_candidates", "select_reference"], panel: UGC_AD_PANELS.assets },
   { id: "body", number: 6, title: "Body reference", tools: ["generate_body_reference", "select_reference"], panel: UGC_AD_PANELS.assets },
@@ -50,6 +53,18 @@ export const UGC_AD_STEPS = [
 /** The step ids the creative director moves through (`nextStage`). */
 export type UgcAdStepId = (typeof UGC_AD_STEPS)[number]["id"];
 
+/**
+ * The Quick Ad, a mode of the Ad (v0.2 F11): the same Ad, shots, and export with three approvals
+ * (the frame, the clip, the export). Its id is the Ad's `mode` (`quick`).
+ */
+export const QUICK_AD_MODE = {
+  id: "quick",
+  label: "Quick Ad",
+  description: "Two lines about what you sell and who it's for, one composed frame, one talking clip, and the export. Three approvals.",
+  panel: UGC_AD_PANELS.quick,
+  steps: ["quick", "stills", "clips", "assemble"],
+} as const satisfies { id: string; label: string; description: string; panel: UgcAdPanelId; steps: readonly UgcAdStepId[] };
+
 export const ugcAdPlugin = definePlugin({
   id: UGC_AD_PLUGIN_ID,
   label: "UGC Ad",
@@ -61,6 +76,7 @@ export const ugcAdPlugin = definePlugin({
       description: "A 15 to 30 second vertical ad (1080 x 1920) built around one AI creator character and one product.",
       pieceType: "ad",
       defaultPanel: UGC_AD_PANELS.documents,
+      modes: [{ ...QUICK_AD_MODE, steps: [...QUICK_AD_MODE.steps] }],
     },
   ],
   steps: UGC_AD_STEPS.map((step) => ({ ...step, tools: [...step.tools], contentType: UGC_AD_CONTENT_TYPE })),
@@ -70,5 +86,6 @@ export const ugcAdPlugin = definePlugin({
     { id: UGC_AD_PANELS.shots, contentType: UGC_AD_CONTENT_TYPE, title: "Shots", order: 30 },
     { id: UGC_AD_PANELS.assets, contentType: UGC_AD_CONTENT_TYPE, title: "Assets", order: 40 },
     { id: UGC_AD_PANELS.export, contentType: UGC_AD_CONTENT_TYPE, title: "Export", order: 50 },
+    { id: UGC_AD_PANELS.quick, contentType: UGC_AD_CONTENT_TYPE, title: "Quick Ad", order: 60 },
   ],
 });
