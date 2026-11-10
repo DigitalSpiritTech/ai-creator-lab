@@ -13,7 +13,7 @@ Run them in that order. Runs 1 and 3 prove the pipeline; runs 2 and 4 only chang
 
 ## Before the first run
 
-Run the app natively on the machine whose browser you will use. Node 22.13 or newer, ffmpeg and ffprobe on PATH (`brew install ffmpeg` on macOS), a Comfy API key with a Cloud plan for the open-weights workflows (Router models need only credits), and an Anthropic key for the assistant.
+Run the app natively on the machine whose browser you will use. Node 22.13 or newer (ffmpeg and ffprobe come with `npm ci`; `FFMPEG_PATH` and `FFPROBE_PATH` override them), a Comfy API key with a Cloud plan for the open-weights workflows (Router models need only credits), and an Anthropic key for the assistant.
 
 ```
 npm ci

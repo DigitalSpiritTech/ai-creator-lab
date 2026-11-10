@@ -18,7 +18,7 @@ The repository is an npm workspace (`npm ci` at the root installs everything). R
 
 Packages ship TypeScript source with no build step: each `package.json` `exports` points at `.ts` files, Next.js compiles them (`transpilePackages`), and `tsx` runs them in tests and scripts. Import another package by name (`@creator-lab/core/domain/job`, `@creator-lab/executors`); `@/` paths are for the app only. ESLint refuses an import that breaks the direction in the table, and anything a client component imports must stay free of keys, `node:` modules, and the executors.
 
-`tests/` at the root holds the offline tests for every package; `npm test` runs them all.
+`tests/` at the root holds the offline tests for every package; `npm test` runs them all. `examples/` holds the gallery examples (see `examples/README.md`); `npm test` checks each against its schema.
 
 ### Adding a content type
 
@@ -103,6 +103,17 @@ Releases are tagged on `main` only, with semantic versions and a `v` prefix (`v0
 6. Write the release notes on GitHub from the tag.
 
 A hotfix branches from `main` (`hotfix/X.Y.Z+1`), merges into both `main` and `develop`, and is tagged the same way.
+
+### Publishing `npx ai-creator-lab` to npm (maintainer only, not done yet)
+
+Today `npx ai-creator-lab` runs from a clone (the root `package.json` has the `bin`). Publishing it so `npx ai-creator-lab` works anywhere is a maintainer step that has not been taken; contributors and agents never run `npm publish`. The root package is private and its workspace packages are not on npm, so the published package is a staged copy, not the repository root:
+
+1. From a clean checkout of the release tag, `npm ci` and `npm run build`.
+2. Stage a folder with the layout the launcher expects: `apps/creator/.next` (without `.next/cache`), `apps/creator/next.config.ts`, `apps/creator/package.json`, `apps/creator/scripts/launch.mjs` and `serve.mjs`, `assets/`, `packages/recipes/workflows/`, `examples/`, `README.md`, `LICENSE`, and `THIRD_PARTY_NOTICES.md`.
+3. Give it a `package.json` named `ai-creator-lab` with the release version, `"bin": { "ai-creator-lab": "apps/creator/scripts/launch.mjs" }`, `"engines": { "node": ">=22.13.0" }`, a `files` list of the folders above, and as `dependencies` the runtime packages the server loads outside the build (`next`, `react`, `react-dom`, `sharp`, `ffmpeg-static`, `@derhuerst/ffprobe-static`, and any other `serverExternalPackages`), at the versions in `package-lock.json`.
+4. `npm pack` the folder, install the tarball in an empty folder on a second machine (or a VM) with no Homebrew ffmpeg, run `npx ai-creator-lab`, and make a Quick Ad with `MOCK_RECIPES=1` (docs/QUICKSTART.md). Only then `npm publish` it, with two-factor authentication, from the maintainer's account.
+
+The launcher already handles that layout: with no `.git` it never builds (the build ships in the package) and keeps the data folder in `~/.ai-creator-lab`, outside the npx cache. A script for steps 2 and 3 is open in `docs/TASKS.md` (E13).
 
 ## Versions
 

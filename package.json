@@ -37,5 +37,8 @@
     "eslint-config-next": "16.4.2",
     "tsx": "4.23.15",
     "typescript": "6.0.3"
+  },
+  "bin": {
+    "ai-creator-lab": "apps/creator/scripts/launch.mjs"
   }
 }

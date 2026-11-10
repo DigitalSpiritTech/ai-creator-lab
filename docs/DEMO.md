@@ -1,5 +1,7 @@
 # Demo script: a UGC ad with LTX, start to finish
 
+Video: not recorded yet. The link goes here once it is (the README's "Demo" link points to this page).
+
 Target length 2:45. Record the screen at 1920 x 1080, browser zoom 110 percent, notifications off. Use the project from your finished open-weights test run, so every candidate, take, clip and export already exists and nothing waits on screen; where a card says it is generating, cut to the result. Everything on screen is SFW and uses an invented creator and an invented product; say so once. Hide the keys: Settings shows the two key fields as set, never a key.
 
 Voice: plain, first person, no hype. Read the words in quotes. Where a line says "cut", use a still screenshot of that screen held for the time given; the rest is screen recording at normal speed.
