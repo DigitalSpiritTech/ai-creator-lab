@@ -59,20 +59,30 @@ export function ProjectList() {
           event.preventDefault();
           void create(apps[0]?.id);
         }}
-        className="mb-6 flex max-w-xl gap-2"
+        className="mb-6 flex flex-col gap-2"
         aria-label="New project"
       >
-        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ridgeline bottle, October" maxLength={80} aria-label="Project name" />
-        {apps.map((app, index) => [
-          <Button key={app.id} type={index === 0 ? "submit" : "button"} disabled={busy || !name.trim()} onClick={index === 0 ? undefined : () => void create(app.id)}>
-            <Plus /> New {app.label} project
-          </Button>,
-          ...app.modes.map((mode) => (
-            <Button key={`${app.id}/${mode.id}`} type="button" variant="outline" title={mode.description} disabled={busy || !name.trim()} onClick={() => void create(app.id, mode.panel)}>
-              <Zap /> {mode.label}
-            </Button>
-          )),
-        ])}
+        <Input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Name the new project, e.g. Ridgeline bottle, October"
+          maxLength={80}
+          aria-label="Project name"
+          className="h-10 w-full max-w-2xl text-base"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          {apps.map((app, index) => [
+            <Button key={app.id} type={index === 0 ? "submit" : "button"} disabled={busy || !name.trim()} onClick={index === 0 ? undefined : () => void create(app.id)}>
+              <Plus /> New {app.label} project
+            </Button>,
+            ...app.modes.map((mode) => (
+              <Button key={`${app.id}/${mode.id}`} type="button" variant="outline" title={mode.description} disabled={busy || !name.trim()} onClick={() => void create(app.id, mode.panel)}>
+                <Zap /> {mode.label}
+              </Button>
+            )),
+          ])}
+          {!name.trim() ? <span className="text-xs text-muted-foreground">Type a name to start a project.</span> : null}
+        </div>
       </form>
       {error ? <div className="mb-4"><Notice>{error}</Notice></div> : null}
       {projects === null ? (
