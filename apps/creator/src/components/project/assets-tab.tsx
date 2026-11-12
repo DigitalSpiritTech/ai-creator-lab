@@ -275,7 +275,7 @@ function VoiceSlot({ character }: { character: CharacterItem }) {
         <h3 className="text-xs font-medium">Voice</h3>
         <span className="text-[11px] text-muted-foreground">Voice-overs on b-roll beats are read in this voice.</span>
       </div>
-      {voice ? <AssetMedia asset={voice} className="max-w-md" /> : <p className="text-xs text-muted-foreground">No voice sample yet. The first voice-over takes it from the first approved talking clip, or upload a recording of the creator.</p>}
+      {voice ? <AssetMedia asset={voice} className="max-w-md" /> : <p className="text-xs text-muted-foreground">No voice sample yet. The first voice-over lifts it from the first approved talking clip, or upload a recording of the creator.</p>}
       <div className="flex flex-wrap items-center gap-2">
         <PhotoUpload
           label={voice ? "Use another recording" : "Use a recording"}
@@ -295,7 +295,7 @@ function VoiceSlot({ character }: { character: CharacterItem }) {
           title={talkingClipApproved ? "Lift the voice from the first approved talking clip" : "Approve a talking clip first"}
           onClick={() => void run(() => callTool("extract_voice_sample", { projectId, characterId: character.id }, projectId))}
         >
-          <Mic /> {voice?.provenance.source === "derived" ? "Take it from the approved clip again" : "Take it from the approved clip"}
+          <Mic /> {voice?.provenance.source === "derived" ? "Lift it from the approved clip again" : "Lift it from the approved clip"}
         </Button>
       </div>
     </div>

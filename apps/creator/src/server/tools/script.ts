@@ -70,7 +70,7 @@ export function saveScriptRevision(
   const updatedContentIds: string[] = [];
   for (const content of store.content.listByScript(script.id)) {
     if (content.scriptVersion !== current.version) continue;
-    store.content.update(syncShotsToScript(content, script, revised.change, time, newId));
+    store.content.update(syncShotsToScript(content, script, revised.change, time, newId, current));
     updatedContentIds.push(content.id);
   }
   return { script, change: revised.change, updatedContentIds };
@@ -104,7 +104,7 @@ export const planShots = defineTool({
       if (content.scriptVersion === script.version) return content;
       const before = store.scripts.get(script.id, content.scriptVersion);
       if (!before) fail("storage", "The script version this content piece used is missing.");
-      return store.content.update(syncShotsToScript(content, script, diffScripts(before, script), time, newId));
+      return store.content.update(syncShotsToScript(content, script, diffScripts(before, script), time, newId, before));
     }),
 });
 

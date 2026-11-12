@@ -17,16 +17,22 @@ import { ownerField } from "./owner";
 
 /**
  * `export` is an assembled ad; it plays like a video but is never a shot candidate. `audio` is a
- * voice sample or a generated voice-over; it has no size.
+ * voice sample or a generated voice-over; it has no size. `transcript` is a take's words with their
+ * times (JSON, from a speech to text recipe); it has no size either.
  */
-export const AssetKindSchema = z.enum(["image", "video", "sheet", "storyboard", "export", "audio"]);
+export const AssetKindSchema = z.enum(["image", "video", "sheet", "storyboard", "export", "audio", "transcript"]);
 export type AssetKind = z.infer<typeof AssetKindSchema>;
 
-export const AssetMimeSchema = z.enum(["image/png", "image/jpeg", "image/webp", "image/svg+xml", "video/mp4", "audio/flac", "audio/mpeg", "audio/wav"]);
+export const AssetMimeSchema = z.enum(["image/png", "image/jpeg", "image/webp", "image/svg+xml", "video/mp4", "audio/flac", "audio/mpeg", "audio/wav", "application/json"]);
 export type AssetMime = z.infer<typeof AssetMimeSchema>;
 
 export function isAudioMime(mime: string): boolean {
   return mime.startsWith("audio/");
+}
+
+/** Kinds with no pixel size. */
+export function isSizeless(kind: AssetKind): boolean {
+  return kind === "audio" || kind === "transcript";
 }
 
 export const AssetInputRefSchema = z.object({ assetId: IdSchema, sha256: Sha256Schema }).strict();
@@ -97,6 +103,17 @@ export const AudioMetadataSchema = z
   .strict();
 export type AudioMetadata = z.infer<typeof AudioMetadataSchema>;
 
+/** What a transcript file holds, so lists can show it without reading the file. */
+export const TranscriptionMetadataSchema = z
+  .object({
+    /** Length of the recording that was transcribed. */
+    durationSeconds: z.number().positive(),
+    wordCount: z.number().int().nonnegative(),
+    language: z.string().max(32).nullable(),
+  })
+  .strict();
+export type TranscriptionMetadata = z.infer<typeof TranscriptionMetadataSchema>;
+
 /** Kinds stored as MP4 with playback metadata. */
 export function isPlayable(kind: AssetKind): boolean {
   return kind === "video" || kind === "export";
@@ -120,6 +137,7 @@ export const AssetSchema = z
     state: AssetStateSchema,
     video: VideoMetadataSchema.optional(),
     audio: AudioMetadataSchema.optional(),
+    transcription: TranscriptionMetadataSchema.optional(),
     revision: RevisionSchema,
     createdAt: TimestampSchema,
   })
@@ -128,7 +146,11 @@ export const AssetSchema = z
   .refine((asset) => !isPlayable(asset.kind) || asset.video !== undefined, "Video assets need playback metadata.")
   .refine((asset) => (asset.kind === "audio") === isAudioMime(asset.mime), "Audio assets must be audio files.")
   .refine((asset) => asset.kind !== "audio" || (asset.audio !== undefined && asset.width === 0 && asset.height === 0), "Audio assets need playback metadata and no size.")
-  .refine((asset) => asset.kind === "audio" || (asset.width > 0 && asset.height > 0), "Image and video assets need a size.");
+  .refine(
+    (asset) => (asset.kind === "transcript") === (asset.mime === "application/json") && (asset.kind !== "transcript" || (asset.transcription !== undefined && asset.width === 0 && asset.height === 0)),
+    "Transcript assets are JSON files with their word count and no size.",
+  )
+  .refine((asset) => isSizeless(asset.kind) || (asset.width > 0 && asset.height > 0), "Image and video assets need a size.");
 export type Asset = z.infer<typeof AssetSchema>;
 
 export function isActive(asset: Asset): boolean {
@@ -167,6 +189,7 @@ export function extensionFor(mime: AssetMime): string {
     "audio/flac": "flac",
     "audio/mpeg": "mp3",
     "audio/wav": "wav",
+    "application/json": "json",
   };
   return extensions[mime];
 }

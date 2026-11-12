@@ -151,7 +151,7 @@ function ShotRow({
             variant={approvedStill && !approvedClip && !clips.length && !clipPending.length ? "default" : "outline"}
             disabled={busy || !approvedStill}
             onClick={() => void ask("generate_clip")}
-            title={approvedStill ? (lipSync ? "Lip-synced to the approved voice take (Wan 2.2 S2V, 4.8 s at most)" : undefined) : "Approve a still first"}
+            title={approvedStill ? (lipSync ? "Lip-synced to the approved voice recording (Wan 2.2 S2V, 4.8 s at most)" : undefined) : "Approve a still first"}
           >
             <Clapperboard /> {clips.length || clipPending.length ? "Another clip" : lipSync ? "Lip-sync clip" : "Make clip"}
           </Button>
@@ -167,7 +167,7 @@ function ShotRow({
                   : "Read this line in the cloned voice; the clip is then lip-synced to it, so every talking beat shares one voice"
               }
             >
-              <Mic /> {voices.length || voicePending.length ? "Another take" : voiceOver ? "Voice-over" : "Voice take"}
+              <Mic /> {voices.length || voicePending.length ? "Another recording" : voiceOver ? "Voice-over" : "Voice recording"}
             </Button>
           ) : null}
         </div>
@@ -178,7 +178,7 @@ function ShotRow({
           <ApprovedSlot label="Approved clip" asset={approvedClip ? assets.get(approvedClip) : undefined} />
           {voiceOver || approvedVoice ? (
             <div>
-              <div className="mb-1 text-xs text-muted-foreground">{voiceOver ? "Approved voice-over" : "Approved voice take"}</div>
+              <div className="mb-1 text-xs text-muted-foreground">{voiceOver ? "Approved voice-over" : "Approved voice recording"}</div>
               {approvedVoice && assets.get(approvedVoice) ? (
                 <AssetMedia asset={assets.get(approvedVoice)!} />
               ) : (
@@ -202,7 +202,7 @@ function ShotRow({
           ) : null}
           {voices.length || voicePending.length ? (
             <div>
-              <div className="mb-1 text-xs text-muted-foreground">{slotStatus(shot.voice, voiceOver ? "voice-over" : "voice take")}</div>
+              <div className="mb-1 text-xs text-muted-foreground">{slotStatus(shot.voice, voiceOver ? "voice-over" : "voice recording")}</div>
               <CandidateGrid assets={voices} pending={voicePending} approvedId={approvedVoice} onApprove={(asset) => approve("voice", asset)} compact className="lg:grid-cols-2" />
             </div>
           ) : null}

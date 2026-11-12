@@ -325,7 +325,7 @@ export function nextStage(snapshot: ProjectSnapshot): Stage {
     if (slot.state === "open") {
       return {
         ...stepOf("voice"),
-        guidance: waiting(`beat ${voiceBeat.beatIndex} voice-over`, slot.candidateIds, "voice", `When the user chooses, call approve with kind voice, contentId ${content.id}, beatIndex ${voiceBeat.beatIndex}. Say the take plays on the Shots tab.`),
+        guidance: waiting(`beat ${voiceBeat.beatIndex} voice-over`, slot.candidateIds, "voice", `When the user chooses, call approve with kind voice, contentId ${content.id}, beatIndex ${voiceBeat.beatIndex}. Say the recording plays on the Shots tab.`),
       };
     }
     if (running(snapshot, (target) => target.kind === "shot" && target.slot === "voice" && target.beatIndex === voiceBeat.beatIndex)) {

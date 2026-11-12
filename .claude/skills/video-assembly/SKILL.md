@@ -19,6 +19,16 @@ description: Join approved clips into a 1080 x 1920 ad with ffmpeg, burn in on-s
 6. Write through a temp file and rename. Verify with ffprobe: 1080 x 1920, 24 fps, expected duration within 0.1 seconds, audio present unless muted. Extract a poster at the first frame.
 7. Save the export record: ordered asset ids and hashes, script version, captions on or off, mute, output hash, ffmpeg command summary.
 
+## Take then cutaways (second strategy)
+
+`assemble_ad` with `strategy: "take_cutaways"` (`cutaway.ts` plans, `cutaway-render.ts` renders, `edl.ts` drafts from the transcript):
+
+1. Inputs: the Ad's approved take (one continuous talking clip with sound), its EDL (a versioned document: b-roll windows `{ beatIndex, start, end }` and captions `{ start, end, text }`, seconds on the take), and each window beat's approved clip.
+2. Picture: the take normalized like any segment (scale, crop or pad, `setsar=1`, `fps=24`), then `split` and `trim=start_frame:end_frame` around the windows; each window is its clip normalized and held or cut to the window's frames; `concat` joins the parts. Window edges snap to whole frames.
+3. Captions: one `drawtext` per line with `enable='between(t,start,end)'` on the joined picture, so they follow the transcript's word times whatever is on screen.
+4. Sound: `-map 0:a:0 -c:a copy` when the take's audio is AAC (the export's audio is the take's, packet for packet); otherwise encoded once to AAC. No output `-t`, so the sound is never cut short.
+5. Verify as above (1080 x 1920, 24 fps, frame count from the take's length). Re-exporting after an EDL edit generates nothing.
+
 ## Later
 
 Remotion or similar for animated captions and transitions; per-beat transitions; music bed with ducking; Cloud-side combine when the app runs without ffmpeg.

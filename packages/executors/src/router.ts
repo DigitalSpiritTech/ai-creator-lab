@@ -21,7 +21,7 @@ import {
   toJobError,
 } from "./jobs";
 import { commitOutput, EMPTY_OUTPUT_NOTICE, isEmptyOutput, outputLocation, tempBeside, type OutputExpectation } from "./media";
-import { buildRouterBody, prepareImages } from "./router-body";
+import { buildRouterBody, lengthSubject, prepareImages } from "./router-body";
 import { downloadMedia, productionMediaPorts, type MediaPorts } from "./router-download";
 import { extractRouterMedia, routerFamily, type RouterMedia } from "./router-output";
 import type {
@@ -218,7 +218,7 @@ export class RouterExecutor implements Executor {
   async estimate(request: GenerationRequest): Promise<EstimateOutcome> {
     try {
       const recipe = this.recipeOf(request);
-      const body = await this.body(recipe, request.input);
+      const body = await this.body(recipe, request.input, request.spec?.kind);
       const ceiling = ceilingFor(recipe, request.input);
       if (!this.options.quote) return { kind: "unquoted", ceilingUsd: ceiling, note: recipe.costHint };
       const quote = await this.options.quote(recipe.model, body);
@@ -240,7 +240,7 @@ export class RouterExecutor implements Executor {
       claimed = claimForSubmit(this.jobs, job, this.now());
       if (!claimed || this.inFlight.has(job.id)) return { kind: "existing", job: loadJob(this.jobs, job.id) };
       const sending = claimed;
-      return await this.track(job.id, async () => this.collect(sending, await this.body(recipe, sending.request.input)));
+      return await this.track(job.id, async () => this.collect(sending, await this.body(recipe, sending.request.input, sending.request.spec?.kind)));
     } catch (cause) {
       const error = toJobError(cause);
       const current = this.jobs.get(job.id);
@@ -279,7 +279,10 @@ export class RouterExecutor implements Executor {
     if (job.status !== "retrieving") return { kind: "not_ready", job };
     const recipe = this.recipeOf(job.request);
     const media = capabilityMedia(recipe.capability);
-    if (media === "text" || media === "audio") return this.retrieveFailed(job, jobError("invalid", `${media === "text" ? "Text" : "Speech"} models are not retrieved from Router.`));
+    if (media === "text" || media === "audio" || media === "transcript") {
+      const what = media === "text" ? "Text" : media === "audio" ? "Speech" : "Transcription";
+      return this.retrieveFailed(job, jobError("invalid", `${what} models are not retrieved from Router.`));
+    }
     try {
       const found = this.pending.get(job.id) ?? (await this.replay(job));
       const bytes = found.kind === "inline" ? found.bytes : await downloadMedia(found.url, this.mediaPorts);
@@ -313,10 +316,10 @@ export class RouterExecutor implements Executor {
   }
 
   /** Builds the native body and checks it against the model's published schema when one is cached. */
-  private async body(recipe: RouterRecipe, semantic: GenerationInput): Promise<Record<string, unknown>> {
+  private async body(recipe: RouterRecipe, semantic: GenerationInput, specKind?: string): Promise<Record<string, unknown>> {
     const input = absoluteInput(semantic, this.mediaRoot);
     const images = await prepareImages(input.images, recipe, this.options.assetUrl);
-    const body = buildRouterBody(recipe, input, images);
+    const body = buildRouterBody(recipe, input, images, lengthSubject(specKind));
     const document = await this.options.schemaFor?.(recipe.model).catch(() => undefined);
     const schema = document ? requestBodySchema(document) : undefined;
     if (schema) {
@@ -328,7 +331,7 @@ export class RouterExecutor implements Executor {
 
   private async run(job: Job, body?: Record<string, unknown>): Promise<RunResult> {
     const recipe = this.recipeOf(job.request);
-    const native = body ?? (await this.body(recipe, job.request.input));
+    const native = body ?? (await this.body(recipe, job.request.input, job.request.spec?.kind));
     const note = (notice: string) => {
       try {
         const current = this.jobs.get(job.id);

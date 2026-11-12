@@ -428,7 +428,7 @@ export const ROUTER_RECIPES: RouterRecipe[] = [
   }),
 ];
 
-const MOCK_CAPABILITIES: Capability[] = ["text_to_image", "image_edit", "image_to_video", "first_last_to_video", "text_to_video", "speech_to_video", "text_to_speech"];
+const MOCK_CAPABILITIES: Capability[] = ["text_to_image", "image_edit", "image_to_video", "first_last_to_video", "text_to_video", "speech_to_video", "text_to_speech", "speech_to_text"];
 
 export const MOCK_RECIPES: MockRecipe[] = MOCK_CAPABILITIES.map((capability) =>
   MockRecipeSchema.parse({
@@ -457,6 +457,8 @@ export const DEFAULT_RECIPE_IDS: Partial<Record<Capability, { primary: string; s
   text_to_video: { primary: "wan-2.2-t2v", hosted: "router-ltx-2.5-fast", mock: "mock-text-to-video" },
   speech_to_video: { primary: "wan-2.2-s2v", mock: "mock-speech-to-video" },
   text_to_speech: { primary: "chatterbox-turbo-tts", siblings: ["qwen3-tts-voice-clone"], mock: "mock-text-to-speech" },
+  // Both Whisper recipes are planned (`./transcription`), not in the catalog yet; picking falls through to the mock.
+  speech_to_text: { primary: "whisper-transcribe-cloud", hosted: "router-whisper-transcribe", mock: "mock-speech-to-text" },
 };
 
 /**

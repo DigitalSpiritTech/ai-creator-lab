@@ -233,6 +233,27 @@ export const MIGRATIONS: readonly string[] = [
   CREATE INDEX IF NOT EXISTS chains_project ON chains(project_id);
   CREATE INDEX IF NOT EXISTS chains_status ON chains(status);
   `,
+  // Version 10: take-then-cutaways (v0.2 F5), after the chains of version 9. An Ad's edit decision
+  // list is a document (kind edl, subject the Ad), so document history is rebuilt once more with the
+  // wider kind check, every row copied as it was. Self-contained: the EDL itself and the Ad's take
+  // live in the content piece's JSON (both default to empty), and transcripts are asset rows, so no
+  // other table changes.
+  `
+  CREATE TABLE document_versions_next (
+    kind TEXT NOT NULL CHECK (kind IN ('brief', 'bible', 'product', 'piece', 'edl')),
+    subject_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    data TEXT NOT NULL CHECK (json_valid(data)
+      AND json_extract(data, '$.kind') = kind
+      AND json_extract(data, '$.subjectId') = subject_id
+      AND json_extract(data, '$.version') = version),
+    PRIMARY KEY (kind, subject_id, version)
+  );
+  INSERT INTO document_versions_next(kind, subject_id, version, data)
+    SELECT kind, subject_id, version, data FROM document_versions;
+  DROP TABLE document_versions;
+  ALTER TABLE document_versions_next RENAME TO document_versions;
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

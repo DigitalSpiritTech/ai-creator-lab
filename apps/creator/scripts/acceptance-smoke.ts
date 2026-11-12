@@ -1,6 +1,9 @@
 /**
  * Acceptance smoke: the whole UGC Creator flow with the mock executor, on a temporary data
- * directory, then a Quick Ad (a two-line brief, three approvals: the frame, the clip, the export),
+ * directory, then the same Ad as a recording with cutaways (a mock talking recording with real
+ * sound, its mock transcription, the EDL drafted, exported, edited by two seconds, and exported
+ * again with no new job and the same audio), then a Quick Ad (a two-line brief, three approvals:
+ * the frame, the clip, the export),
  * then a Social Post (a plugin content type: brief, copy, a 4:5 still through the gate,
  * approval, and export), then a 10 s talking clip made as a chained recording of two segments on a 5 s mock model
  * (stitched, approved, and exported), then a restart and a relocated restore. No provider is called: every proposal names a
@@ -17,10 +20,10 @@
  * Usage: npm run test:acceptance
  * @packageDocumentation
  */
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { type ChildProcess, execFile, spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -30,7 +33,10 @@ import type { ExportRecord } from "@creator-lab/core/domain/content";
 import type { GenerationProposal, Job } from "@creator-lab/core/domain/job";
 import type { BeatInput } from "@creator-lab/core/domain/script";
 import type { SpendPolicy } from "@creator-lab/core/domain/spend";
+import type { Edl } from "@creator-lab/core/domain/edl";
+import { ffmpegPath } from "@creator-lab/executors/media";
 import { renderMockWav } from "@creator-lab/executors/mock";
+import { childEnv } from "@creator-lab/executors/process";
 import { addBudgetExtension, currentSpendPolicy } from "@creator-lab/executors/spend";
 import { defaultWorkflowsDir } from "@creator-lab/recipes/workflows-dir";
 import { importAudio } from "@/server/media/audio";
@@ -58,11 +64,14 @@ interface Client {
   /** Submits an approved proposal and waits for every candidate; returns the new asset ids. */
   submit(projectId: string, proposal: GenerationProposal): Promise<string[]>;
   /** Submits a chained clip proposal and waits for the stitched clip to land on its beat; returns its asset id. */
-  submitTake(projectId: string, contentId: string, proposal: GenerationProposal): Promise<string>;
+  /** Submits a chained recording and waits for the stitched clip on beat 1, or (`into: "take"`) on the Ad's talking recording slot. */
+  submitTake(projectId: string, contentId: string, proposal: GenerationProposal, into?: "beat" | "take"): Promise<string>;
   upload(name: string, bytes: Uint8Array): Promise<Asset>;
   /** Uploads a voice recording (WAV bytes) as an audio asset in a project. */
   uploadVoice(projectId: string, name: string, bytes: Uint8Array): Promise<Asset>;
   download(assetId: string): Promise<Buffer>;
+  /** The project's generation jobs (the HTTP layer sees those of the last five minutes, which covers a run). */
+  jobIds(projectId: string): Promise<string[]>;
   /** Saves the monthly budget and reset day; returns the spend policy in force. */
   setBudget(monthlyBudgetUsd: number, budgetResetDay: number): Promise<SpendPolicy>;
   /** Tries "add to this month"; returns whether it was refused (it must be, at a zero operator ceiling). */
@@ -382,6 +391,75 @@ async function confirmTakeAfterRestart(client: Client, take: Awaited<ReturnType<
   check(hash(bytes) === take.sha256, `${how}: the chained recording still downloads intact`);
 }
 
+/** Decodes a downloaded MP4 with the app's ffmpeg: its AAC packets and PCM hashed, and one frame's mean color. */
+async function inspectExport(bytes: Buffer, frameAt: number): Promise<{ packets: string; pcm: string; color: number[] }> {
+  const dir = await mkdtemp(join(tmpdir(), "creator-lab-acceptance-cut-"));
+  try {
+    const path = join(dir, "export.mp4");
+    await writeFile(path, bytes);
+    const run = (args: string[]) =>
+      new Promise<Buffer>((done, reject) =>
+        execFile(ffmpegPath(), ["-v", "error", "-i", path, ...args, "-"], { env: childEnv(), encoding: "buffer", maxBuffer: 64_000_000, timeout: 60_000 }, (error, stdout) => (error ? reject(error) : done(stdout))),
+      );
+    const packets = await run(["-map", "0:a:0", "-c:a", "copy", "-f", "adts"]);
+    const pcm = await run(["-map", "0:a:0", "-f", "s16le", "-acodec", "pcm_s16le"]);
+    const frame = await new Promise<Buffer>((done, reject) =>
+      execFile(ffmpegPath(), ["-v", "error", "-ss", String(frameAt), "-i", path, "-frames:v", "1", "-vf", "crop=800:400:140:240", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { env: childEnv(), encoding: "buffer", maxBuffer: 16_000_000, timeout: 60_000 }, (error, stdout) => (error ? reject(error) : done(stdout))),
+    );
+    const color = [0, 1, 2].map((channel) => {
+      let sum = 0;
+      for (let index = channel; index < frame.length; index += 3) sum += frame[index];
+      return sum / (frame.length / 3);
+    });
+    return { packets: hash(packets), pcm: hash(pcm), color };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Take then cutaways on the same Ad: the mock take (a real MP4 with sound), its mock transcription
+ * (the script's words spread over the take), the drafted EDL, an export, beat 2's window moved by
+ * two seconds, and a second export. The edit and both exports create no job, the take's sound is
+ * identical in both, and the picture at a time only the old window covered changed.
+ */
+async function runCutaways(client: Client, flow: Awaited<ReturnType<typeof runFlow>>) {
+  const { projectId, contentId } = flow;
+  const takeProposal = await client.tool<GenerationProposal>("generate_take", { contentId, recipeId: "mock-image-to-video" }, projectId);
+  check(takeProposal.spec?.kind === "take" && takeProposal.durationSeconds === BEATS.length * 2, "the talking recording speaks every line over the whole script");
+  check(/Chained recording: 2 segments/.test(takeProposal.estimate.note), `8 s on the 5 s mock model is a chained recording (${takeProposal.estimate.note})`);
+  const takeId = await client.submitTake(projectId, contentId, takeProposal, "take");
+  await client.tool("approve", { kind: "take", contentId, assetId: takeId }, projectId);
+  const transcribe = await client.tool<GenerationProposal>("transcribe_take", { contentId, recipeId: "mock-speech-to-text" }, projectId);
+  check(transcribe.capability === "speech_to_text" && transcribe.estimate.kind === "free", "the transcription goes through the gate like any generation");
+  const [transcriptId] = await client.submit(projectId, transcribe);
+  check(!!transcriptId, "a transcript asset");
+  const drafted = await client.tool<{ edl: Edl; version: number }>("save_edl", { contentId }, projectId);
+  check(drafted.version === 1 && drafted.edl.windows.map((window) => window.beatIndex).join() === "2,4", "the EDL drafts a window for each b-roll line (beats 2 and 4)");
+  step(client, `take, transcript, and EDL drafted: windows ${drafted.edl.windows.map((window) => `beat ${window.beatIndex} ${window.start}-${window.end} s`).join(", ")}`);
+
+  const jobsBefore = (await client.jobIds(projectId)).sort().join();
+  const firstId = randomUUID();
+  const first = await client.tool<Assembled>("assemble_ad", { contentId, exportId: firstId, strategy: "take_cutaways" }, projectId);
+  check(first.export.status === "completed" && first.export.strategy === "take_cutaways", `the cutaway export completed (${first.export.status === "failed" ? first.export.error : first.export.status})`);
+  const old = drafted.edl.windows[0];
+  const moved = drafted.edl.windows.map((window) => (window.beatIndex === 2 ? { ...window, start: window.start + 2, end: window.end + 2 } : window));
+  const edited = await client.tool<{ edl: Edl; version: number }>("save_edl", { contentId, windows: moved }, projectId);
+  check(edited.version === 2 && Math.abs(edited.edl.windows[0].start - old.start - 2) < 0.001, "the edit moved beat 2's window by two seconds as version 2");
+  const secondId = randomUUID();
+  const second = await client.tool<Assembled>("assemble_ad", { contentId, exportId: secondId, strategy: "take_cutaways" }, projectId);
+  check(second.export.status === "completed" && second.export.edlVersion === 2, "the re-export used the edited EDL");
+  check((await client.jobIds(projectId)).sort().join() === jobsBefore, "the EDL edit and both exports created no generation job");
+  check(first.asset && second.asset && first.asset.sha256 !== second.asset.sha256, "the two exports differ");
+  // A moment only the old window covered: b-roll in the first export, the take in the second.
+  const onlyOld = (old.start + Math.min(old.end, old.start + 2)) / 2;
+  const [a, b] = await Promise.all([inspectExport(await client.download(first.asset.id), onlyOld), inspectExport(await client.download(second.asset.id), onlyOld)]);
+  check(a.packets === b.packets && a.pcm === b.pcm, "the take's sound is identical in both exports (AAC packets and decoded PCM)");
+  check(a.color.some((value, channel) => Math.abs(value - b.color[channel]) > 20), `the picture at ${onlyOld.toFixed(2)} s changed with the window (${a.color.map(Math.round)} then ${b.color.map(Math.round)})`);
+  step(client, "take then cutaways: exported, beat 2's window moved by 2 s, re-exported with no new job and the same take audio");
+  return { cutawayExportId: secondId, cutaway: second };
+}
+
 interface PostExport {
   copyText: string;
   stills: { aspectRatio: string; assetId: string; sha256: string }[];
@@ -441,6 +519,13 @@ async function confirmAfterRestart(client: Client, flow: Awaited<ReturnType<type
   step(client, `${how}: everything is still there`);
 }
 
+async function confirmCutawaysAfterRestart(client: Client, flow: Awaited<ReturnType<typeof runFlow>>, cutaways: Awaited<ReturnType<typeof runCutaways>>, how: string): Promise<void> {
+  const again = await client.tool<Assembled>("assemble_ad", { contentId: flow.contentId, exportId: cutaways.cutawayExportId, strategy: "take_cutaways" }, flow.projectId);
+  check(JSON.stringify(again) === JSON.stringify(cutaways.cutaway), `${how}: the cutaway export comes back unchanged`);
+  const versions = await client.tool<{ current: number }>("list_document_versions", { kind: "edl", subjectId: flow.contentId }, flow.projectId);
+  check(versions.current === 2, `${how}: the EDL is still at version 2`);
+}
+
 /** The spend policy: a monthly budget and reset day save, and a zero operator ceiling refuses any extension. */
 async function checkBudget(client: Client): Promise<void> {
   const policy = await client.setBudget(5, 15);
@@ -460,18 +545,21 @@ async function runLayer(client: Client): Promise<void> {
   try {
     const flow = await runFlow(client);
     const quick = await runQuickAd(client);
+    const cutaways = await runCutaways(client, flow);
     const post = await runSocialPost(client);
     const take = await runChainedTake(client);
     await checkBudget(client);
     await client.restart(false);
     await confirmAfterRestart(client, flow, "after restart");
     await confirmQuickAdAfterRestart(client, quick, "after restart");
+    await confirmCutawaysAfterRestart(client, flow, cutaways, "after restart");
     await confirmPostAfterRestart(client, post, "after restart");
     await confirmTakeAfterRestart(client, take, "after restart");
     await confirmBudget(client, "after restart");
     await client.restart(true);
     await confirmAfterRestart(client, flow, "after relocating the data directory");
     await confirmQuickAdAfterRestart(client, quick, "after relocating the data directory");
+    await confirmCutawaysAfterRestart(client, flow, cutaways, "after relocating the data directory");
     await confirmPostAfterRestart(client, post, "after relocating the data directory");
     await confirmTakeAfterRestart(client, take, "after relocating the data directory");
     await confirmBudget(client, "after relocating the data directory");
@@ -512,6 +600,7 @@ async function toolsClient(): Promise<Client> {
     upload: (name, bytes) => importImage(store, { projectId: null, name, bytes }, { now: Date.now(), newId: randomUUID }),
     uploadVoice: (projectId, name, bytes) => importAudio(store, { projectId, name, bytes }, { now: Date.now(), newId: randomUUID }),
     download: async (assetId) => readAssetBytes(store.dataDir, store.assets.getRequired(assetId)),
+    jobIds: async (projectId) => store.jobs.listByProject(projectId).map((job) => job.id),
     // The tools layer pins the operator ceiling at zero, as the HTTP layer's environment does.
     setBudget: async (monthlyBudgetUsd, budgetResetDay) => {
       store.workspace.update({ monthlyBudgetUsd, budgetResetDay }, Date.now());
@@ -650,14 +739,16 @@ async function httpClient(): Promise<Client> {
       }
       throw new Error("Mock jobs did not finish in time.");
     },
-    submitTake: async (projectId, contentId, proposal) => {
+    submitTake: async (projectId, contentId, proposal, into = "beat") => {
       const { results } = await post<{ results: { outcome: string; message: string | null }[] }>(`/api/projects/${projectId}/proposals/submit`, { proposal });
       check(results.length === 1 && (results[0].outcome === "started" || results[0].outcome === "existing"), `the chained recording started (${results[0]?.outcome}: ${results[0]?.message})`);
       // Segments run one after another; the recording is done when the stitched clip lands on the beat.
       const deadline = Date.now() + 120_000;
       while (Date.now() < deadline) {
-        const state = await post<{ contents: { id: string; shots: { clip: { state: string; candidateIds?: string[] } }[] }[] }>(`/api/projects/${projectId}/tools/get_project_state`, { projectId });
-        const clip = state.contents.find((content) => content.id === contentId)?.shots[0]?.clip;
+        type Slot = { state: string; candidateIds?: string[] };
+        const state = await post<{ contents: { id: string; take?: Slot; shots: { clip: Slot }[] }[] }>(`/api/projects/${projectId}/tools/get_project_state`, { projectId });
+        const content = state.contents.find((entry) => entry.id === contentId);
+        const clip = into === "take" ? content?.take : content?.shots[0]?.clip;
         if (clip?.candidateIds?.length) return clip.candidateIds[0];
         await new Promise((wait) => setTimeout(wait, 250));
       }
@@ -673,6 +764,10 @@ async function httpClient(): Promise<Client> {
       form.set("audio", new Blob([new Uint8Array(bytes)], { type: "audio/wav" }), name);
       form.set("projectId", projectId);
       return (await json<{ asset: Asset }>("/api/uploads?as=voice", { method: "POST", body: form })).asset;
+    },
+    jobIds: async (projectId) => {
+      const { unfinished, recent } = await json<{ unfinished: Job[]; recent: Job[] }>(`/api/projects/${projectId}/jobs`);
+      return [...unfinished, ...recent].map((job) => job.id);
     },
     download: async (assetId) => {
       const response = await fetch(`${base}/api/assets/${assetId}?download`);

@@ -156,7 +156,7 @@ export function SettingsForm() {
       <section className="space-y-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold"><KeyRound className="size-4" /> Keys</h2>
         <p className="text-xs text-muted-foreground">
-          Keys are saved on this computer only and sent to the server once. The page never shows them again. Values in .env.local take precedence.
+          Keys are saved on this computer only and sent to the server once. The page never shows them again. Values in .env.local win over.
         </p>
         <form onSubmit={saveKeys} className="space-y-3" autoComplete="off">
           <div className="grid grid-cols-[10rem_1fr_auto] items-center gap-2 text-sm">

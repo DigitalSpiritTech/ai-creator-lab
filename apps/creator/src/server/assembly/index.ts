@@ -1,20 +1,24 @@
 /**
- * Assembly: joins a content piece's approved clips in cut order into one 1080 x 1920 ad and
- * saves an immutable export record with its `export` asset. Idempotent by export id: a retry
- * returns the saved record, joins a render already running in this process, or resumes a
- * render that was interrupted before it finished.
+ * Assembly: joins a content piece's approved clips in cut order into one 1080 x 1920 ad (the
+ * component build), or cuts the Ad's approved talking take with b-roll at its EDL's windows
+ * (take-then-cutaways), and saves an immutable export record with its `export` asset. Idempotent
+ * by export id: a retry returns the saved record, joins a render already running in this process,
+ * or resumes a render that was interrupted before it finished. Neither strategy generates anything.
  * @packageDocumentation
  */
 import { type Asset } from "@creator-lab/core/domain/asset";
 import {
+  type AssemblyStrategy,
   type ContentPiece,
   type ExportRecord,
+  beginCutawayExport,
   beginExport,
   completeExport,
   failExport,
   updateCut,
 } from "@creator-lab/core/domain/content";
 import { ServiceError, fail } from "@creator-lab/core/domain/failure";
+import { renderCutawayExport } from "@/server/assembly/cutaway-render";
 import { preflightRender, renderExport } from "@/server/assembly/render";
 import { removeMedia } from "@/server/media/files";
 import type { Store } from "@/server/store";
@@ -29,6 +33,8 @@ export interface AssembleInput {
   /** Saved to the content piece's cut before the export is frozen. */
   mute?: boolean;
   captions?: boolean;
+  /** `component` (the default) or `take_cutaways`. */
+  strategy?: AssemblyStrategy;
 }
 
 export interface AssembleContext {
@@ -65,11 +71,13 @@ async function startExport(store: Store, input: AssembleInput, exportId: string,
     const content = withCut(current, input, context.now());
     const script =
       store.scripts.get(content.scriptId, content.scriptVersion) ?? fail("storage", "This content piece's script version is missing.");
-    const record = beginExport(exportId, content, script, (id) => store.assets.get(id), context.now());
-    return { current, content, record };
+    const find = (id: string) => store.assets.get(id);
+    if (input.strategy !== "take_cutaways") return { current, content, record: beginExport(exportId, content, script, find, context.now()) };
+    const version = store.documents.latest("edl", content.id)?.version ?? 0;
+    return { current, content, record: beginCutawayExport(exportId, content, script, version, find, context.now()) };
   };
   const draft = loadPlan().record;
-  const fontPath = await preflightRender({ captions: draft.options.captions, texts: draft.sources.map((source) => source.onScreenText) });
+  const fontPath = await preflightRender({ captions: draft.options.captions, texts: captionTexts(draft) });
   const record = store.transaction(() => {
     const { current, content, record } = loadPlan();
     if (content !== current) store.content.update(content);
@@ -78,10 +86,16 @@ async function startExport(store: Store, input: AssembleInput, exportId: string,
   return { record, fontPath };
 }
 
+/** The caption texts a record burns in: the beats' on-screen text, or the EDL's timed captions. */
+function captionTexts(record: ExportRecord): string[] {
+  return record.strategy === "take_cutaways" ? (record.captionCues ?? []).map((cue) => cue.text) : record.sources.map((source) => source.onScreenText);
+}
+
 async function render(store: Store, record: ExportRecord, context: AssembleContext, fontPath: string | undefined): Promise<AssembleResult> {
   let rendered: Awaited<ReturnType<typeof renderExport>>;
   try {
-    rendered = await renderExport(store, record, { now: context.now(), newId: () => context.newId(), fontPath });
+    const options = { now: context.now(), newId: () => context.newId(), fontPath };
+    rendered = record.strategy === "take_cutaways" ? await renderCutawayExport(store, record, options) : await renderExport(store, record, options);
   } catch (error) {
     const message = error instanceof ServiceError ? error.message : FAILURE_MESSAGE;
     store.content.finishExport(failExport(record, message, context.now()));
@@ -118,7 +132,8 @@ export function assembleAd(store: Store, input: AssembleInput, context: Assemble
     if (existing.contentId !== input.contentId) return Promise.reject(new ServiceError("conflict", "This export id belongs to another content piece."));
     const differs =
       (input.mute !== undefined && input.mute !== existing.options.mute) ||
-      (input.captions !== undefined && input.captions !== existing.options.captions);
+      (input.captions !== undefined && input.captions !== existing.options.captions) ||
+      (input.strategy !== undefined && input.strategy !== existing.strategy);
     if (differs) return Promise.reject(new ServiceError("conflict", "This export id was already used with other options. Export again with a new id."));
     if (existing.status !== "rendering") return Promise.resolve(resultFor(store, existing));
   }
@@ -127,7 +142,7 @@ export function assembleAd(store: Store, input: AssembleInput, context: Assemble
   if (inFlight) return inFlight;
   const task = (async () => {
     if (existing) {
-      const fontPath = await preflightRender({ captions: existing.options.captions, texts: existing.sources.map((source) => source.onScreenText) });
+      const fontPath = await preflightRender({ captions: existing.options.captions, texts: captionTexts(existing) });
       return render(store, existing, context, fontPath);
     }
     const started = await startExport(store, input, exportId, context);

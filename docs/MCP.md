@@ -36,10 +36,10 @@ An MCP client has no proposal card to click, so the two actions that cannot be u
 
 | Flag | Off (default) | On (`=1`) |
 | --- | --- | --- |
-| `MCP_ALLOW_SPEND` | `approve_and_generate` is not offered and not callable. Generation tools (`compose_still`, `generate_clip`, `propose_candidates`, `start_quick_ad`'s next steps) still return proposals with the recipe, prompt, and estimated cost; you run them from the app, where each waits for your click. | `approve_and_generate` is offered. It is the spending gate: the client should call it only after you have read a proposal and said yes. It is held to the same monthly budget as the app, capped by `GENERATION_ALLOWANCE_USD` (zero blocks every paid run). It cannot add to a month; only a click in the app does that. Submitting the same proposal twice never runs it twice. |
+| `MCP_ALLOW_SPEND` | `approve_and_generate` is not offered and not callable. Generation tools (`compose_still`, `generate_clip`, `propose_candidates`, `generate_take`, `transcribe_take`, `start_quick_ad`'s next steps) still return proposals with the recipe, prompt, and estimated cost; you run them from the app, where each waits for your click. | `approve_and_generate` is offered. It is the spending gate: the client should call it only after you have read a proposal and said yes. It is held to the same monthly budget as the app, capped by `GENERATION_ALLOWANCE_USD` (zero blocks every paid run). It cannot add to a month; only a click in the app does that. Submitting the same proposal twice never runs it twice. |
 | `MCP_ALLOW_DELETE` | `delete_asset_everywhere` is not offered. `archive_asset` (restorable from the Archive page) is. | `delete_asset_everywhere` is offered: it removes a file for good and breaks every reference to it. Keep it off unless you are cleaning up on purpose. |
 
-The other tools are always offered: every roster tool (34 core tools, including `start_quick_ad`) and the installed plugins' tools, under their own names. Two resources let the client look at the work: `project://{id}/state` (the whole project as JSON) and `asset://{id}` (a candidate's file).
+The other tools are always offered: every roster tool (37 core tools, including `start_quick_ad` and the recording-with-cutaways tools `generate_take`, `transcribe_take`, and `save_edl`) and the installed plugins' tools, under their own names. Two resources let the client look at the work: `project://{id}/state` (the whole project as JSON) and `asset://{id}` (a candidate's file).
 
 ## Sample session: a Quick Ad
 

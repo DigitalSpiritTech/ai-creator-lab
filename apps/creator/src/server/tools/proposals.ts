@@ -114,30 +114,36 @@ export function pickRecipe(
   return fail("invalid", `No configured recipe can do ${capability.replaceAll("_", " ")} with ${references} reference image${references === 1 ? "" : "s"}.`);
 }
 
+/** A reference that is the run's one recording: a voice sample, or the take a transcription listens to. */
+function isRecording(asset: Asset): boolean {
+  return asset.kind === "audio" || asset.kind === "video";
+}
+
 /**
  * Loads proposal references, checking they are active stills (or, for a voice-over, one voice
- * recording) from this project or the Library.
+ * recording; for a transcription, the take with its sound) from this project or the Library.
  */
-export function referenceAssets(context: ToolContext, projectId: string, references: { role: string; assetId: string }[]): Asset[] {
+export function referenceAssets(context: ToolContext, projectId: string, references: { role: string; assetId: string }[], capability?: Capability): Asset[] {
   const linked = linkedReferenceIds(context.store, projectId);
   const assets = references.map(({ assetId }) => {
     const asset = context.store.assets.getRequired(assetId);
     if (asset.state.state !== "active") fail("invalid", "Restore every reference before using it.");
-    if (asset.kind !== "image" && asset.kind !== "sheet" && asset.kind !== "audio") fail("invalid", "References must be still images, reference sheets, or a voice recording.");
+    const transcribes = capability === "speech_to_text" && asset.kind === "video" && asset.video?.hasAudio === true;
+    if (asset.kind !== "image" && asset.kind !== "sheet" && asset.kind !== "audio" && !transcribes) fail("invalid", "References must be still images, reference sheets, or a voice recording.");
     if (!referenceableIn(context.store, projectId, asset, linked)) {
       fail("invalid", "References must come from this project or from a Library item linked to it. Link the item first.");
     }
     return asset;
   });
-  if (assets.filter((asset) => asset.kind === "audio").length > 1) fail("invalid", "A generation takes one voice recording.");
+  if (assets.filter(isRecording).length > 1) fail("invalid", "A generation takes one voice recording.");
   return assets;
 }
 
 function generationInput(spec: { prompt: string } & Pick<ProposalSpec, "aspectRatio" | "durationSeconds" | "slots" | "seed">, assets: Asset[]): GenerationInput {
-  const voice = assets.find((asset) => asset.kind === "audio");
+  const voice = assets.find(isRecording);
   return {
     prompt: spec.prompt,
-    images: assets.filter((asset) => asset.kind !== "audio").map((asset) => asset.relativePath),
+    images: assets.filter((asset) => !isRecording(asset)).map((asset) => asset.relativePath),
     ...(voice ? { audio: voice.relativePath } : {}),
     ...(spec.aspectRatio ? { aspectRatio: spec.aspectRatio } : {}),
     ...(spec.durationSeconds ? { durationSeconds: spec.durationSeconds } : {}),
@@ -251,8 +257,8 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
     if (!piece || piece.projectId !== spec.projectId) fail("not_found", "This content piece is not in the project.");
     if (!piece.slots[spec.target.slot]) fail("invalid", `This ${piece.type} has no ${spec.target.slot} slot. Its slots: ${Object.keys(piece.slots).join(", ")}.`);
   }
-  const assets = referenceAssets(context, spec.projectId, spec.references);
-  const picked = await proposalRecipe(context, spec, assets.filter((asset) => asset.kind !== "audio").length);
+  const assets = referenceAssets(context, spec.projectId, spec.references, spec.capability);
+  const picked = await proposalRecipe(context, spec, assets.filter((asset) => !isRecording(asset)).length);
   const placed = placeForProposal(context, picked);
   const recipe = placed.recipe;
   const shot = shotOf(spec);
@@ -266,7 +272,7 @@ export async function buildProposal(context: ToolContext, spec: ProposalSpec): P
   const slots = recipe.kind === "workflow" ? Object.fromEntries(Object.entries(spec.slots ?? {}).filter(([name]) => name in recipe.sidecar.slots)) : {};
   const estimated = take
     ? await estimateTake(executor, { requestId: id, projectId: spec.projectId, recipe, take, base: { aspectRatio: spec.aspectRatio, seed: spec.seed, slots } })
-    : summarizeEstimate(await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, prompt, slots }, assets) }));
+    : summarizeEstimate(await executor.estimate({ requestId: id, projectId: spec.projectId, recipe, input: generationInput({ ...spec, prompt, slots }, assets), spec: shot }));
   // Where it runs comes first, so a fallback to Comfy Cloud is never silent.
   const estimate = placed.note ? { ...estimated, note: `${placed.note} ${estimated.note}`.trim().slice(0, 600) } : estimated;
   return GenerationProposalSchema.parse({
@@ -307,7 +313,7 @@ export async function estimateTake(
  * the same way as when the proposal was built, for the recipe bound at submit.
  */
 export async function proposalChain(context: ToolContext, proposal: GenerationProposal): Promise<{ recipe: Recipe; take: ChainedTake } | undefined> {
-  if (proposal.spec?.kind !== "clip") return undefined;
+  if (proposal.spec?.kind !== "clip" && proposal.spec?.kind !== "take") return undefined;
   const generation = requireGeneration(context);
   const listed = (await generation.recipes()).find((entry) => entry.id === proposal.recipeId);
   if (!listed) fail("not_found", `There is no recipe ${proposal.recipeId}.`);
@@ -361,7 +367,7 @@ export async function proposalRequest(
   if (!listed) fail("not_found", `There is no recipe ${proposal.recipeId}.`);
   if (listed.capability !== proposal.capability) fail("invalid", "The proposal's recipe does not match its capability.");
   const recipe = boundForSubmit(generation.routing?.(), listed, proposal.backendId);
-  const assets = referenceAssets(context, proposal.projectId, proposal.references);
+  const assets = referenceAssets(context, proposal.projectId, proposal.references, proposal.capability);
   const inputs = assets.map((asset, index) => ({ role: proposal.references[index].role, assetId: asset.id, sha256: asset.sha256 }));
   // The server renders the prompt from the spec for the recipe that runs; only a prompt the person
   // edited on the card (bounded by EditedPromptSchema at the gate) replaces it.

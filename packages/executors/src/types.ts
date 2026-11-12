@@ -7,6 +7,7 @@
  */
 import type { Recipe, RecipeKind } from "@creator-lab/core/catalog";
 import type { GenerationInput, Job, JobError } from "@creator-lab/core/domain/job";
+import type { ShotSpec } from "@creator-lab/core/domain/shot-spec";
 
 export type { GenerationInput, Job, JobError, JobStorePort, RetrievedFile } from "@creator-lab/core/domain/job";
 export { GenerationInputSchema, JobErrorSchema, JobSchema, RetrievedFileSchema } from "@creator-lab/core/domain/job";
@@ -17,6 +18,8 @@ export interface GenerationRequest {
   projectId: string;
   recipe: Recipe;
   input: GenerationInput;
+  /** What the step asked for, when known; refusals word themselves by it ("this recording is 20 s"). */
+  spec?: ShotSpec;
 }
 
 /** Per-run measurements the provider reported, such as `queue_ms` and `execution_ms`. */

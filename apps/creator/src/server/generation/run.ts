@@ -144,7 +144,7 @@ export async function startGeneration(
   if (!executor) {
     return { kind: "blocked", error: jobError("invalid", `${request.recipe.title} needs a Comfy API key in .env.local before it can run.`) };
   }
-  const estimate = await executor.estimate({ requestId: request.requestId, projectId: request.projectId, recipe: request.recipe, input: request.input });
+  const estimate = await executor.estimate({ requestId: request.requestId, projectId: request.projectId, recipe: request.recipe, input: request.input, spec: request.spec });
   const decision = checkSpend(currentSpendPolicy(deps, { heldFor: options.heldFor }), estimate, request.recipe);
   if (decision.kind === "blocked") return decision.budget ? { kind: "blocked", error: decision.error, budget: decision.budget } : { kind: "blocked", error: decision.error };
   if (decision.kind === "confirm" && !options.confirmUnquoted) {

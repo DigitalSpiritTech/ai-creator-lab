@@ -27,7 +27,7 @@ import { INTERNAL_TOOLS, ROSTER_TOOLS, type ToolContext, callTool, toolsToJsonSc
 export const APPROVE_AND_GENERATE = "approve_and_generate";
 
 const APPROVE_DESCRIPTION = [
-  "Spends Comfy credits. This is the human's approval step: call it only after the user has seen a proposal (from propose_candidates, compose_still, generate_clip, generate_reference_sheet, or refine_still) and explicitly approved it.",
+  "Spends Comfy credits. This is the human's approval step: call it only after the user has seen a proposal (from propose_candidates, compose_still, generate_clip, generate_reference_sheet, refine_still, generate_take, or transcribe_take) and explicitly approved it.",
   "Submits the proposal as one generation job per candidate, gated by the same spend policy as the app (this month's budget plus any extension the user added in the app, capped by GENERATION_ALLOWANCE_USD; a zero ceiling blocks every paid run). A proposal that would cross the remaining budget is blocked with the spent, remaining, and cost figures; only the user can add to this month, in the app. Submitting the same proposal again never runs it twice.",
   "Pass confirmUnquoted only when the user accepted a reservation for a recipe without a live price; pass wait true to return once the candidates are finished.",
 ].join(" ");

@@ -109,6 +109,32 @@ const ClipSpecSchema = z
 /** A line read in the creator's voice: every speech model reads the words as they are. */
 const SpeechSpecSchema = z.object({ kind: z.literal("speech"), line: text(300) }).strict();
 
+/**
+ * The full talking take for a take-then-cutaways Ad: one continuous clip from the opening still
+ * (reference 1) in which the creator says every line of the script, in beat order, on camera.
+ * B-roll replaces the picture over some lines at export; the sound is always this clip's.
+ */
+const TakeSpecSchema = z
+  .object({
+    kind: z.literal("take"),
+    /** What the opening still shows (the first talking beat's visual). */
+    visual: text(400),
+    setting: z.string().trim().max(200).default(""),
+    lines: z.array(z.object({ beatIndex: z.number().int().positive(), text: text(300) }).strict()).min(1).max(8),
+    durationSeconds: z.number().positive().max(60),
+    character: ClipCharacterSchema.optional(),
+    product: SpecProductSchema.optional(),
+  })
+  .strict();
+
+/**
+ * A transcription with word timestamps. `vocabulary` is the script's lines: Whisper reads it as
+ * context, so names and claims are spelled the way the script spells them. Never spoken or shown.
+ */
+const TranscriptSpecSchema = z
+  .object({ kind: z.literal("transcript"), vocabulary: text(1000), language: z.string().trim().min(2).max(8).default("en") })
+  .strict();
+
 /** A prompt the assistant or the user wrote; every renderer passes it through unchanged. */
 const FreeSpecSchema = z.object({ kind: z.literal("free"), prompt: text(8000) }).strict();
 
@@ -121,6 +147,8 @@ export const ShotSpecSchema = z.discriminatedUnion("kind", [
   RefineSpecSchema,
   ClipSpecSchema,
   SpeechSpecSchema,
+  TakeSpecSchema,
+  TranscriptSpecSchema,
   FreeSpecSchema,
 ]);
 export type ShotSpec = z.infer<typeof ShotSpecSchema>;
@@ -134,6 +162,8 @@ export type StillSpec = z.infer<typeof StillSpecSchema>;
 export type RefineSpec = z.infer<typeof RefineSpecSchema>;
 export type ClipSpec = z.infer<typeof ClipSpecSchema>;
 export type SpeechSpec = z.infer<typeof SpeechSpecSchema>;
+export type TakeSpec = z.infer<typeof TakeSpecSchema>;
+export type TranscriptSpec = z.infer<typeof TranscriptSpecSchema>;
 
 /**
  * The longest prompt a person may type into a proposal card. The card's prompt is user input:

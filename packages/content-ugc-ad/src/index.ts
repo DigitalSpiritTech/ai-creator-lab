@@ -46,7 +46,7 @@ export const UGC_AD_STEPS = [
   { id: "stills", number: 10, title: "Shots", tools: ["compose_still", "refine_still", "approve"], panel: UGC_AD_PANELS.shots },
   { id: "clips", number: 11, title: "Clips", tools: ["generate_clip", "approve"], panel: UGC_AD_PANELS.shots },
   { id: "voice", number: 12, title: "Voice-overs", tools: ["extract_voice_sample", "generate_voice_over", "approve"], panel: UGC_AD_PANELS.shots },
-  { id: "assemble", number: 13, title: "Assemble", tools: ["set_cut_order", "assemble_ad"], panel: UGC_AD_PANELS.export },
+  { id: "assemble", number: 13, title: "Assemble", tools: ["set_cut_order", "assemble_ad", "generate_take", "transcribe_take", "save_edl"], panel: UGC_AD_PANELS.export },
   { id: "next", number: 14, title: "Next piece", tools: [], panel: UGC_AD_PANELS.export },
 ] as const satisfies readonly UgcAdStep[];
 

@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { capabilityMedia } from "@creator-lab/core/catalog";
 import { type Asset, type AssetKind, type AssetMime, AssetSchema, type AudioMetadata, type VideoMetadata, extensionFor, isAudioMime } from "@creator-lab/core/domain/asset";
 import { MediaPathSchema } from "@creator-lab/core/domain/common";
-import { addCandidates } from "@creator-lab/core/domain/content";
+import { addCandidates, addTakeCandidates } from "@creator-lab/core/domain/content";
 import { addPieceCandidates } from "@creator-lab/core/domain/piece";
 import { fail } from "@creator-lab/core/domain/failure";
 import { type GenerationTarget, type Job, type RetrievedFile, advanceJob, isTerminal } from "@creator-lab/core/domain/job";
@@ -49,6 +49,12 @@ export function attachToTarget(store: Store, target: GenerationTarget, assetIds:
     if (piece && piece.slots[target.slot]) store.pieces.update(addPieceCandidates(piece, target.slot, assetIds, now));
     return;
   }
+  if (target.kind === "take") {
+    // A transcript is found from the take it was made from (its provenance), so only takes attach.
+    const content = store.content.get(target.contentId);
+    if (content && target.slot === "clip") store.content.update(addTakeCandidates(content, assetIds, now));
+    return;
+  }
   if (target.kind !== "shot") return;
   const content = store.content.get(target.contentId);
   if (!content || !content.shots.some((shot) => shot.beatIndex === target.beatIndex)) return;
@@ -59,6 +65,7 @@ export function attachToTarget(store: Store, target: GenerationTarget, assetIds:
 export function assetKindFor(job: Job, mime: AssetMime): AssetKind {
   if (mime === "video/mp4") return "video";
   if (isAudioMime(mime)) return "audio";
+  if (mime === "application/json") return "transcript";
   if (mime === "image/svg+xml" && capabilityMedia(job.capability) === "video") return "storyboard";
   return job.request.target.kind === "reference_sheet" ? "sheet" : "image";
 }
@@ -90,6 +97,7 @@ async function stagedAsset(store: Store, job: Job, output: StagedOutput): Promis
     sha256: file.sha256,
     video,
     audio,
+    ...(file.transcription ? { transcription: file.transcription } : {}),
   };
 }
 

@@ -3,6 +3,7 @@
  * @packageDocumentation
  */
 import type { DatabaseSync } from "node:sqlite";
+import type { z } from "zod";
 import { type ContentPiece, ContentPieceSchema, type ExportRecord, ExportRecordSchema } from "@creator-lab/core/domain/content";
 import { fail } from "@creator-lab/core/domain/failure";
 import { decode, decodeAll, encode, writeRevision } from "@/server/store/connection";
@@ -64,7 +65,7 @@ export function contentRepository(database: DatabaseSync) {
   }
 
   /** Saves a new rendering export once; a retry with the same id returns the saved record. */
-  function addExport(record: ExportRecord): ExportRecord {
+  function addExport(record: z.input<typeof ExportRecordSchema>): ExportRecord {
     const checked = encode(ExportRecordSchema, record);
     const existing = getExport(checked.record.id);
     if (existing) return existing;

@@ -2,7 +2,8 @@
  * Documents in the project's artifact panel: the brief, a character's bible, a product card, and a
  * script. The live record (the project, the Library item, the script) stays the source of truth
  * every step reads; each saved change to its document fields is also kept as a numbered version,
- * so any earlier one can be read and restored. Scripts already keep their own version history.
+ * so any earlier one can be read and restored. Scripts already keep their own version history. An
+ * Ad's edit decision list (kind `edl`, subject the Ad) lives on the Ad and is versioned the same way.
  * @packageDocumentation
  */
 import { z } from "zod";
@@ -17,9 +18,13 @@ import { type Brief, BriefSchema } from "./project";
 import { BeatSchema, type Script } from "./script";
 import { ownerField } from "./owner";
 import { PieceBodySchema } from "./piece";
+import { EdlSchema, edlSummary } from "./edl";
 
-/** `piece` is a plugin content piece's body (such as a post's copy); its plugin validates the content. */
-export const DocumentKindSchema = z.enum(["brief", "bible", "product", "script", "piece"]);
+/**
+ * `piece` is a plugin content piece's body (such as a post's copy); its plugin validates the content.
+ * `edl` is an Ad's edit decision list for a take-then-cutaways export.
+ */
+export const DocumentKindSchema = z.enum(["brief", "bible", "product", "script", "piece", "edl"]);
 export type DocumentKind = z.infer<typeof DocumentKindSchema>;
 
 /** Who saved a version: the assistant (chat or an MCP client) or a person in the app. Null when not recorded. */
@@ -31,7 +36,7 @@ export const ScriptContentSchema = z
   .strict();
 
 const versionBase = {
-  /** The project id for a brief, the Library item id for a bible or product, the script id for a script, the piece id for a piece. */
+  /** The project id for a brief, the Library item id for a bible or product, the script id for a script, the piece id for a piece, the Ad's id for an EDL. */
   subjectId: IdSchema,
   ...ownerField,
   version: z.number().int().positive(),
@@ -55,6 +60,10 @@ export const ScriptVersionSchema = z
 export const PieceVersionSchema = z
   .object({ ...versionBase, kind: z.literal("piece"), content: PieceBodySchema })
   .strict();
+/** An Ad's edit decision list; `subjectId` is the Ad's id. */
+export const EdlVersionSchema = z
+  .object({ ...versionBase, kind: z.literal("edl"), content: EdlSchema })
+  .strict();
 
 export const DocumentVersionSchema = z.discriminatedUnion("kind", [
   BriefVersionSchema,
@@ -62,6 +71,7 @@ export const DocumentVersionSchema = z.discriminatedUnion("kind", [
   ProductVersionSchema,
   ScriptVersionSchema,
   PieceVersionSchema,
+  EdlVersionSchema,
 ]);
 export type DocumentVersion = z.infer<typeof DocumentVersionSchema>;
 
@@ -120,6 +130,8 @@ export function versionSummary(version: DocumentVersion): string {
       return clip(`${version.content.name} · ${version.content.allowedClaims.length} claims · ${version.content.imageAssetIds.length} photos`);
     case "script":
       return clip(`${version.content.title} · ${version.content.beats.length} beats`);
+    case "edl":
+      return clip(edlSummary(version.content));
     case "piece": {
       const first = Object.values(version.content).find((value): value is string => typeof value === "string" && value.trim().length > 0);
       return clip(first ?? `${Object.keys(version.content).length} fields`);
